@@ -76,10 +76,13 @@ def log_progress(times, completed, errors, task_count, start_time):
 
 
 def log_summary(times):
-    avg_time = sum(times) / len(times)
-    median_time = calculate_median(times)
-    logging.info(f"Average time per record: {avg_time:.6f} s")
-    logging.info(f"Median time per record: {median_time:.6f} s")
+    try:
+        avg_time = sum(times) / len(times)
+        median_time = calculate_median(times)
+        logging.info(f"Average time per record: {avg_time:.6f} s")
+        logging.info(f"Median time per record: {median_time:.6f} s")
+    except ZeroDivisionError:
+        pass
 
 
 def save_ids_to_file(urls: List[str], filename: str) -> None:
