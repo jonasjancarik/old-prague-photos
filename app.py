@@ -145,7 +145,7 @@ async def main_async():
         if records:
             logging.info(f"Scraped {len(records)} records.")
         else:
-            logging.warning("No records scraped.")
+            logging.info("No records scraped.")
 
 
 def main():
