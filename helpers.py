@@ -11,16 +11,19 @@ import json
 import asyncio
 from typing import List
 
+# Load the environment variables at module load time.
 load_dotenv()
 
+# Set up the logging configuration.
+logging.basicConfig(level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper()))
 
-# Fake User-Agent setup
+# Fake User-Agent setup.
 ua = UserAgent()
 user_agent = ua.random
 
 
 def get_full_url(path: str) -> str:
-    return f'{os.getenv("BASE_URL", "http://katalog.ahmp.cz")}{path}'
+    return f'{os.getenv("BASE_URL", "http://katalog.ahmp.cz/pragapublica")}{path}'
 
 
 @backoff.on_exception(backoff.expo, aiohttp.ClientError, max_tries=5)
@@ -49,22 +52,13 @@ async def fetch(
         raise  # Reraising the exception will trigger the backoff
 
 
-async def gather_with_timing(tasks):
-    for future in asyncio.as_completed(tasks):
-        start = time.perf_counter()
-        record = await future
-        time_taken = time.perf_counter() - start
-        yield record, time_taken
-
-
 def calculate_median(times):
     times.sort()
     mid_index = len(times) // 2
-    return (
-        (times[mid_index - 1] + times[mid_index]) / 2
-        if len(times) % 2 == 0
-        else times[mid_index]
-    )
+    if len(times) % 2 == 0:
+        return (times[mid_index - 1] + times[mid_index]) / 2
+    else:
+        return times[mid_index]
 
 
 def log_progress(times, completed, errors, task_count, start_time):
