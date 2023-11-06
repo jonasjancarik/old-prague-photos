@@ -26,7 +26,7 @@ def get_full_url(path: str) -> str:
     return f'{os.getenv("BASE_URL", "http://katalog.ahmp.cz/pragapublica")}{path}'
 
 
-@backoff.on_exception(backoff.expo, aiohttp.ClientError, max_tries=5)
+@backoff.on_exception(backoff.expo, aiohttp.ClientError, max_tries=10)
 async def fetch(
     session: aiohttp.ClientSession, url: str, method="GET", data=None
 ) -> str:
