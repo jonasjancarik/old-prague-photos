@@ -40,30 +40,43 @@ class RecordScraper:
     async def scrape_record(self, record_url: str) -> Record:
         try:
             async with self.semaphore:
-                start_time = time.perf_counter()
-                html = await fetch(self.session, record_url)
-                soup = BeautifulSoup(html, "html.parser")
-                record_data = {
-                    item_row.select_one(".tabularLabel")
-                    .text.strip()
-                    .lower()
-                    .replace(":", ""): item_row.select_one(".tabularValue")
-                    .text.strip()
-                    for item_row in soup.select(".itemRow")
-                }
-                xid = record_url.split("xid=")[-1].split("&")[0]
-                record_data["xid"] = xid
-                record_data["rejstříkové záznamy"] = [
-                    {
-                        "typ": index_block.select_one(".indexBlockLabel").text.strip(),
-                        "obsah": index_block.select_one(
-                            ".indexBlockPermalink"
-                        ).text.strip(),
+                async with aiohttp.ClientSession() as isolated_session:  # the website seems to send mixed up responses when using the same session (i.e. cookies)
+                    start_time = time.perf_counter()
+                    html = await fetch(isolated_session, record_url)
+                    soup = BeautifulSoup(html, "lxml")
+                    record_data = {
+                        item_row.select_one(".tabularLabel")
+                        .text.strip()
+                        .lower()
+                        .replace(":", ""): item_row.select_one(".tabularValue")
+                        .text.strip()
+                        for item_row in soup.select(".itemRow")
                     }
-                    for index_block in soup.select(".indexBlockOne")
-                ]
-                record = Record(record_data)
-                return record, time.perf_counter() - start_time
+                    xid = record_url.split("xid=")[-1].split("&")[0]
+                    xid_from_permalink = soup.select_one(
+                        "#permalinkPopupTextarea"
+                    ).text.split("xid=")[1]
+                    # check if the xid from the permalink matches the xid from the URL
+                    # mismatch happens sometimes when multiple requests are sent at the same
+                    # time with the same session cookie. This shouldn't happen with the isolated_session in use
+                    # (instead of the shared self.session)
+                    if xid != xid_from_permalink:
+                        logging.error(f"XID mismatch for {record_url}")
+                        raise Exception(f"XID mismatch for {record_url}")
+                    record_data["xid"] = xid
+                    record_data["rejstříkové záznamy"] = [
+                        {
+                            "typ": index_block.select_one(
+                                ".indexBlockLabel"
+                            ).text.strip(),
+                            "obsah": index_block.select_one(
+                                ".indexBlockPermalink"
+                            ).text.strip(),
+                        }
+                        for index_block in soup.select(".indexBlockOne")
+                    ]
+                    record = Record(record_data)
+                    return record, time.perf_counter() - start_time
         except Exception as e:
             logging.error(f"Failed to fetch and process record from {record_url}: {e}")
             return None, time.perf_counter() - start_time
