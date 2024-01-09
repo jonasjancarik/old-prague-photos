@@ -17,10 +17,10 @@ async def main_async():
     existing_ids = set()
     # Check if we want to rescrape existing records
     if os.getenv("RESCRAPE_EXISTING_RECORDS", "False").lower() not in ["true", "1"]:
-        if os.path.exists("output/records"):
+        if os.path.exists("output/raw_records"):
             existing_ids = set(
                 filename.split(".")[0]
-                for filename in os.listdir("output/records")
+                for filename in os.listdir("output/raw_records")
                 if filename.endswith(".json")
             )
 

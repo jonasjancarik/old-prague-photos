@@ -7,18 +7,18 @@ records = []
 PROCESS_RAW_RECORDS = True  # dev option, set to False if the records have already been processed once to save time and you're making changes to the filtering. For 10k records it takes around a minute or two to process them.
 
 if PROCESS_RAW_RECORDS:
-    # load all the records from the output/records directory - those are all JSON files
+    # load all the records from the output/raw_records directory - those are all JSON files
     print(
-        "Loading scraped records from output/records and filtering out those without a place..."
+        "Loading scraped records from output/raw_records and filtering out those without a place..."
     )
 
-    file_list = os.listdir("output/records")
+    file_list = os.listdir("output/raw_records")
 
     start_time = time.time()
 
     for i, filename in enumerate(file_list):
         if filename.endswith(".json"):
-            with open(f"output/records/{filename}", "r", encoding="utf-8") as file:
+            with open(f"output/raw_records/{filename}", "r", encoding="utf-8") as file:
                 records.append(json.load(file))
         percentage = (i + 1) / len(file_list) * 100
         elapsed_time = time.time() - start_time
@@ -53,7 +53,7 @@ if PROCESS_RAW_RECORDS:
         json.dump(records, file, ensure_ascii=False)
 
 else:
-    # load the records from the output/records_with_places.json file
+    # load the records from the output/raw_records_with_places.json file
 
     with open("output/records_with_places.json", "r", encoding="utf-8") as file:
         records = json.load(file)
