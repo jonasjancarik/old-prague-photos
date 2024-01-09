@@ -12,6 +12,8 @@ pip install -r requirements.txt
 
 ## Usage
 
+To get started without scraping data, download the raw records directory from https://www.dropbox.com/scl/fi/xxrqjzcc8bbc4nc2sbsil/raw_records.zip?rlkey=bf6yechb3fruh1sab0rorl9rb&dl=0 and place it in `./output` (i.e. you should then have `./output/raw_records` with individual JSON files in it). With this, you can skip the first step and go straight to the second step.
+
 1. `collect.py` - scrapes data from http://katalog.ahmp.cz/pragapublica
 2. `filter.py` - categorises the records according whether they have the house number (and where in the record) or not
 3. `geolocate.py` - geolocates the records with house number
