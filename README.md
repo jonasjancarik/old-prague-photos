@@ -13,11 +13,10 @@ pip install -r requirements.txt
 ## Usage
 
 1. `collect.py` - scrapes data from http://katalog.ahmp.cz/pragapublica
-2. `filter.py` - categorises the records according whether they have the house number and where in the record or not
-3. `geolocate.py` - geolocates the records with house number
-4. `export.py` - exports the data to CSV
-
-`process.py` is for debugging only
+2. `process.py` - first processesing of the data, drops all the records that don't have at least one key named "rejstříkové záznamy"."místo"
+3. `filter.py` - categorises the records according whether they have the house number and where in the record or not
+4. `geolocate.py` - geolocates the records with house number
+5. `export.py` - exports the data to CSV
 
 ## Status
 
