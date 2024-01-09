@@ -16,7 +16,7 @@ logging.basicConfig(level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(
 async def main_async():
     existing_ids = set()
     # Check if we want to rescrape existing records
-    if not os.getenv("RESCRAPE_EXISTING_RECORDS", "False").lower() in ["true", "1"]:
+    if os.getenv("RESCRAPE_EXISTING_RECORDS", "False").lower() not in ["true", "1"]:
         if os.path.exists("output/records"):
             existing_ids = set(
                 filename.split(".")[0]
@@ -27,9 +27,9 @@ async def main_async():
     async with aiohttp.ClientSession() as session:
         scraper = RecordScraper(session)
         # Determine whether to load record IDs from file or fetch new ones
-        if os.path.exists(RECORD_IDS_FILENAME) and not os.getenv(
+        if os.path.exists(RECORD_IDS_FILENAME) and os.getenv(
             "GET_RECORD_IDS", "True"
-        ).lower() in ["true", "1"]:
+        ).lower() not in ["true", "1"]:
             record_ids = read_urls_from_file(RECORD_IDS_FILENAME)
             logging.info(f"Loaded {len(record_ids)} record URLs from file.")
         else:
