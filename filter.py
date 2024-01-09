@@ -9,10 +9,10 @@ with open("output/records_with_places.json", "r", encoding="utf-8") as file:
 
 # loop through all the records and find those that contain "č. p." or "č.p." in the "rejstříkové záznamy"."obsah" key and count them
 filtered_records = {
-    'records_with_cp': [],
-    'records_with_cp_in_record_obsah': [],
-    'records_without_cp': [],
-    'records_without_dilo': [],
+    "records_with_cp": [],
+    "records_with_cp_in_record_obsah": [],
+    "records_without_cp": [],
+    "records_without_dilo": [],
 }
 
 for record in records:
@@ -26,7 +26,7 @@ for record in records:
     else:
         filtered_records["records_without_cp"].append(record)
 
-for record in filtered_records['records_without_cp']:
+for record in filtered_records["records_without_cp"]:
     item_started = False
     dilo_found = False
     for zaznam in record.get("rejstříkové záznamy", []):
