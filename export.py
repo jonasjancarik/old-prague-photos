@@ -190,8 +190,7 @@ def load_and_flatten_json(directory):
     return combined_data
 
 
-directory = "output/geolocation/ok"
-combined_data = load_and_flatten_json(directory)
+combined_data = load_and_flatten_json("output/geolocation/ok")
 
 if EXPORT_MINIMAL_FILE:
     # keep only druh,obsah,datace,zobrazeno,xid,start_date,end_date,geolocation_position_lon,geolocation_position_lat,geolocation_type,geolocation_endpoint,autor,poznámka columns
