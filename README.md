@@ -44,11 +44,14 @@ Install the required dependencies:
 pip install -r requirements.txt
 ```
 
-Finally, create a `.env` file in the project's root directory to store your API key. Add the following line to the file, replacing `your_api_key_here` with your actual key:
+Finally, create a `.env` file in the project's root directory to store your API keys. Add the following lines to the file, replacing the placeholders with your actual keys:
 
 ```env
 MAPY_CZ_API_KEY="your_api_key_here"
+OPENAI_API_KEY="your_openai_api_key_here"
 ```
+
+**Note:** The OpenAI API key is required for the LLM-based address extraction feature (`llm_geolocate.py`).
 
 ### 3. Running the Pipeline
 
@@ -61,11 +64,43 @@ python collect.py
 # 2. Filter and categorize the scraped records
 python filter.py
 
-# 3. Geolocate records with house numbers using the Mapy.cz API
+# 3. Geolocate records using the Mapy.cz API (includes LLM processing for records without structured addresses)
 python geolocate.py
 
 # 4. Export the final, geolocated data to a CSV file
 python export.py
+```
+
+### LLM-Based Address Extraction
+
+The `geolocate.py` script now includes integrated LLM processing for photos that don't contain structured addresses (čp.). When you run `python geolocate.py`, it will automatically:
+
+1. **First**: Process records with structured house numbers using the Mapy.cz API
+2. **Then**: Process records without structured addresses using OpenAI's GPT-4o to:
+   - Analyze Czech photo descriptions and metadata
+   - Extract streets, neighborhoods, landmarks, and building names
+   - Generate multiple candidate addresses for geocoding
+   - Assess confidence levels for each extraction
+   - Consider historical context and name changes
+
+The LLM processing is automatic if you have an OpenAI API key set. If not, it will skip the LLM processing and only handle structured addresses.
+
+**LLM Processing Features:**
+- Rate-limited to respect OpenAI API limits (2.5 requests/second)
+- Confidence-based filtering (only tries medium+ confidence extractions)
+- Comprehensive logging and progress reporting
+- Failed attempts are categorized separately for analysis
+
+**Testing LLM Functionality:**
+```bash
+# Test with a limited number of records first
+python geolocate.py --llm-limit 10
+
+# Process normally (all records)
+python geolocate.py
+
+# Show help and options
+python geolocate.py --help
 ```
 After running all the steps, the final dataset will be available at `output/old_prague_photos.csv`.
 

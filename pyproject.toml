@@ -1,0 +1,16 @@
+[project]
+name = "old-prague-photos"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiohttp>=3.12.14",
+    "beautifulsoup4>=4.13.4",
+    "fake-useragent>=2.2.0",
+    "lxml>=6.0.0",
+    "openai>=1.97.0",
+    "pandas>=2.3.1",
+    "python-dotenv>=1.1.1",
+    "requests>=2.32.4",
+]
