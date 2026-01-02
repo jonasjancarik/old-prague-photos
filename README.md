@@ -62,19 +62,22 @@ Use the CLI to run individual steps or the full pipeline:
 
 ```bash
 # Show all available commands
-uv run prague-photos --help
+uv run cli --help
 
 # Run the full pipeline
-uv run prague-photos pipeline
+uv run cli pipeline
 
 # Or run individual steps:
-uv run prague-photos collect      # Scrape records from archive
-uv run prague-photos filter       # Filter and categorize records
-uv run prague-photos geolocate    # Geolocate using Mapy.cz + LLM
-uv run prague-photos export       # Export to CSV
+uv run cli collect      # Scrape records from archive
+uv run cli filter       # Filter and categorize records
+uv run cli geolocate    # Geolocate using Mapy.cz + LLM
+uv run cli export       # Export to CSV
 
 # Test LLM with limited records:
-uv run prague-photos geolocate --llm-limit 5
+uv run cli geolocate --llm-limit 5
+
+# Force re-run (re-process already geolocated records):
+uv run cli geolocate --force
 ```
 
 ### LLM-Based Address Extraction
@@ -100,13 +103,16 @@ The LLM processing is automatic if you have an OpenAI API key set. If not, it wi
 **Testing LLM Functionality:**
 ```bash
 # Test with a limited number of records first
-python geolocate.py --llm-limit 10
+uv run cli geolocate --llm-limit 10
 
 # Process normally (all records)
-python geolocate.py
+uv run cli geolocate
+
+# Force re-run with a different model
+LLM_MODEL=gpt-4o uv run cli geolocate --force
 
 # Show help and options
-python geolocate.py --help
+uv run cli geolocate --help
 ```
 After running all the steps, the final dataset will be available at `output/old_prague_photos.csv`.
 

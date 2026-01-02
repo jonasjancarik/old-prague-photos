@@ -66,6 +66,10 @@ def geolocate(
             "--llm-limit", help="Limit LLM processing to N records (for testing)"
         ),
     ] = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Re-process records even if already geolocated"),
+    ] = False,
 ):
     """
     Geolocate photo records using Mapy.cz API and LLM.
@@ -80,6 +84,8 @@ def geolocate(
     sys.argv = ["geolocate"]
     if llm_limit is not None:
         sys.argv.extend(["--llm-limit", str(llm_limit)])
+    if force:
+        sys.argv.append("--force")
 
     import geolocate  # noqa: F401 - runs at module level with argparse
 

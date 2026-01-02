@@ -3,6 +3,7 @@ import os
 import re
 import logging
 import requests
+import hashlib
 from dotenv import load_dotenv
 import time
 import argparse
@@ -19,8 +20,14 @@ parser.add_argument(
     type=int,
     help="Limit the number of records to process with LLM (for testing purposes)",
 )
+parser.add_argument(
+    "--force",
+    action="store_true",
+    help="Re-process records even if already geolocated",
+)
 args = parser.parse_args()
 LLM_LIMIT = args.llm_limit
+FORCE_RERUN = args.force
 
 # Setup logging
 logging.basicConfig(
@@ -52,6 +59,30 @@ if LLM_API_KEY_AVAILABLE:
     logging.info("LLM API key found - LLM processing will be available")
 else:
     logging.warning("No LLM API key found - LLM processing will be skipped")
+
+
+# Prompt versioning storage
+PROMPTS_FILE = "output/prompts.json"
+
+
+def get_prompt_hash(prompt: str) -> str:
+    """Generate a short hash for a prompt template."""
+    return hashlib.sha256(prompt.encode()).hexdigest()[:8]
+
+
+def save_prompt(prompt_hash: str, prompt: str):
+    """Save prompt to the prompts.json file if not already present."""
+    prompts = {}
+    if os.path.exists(PROMPTS_FILE):
+        with open(PROMPTS_FILE, "r", encoding="utf-8") as f:
+            prompts = json.load(f)
+
+    if prompt_hash not in prompts:
+        prompts[prompt_hash] = prompt
+        os.makedirs(os.path.dirname(PROMPTS_FILE), exist_ok=True)
+        with open(PROMPTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(prompts, f, ensure_ascii=False, indent=2)
+        logging.info(f"Saved new prompt with hash {prompt_hash}")
 
 
 def list_directory(directory):
@@ -86,31 +117,8 @@ class LocationInfo:
 
 
 class LLMGeolocator:
-    def __init__(self):
-        # Model configurable via env, defaults to Gemini Flash (cheap and fast)
-        # Examples: "gpt-4o", "gemini/gemini-2.0-flash", "claude-3-haiku-20240307"
-        self.model = os.getenv("LLM_MODEL", "gemini/gemini-2.0-flash")
-        logging.info(f"LLMGeolocator initialized with model: {self.model}")
-
-    def extract_location_info(self, record: Dict) -> LocationInfo:
-        """Extract structured location information from record"""
-
-        # Prepare input data
-        obsah = record.get("obsah", "")
-        misto_entries = [
-            item["obsah"]
-            for item in record.get("rejstříkové záznamy", [])
-            if item.get("typ", "").lower() == "místo"
-        ]
-        dilo_entries = [
-            item["obsah"]
-            for item in record.get("rejstříkové záznamy", [])
-            if item.get("typ", "").lower() == "dílo"
-        ]
-        datace = record.get("datace", "")
-
-        # Create extraction prompt
-        prompt = f"""
+    # Prompt templates (defined as class vars for hashing)
+    EXTRACTION_PROMPT_TEMPLATE = """
 Analyzuj tuto historickou fotografii Prahy a extrahuj informace o lokalizaci:
 
 Popis: "{obsah}"
@@ -135,6 +143,66 @@ Pravidla:
 - U approximate_address preferuj formát "ulice číslo, Praha-čtvrť"
 - Zohledni historické názvy a jejich moderní ekvivalenty
 """
+
+    SYNTHESIS_PROMPT_TEMPLATE = """
+Na základě extrahovaných informací o historické fotografii Prahy vytvoř možné adresy pro geocoding:
+
+Extrahované informace:
+- Ulice: {street_name}
+- Čtvrť: {neighborhood}
+- Památka/landmark: {landmark}
+- Budova: {building_name}
+- Přibližná adresa: {approximate_address}
+- Rok: {year}
+
+Vygeneruj 3-5 možných adres, které by mohly být úspěšně geocodovány v současné Praze:
+- Zohledni historické změny názvů ulic
+- Použij současné názvy pražských městských částí
+- Zahrň alternativní formáty (s/bez čísla, s/bez městské části)
+
+Vrať pouze JSON array řetězců:
+["adresa1", "adresa2", "adresa3", ...]
+"""
+
+    def __init__(self):
+        # Model configurable via env, defaults to Gemini Flash (cheap and fast)
+        # Examples: "gpt-4o", "gemini/gemini-2.0-flash", "claude-3-haiku-20240307"
+        self.model = os.getenv("LLM_MODEL", "gemini/gemini-2.0-flash")
+
+        # Compute and store prompt hashes for tracking
+        self.extraction_prompt_hash = get_prompt_hash(self.EXTRACTION_PROMPT_TEMPLATE)
+        self.synthesis_prompt_hash = get_prompt_hash(self.SYNTHESIS_PROMPT_TEMPLATE)
+
+        # Save prompts to file on init
+        save_prompt(self.extraction_prompt_hash, self.EXTRACTION_PROMPT_TEMPLATE)
+        save_prompt(self.synthesis_prompt_hash, self.SYNTHESIS_PROMPT_TEMPLATE)
+
+        logging.info(f"LLMGeolocator initialized with model: {self.model}")
+
+    def extract_location_info(self, record: Dict) -> LocationInfo:
+        """Extract structured location information from record"""
+
+        # Prepare input data
+        obsah = record.get("obsah", "")
+        misto_entries = [
+            item["obsah"]
+            for item in record.get("rejstříkové záznamy", [])
+            if item.get("typ", "").lower() == "místo"
+        ]
+        dilo_entries = [
+            item["obsah"]
+            for item in record.get("rejstříkové záznamy", [])
+            if item.get("typ", "").lower() == "dílo"
+        ]
+        datace = record.get("datace", "")
+
+        # Create extraction prompt from template
+        prompt = self.EXTRACTION_PROMPT_TEMPLATE.format(
+            obsah=obsah,
+            misto_entries=misto_entries,
+            dilo_entries=dilo_entries,
+            datace=datace,
+        )
 
         try:
             response = litellm.completion(
@@ -182,26 +250,15 @@ Pravidla:
         if location_info.confidence == "low":
             return []
 
-        # Create synthesis prompt
-        prompt = f"""
-Na základě extrahovaných informací o historické fotografii Prahy vytvoř možné adresy pro geocoding:
-
-Extrahované informace:
-- Ulice: {location_info.street_name}
-- Čtvrť: {location_info.neighborhood}
-- Památka/landmark: {location_info.landmark}
-- Budova: {location_info.building_name}
-- Přibližná adresa: {location_info.approximate_address}
-- Rok: {year}
-
-Vygeneruj 3-5 možných adres, které by mohly být úspěšně geocodovány v současné Praze:
-- Zohledni historické změny názvů ulic
-- Použij současné názvy pražských městských částí
-- Zahrň alternativní formáty (s/bez čísla, s/bez městské části)
-
-Vrať pouze JSON array řetězců:
-["adresa1", "adresa2", "adresa3", ...]
-"""
+        # Create synthesis prompt from template
+        prompt = self.SYNTHESIS_PROMPT_TEMPLATE.format(
+            street_name=location_info.street_name,
+            neighborhood=location_info.neighborhood,
+            landmark=location_info.landmark,
+            building_name=location_info.building_name,
+            approximate_address=location_info.approximate_address,
+            year=year,
+        )
 
         try:
             response = litellm.completion(
@@ -302,6 +359,9 @@ def try_llm_addresses(record: Dict, geolocator: LLMGeolocator) -> Optional[Dict]
             if result:
                 # Add LLM metadata to the result
                 result["llm_generated"] = True
+                result["llm_model"] = geolocator.model
+                result["llm_extraction_prompt_hash"] = geolocator.extraction_prompt_hash
+                result["llm_synthesis_prompt_hash"] = geolocator.synthesis_prompt_hash
                 result["llm_location_info"] = asdict(location_info)
                 result["llm_original_address"] = address
                 result["llm_confidence"] = location_info.confidence
@@ -371,12 +431,15 @@ def save_to_file(directory, filename, data):
 
 logging.info(f"Loaded {len(records['records_with_cp'])} records with čp.")
 
-# drop records that have already been geolocated, even unsuccessfully
-geolocated_and_failed_ids = geolocated_ids.union(geolocation_failed_ids)
-
-logging.info(
-    f"Will skip {len(geolocated_and_failed_ids)} already geolocated records ({len(geolocated_ids)} successfully and {len(geolocation_failed_ids)} where geolocation failed)."
-)
+# drop records that have already been geolocated, even unsuccessfully (unless --force)
+if FORCE_RERUN:
+    geolocated_and_failed_ids = set()  # Don't skip any records
+    logging.info("--force flag set: will reprocess all records")
+else:
+    geolocated_and_failed_ids = geolocated_ids.union(geolocation_failed_ids)
+    logging.info(
+        f"Will skip {len(geolocated_and_failed_ids)} already geolocated records ({len(geolocated_ids)} successfully and {len(geolocation_failed_ids)} where geolocation failed)."
+    )
 
 # check how many records in records["records_with_cp"] are duplicates based on record["xid"]
 xids = [record["xid"] for record in records["records_with_cp"]]

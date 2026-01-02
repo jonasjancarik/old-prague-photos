@@ -17,11 +17,11 @@ dependencies = [
 ]
 
 [project.scripts]
-prague-photos = "run:app"
+cli = "cli:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["run.py", "collect.py", "filter.py", "geolocate.py", "export.py", "check.py", "dezoomify.py", "src"]
+packages = ["cli.py", "collect.py", "filter.py", "geolocate.py", "export.py", "check.py", "dezoomify.py", "src"]
