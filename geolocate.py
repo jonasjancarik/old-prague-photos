@@ -8,7 +8,7 @@ import time
 import argparse
 from dataclasses import dataclass, asdict
 from typing import List, Dict, Optional
-from openai import OpenAI
+import litellm
 
 # Parse command line arguments first
 parser = argparse.ArgumentParser(
@@ -37,12 +37,21 @@ if not MAPY_CZ_API_KEY:
     logging.error("MAPY_CZ_API_KEY not found in environment variables.")
     exit(1)
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-# OpenAI key is optional - only needed for LLM processing
-if OPENAI_API_KEY:
-    logging.info("OpenAI API key found - LLM processing will be available")
+# Check for any LLM API key (LiteLLM auto-detects from standard env vars)
+# Supported: OPENAI_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY, etc.
+LLM_API_KEY_AVAILABLE = any(
+    os.getenv(key)
+    for key in [
+        "OPENAI_API_KEY",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "ANTHROPIC_API_KEY",
+    ]
+)
+if LLM_API_KEY_AVAILABLE:
+    logging.info("LLM API key found - LLM processing will be available")
 else:
-    logging.warning("OpenAI API key not found - LLM processing will be skipped")
+    logging.warning("No LLM API key found - LLM processing will be skipped")
 
 
 def list_directory(directory):
@@ -77,9 +86,11 @@ class LocationInfo:
 
 
 class LLMGeolocator:
-    def __init__(self, api_key: str):
-        self.client = OpenAI(api_key=api_key)
-        self.model = "gpt-4o"
+    def __init__(self):
+        # Model configurable via env, defaults to Gemini Flash (cheap and fast)
+        # Examples: "gpt-4o", "gemini/gemini-2.0-flash", "claude-3-haiku-20240307"
+        self.model = os.getenv("LLM_MODEL", "gemini/gemini-2.0-flash")
+        logging.info(f"LLMGeolocator initialized with model: {self.model}")
 
     def extract_location_info(self, record: Dict) -> LocationInfo:
         """Extract structured location information from record"""
@@ -126,7 +137,7 @@ Pravidla:
 """
 
         try:
-            response = self.client.chat.completions.create(
+            response = litellm.completion(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
@@ -193,7 +204,7 @@ Vrať pouze JSON array řetězců:
 """
 
         try:
-            response = self.client.chat.completions.create(
+            response = litellm.completion(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
@@ -211,7 +222,7 @@ Vrať pouze JSON array řetězců:
                 addresses = json.loads(json_str)
                 return [addr for addr in addresses if addr]  # Filter out empty strings
             else:
-                logging.warning(f"Could not parse address array from LLM response")
+                logging.warning("Could not parse address array from LLM response")
                 return []
 
         except Exception as e:
@@ -454,7 +465,7 @@ logging.info("Finished processing records with structured addresses (čp.)")
 
 # ===== LLM-BASED PROCESSING FOR RECORDS WITHOUT STRUCTURED ADDRESSES =====
 
-if OPENAI_API_KEY and "records_without_cp" in records:
+if LLM_API_KEY_AVAILABLE and "records_without_cp" in records:
     logging.info(
         "Starting LLM-based processing for records without structured addresses..."
     )
@@ -478,7 +489,7 @@ if OPENAI_API_KEY and "records_without_cp" in records:
     )
 
     if records_without_cp_to_process:
-        geolocator = LLMGeolocator(OPENAI_API_KEY)
+        geolocator = LLMGeolocator()
 
         # Initialize counters for LLM processing
         llm_total_records = len(records_without_cp_to_process)
@@ -531,7 +542,7 @@ if OPENAI_API_KEY and "records_without_cp" in records:
                     f"Success: {success_rate:.1f}% ETA: {eta:.2f} min"
                 )
 
-            # Rate limiting for OpenAI API (2.5 requests per second)
+            # Rate limiting for LLM API
             time.sleep(0.4)
 
         logging.info(
@@ -540,8 +551,8 @@ if OPENAI_API_KEY and "records_without_cp" in records:
         )
 
 else:
-    if not OPENAI_API_KEY:
-        logging.info("Skipping LLM processing - OpenAI API key not provided")
+    if not LLM_API_KEY_AVAILABLE:
+        logging.info("Skipping LLM processing - no LLM API key provided")
     else:
         logging.info("No records without structured addresses found to process")
 

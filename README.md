@@ -22,7 +22,8 @@ Follow these steps to set up and run the project locally.
 
 ### 1. Prerequisites
 
--   Python 3.10 or newer
+-   Python 3.13 or newer
+-   [uv](https://docs.astral.sh/uv/) - fast Python package manager
 -   A Mapy.cz API key for the geolocation step. You can get one from the [Mapy.cz API developer page](https://api.mapy.cz/).
 
 ### 2. Setup
@@ -33,42 +34,47 @@ git clone <your-repository-url>
 cd <your-repository-directory>
 ```
 
-Next, create a Python virtual environment and activate it:
+Install dependencies using uv (this also creates a virtual environment automatically):
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+uv sync
 ```
 
-Install the required dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-Finally, create a `.env` file in the project's root directory to store your API keys. Add the following lines to the file, replacing the placeholders with your actual keys:
+Create a `.env` file in the project's root directory to store your API keys:
 
 ```env
-MAPY_CZ_API_KEY="your_api_key_here"
-OPENAI_API_KEY="your_openai_api_key_here"
+MAPY_CZ_API_KEY="your_mapy_cz_api_key_here"
+
+# Choose ONE of the following LLM providers (LiteLLM auto-detects):
+GEMINI_API_KEY="your_gemini_api_key_here"      # Recommended (cheap + fast)
+# OPENAI_API_KEY="your_openai_api_key_here"    # Alternative
+# ANTHROPIC_API_KEY="your_anthropic_key_here"  # Alternative
+
+# Optional: Override the default model (defaults to gemini/gemini-2.0-flash)
+# LLM_MODEL="gpt-4o"                           # For OpenAI
+# LLM_MODEL="claude-3-haiku-20240307"          # For Anthropic
 ```
 
-**Note:** The OpenAI API key is required for the LLM-based address extraction feature (`llm_geolocate.py`).
+**Note:** An LLM API key is required for the LLM-based address extraction feature.
 
 ### 3. Running the Pipeline
 
-Execute the scripts in the following order to perform the full data processing pipeline:
+Use the CLI to run individual steps or the full pipeline:
 
 ```bash
-# 1. Scrape the raw data from the archive
-python collect.py
+# Show all available commands
+uv run prague-photos --help
 
-# 2. Filter and categorize the scraped records
-python filter.py
+# Run the full pipeline
+uv run prague-photos pipeline
 
-# 3. Geolocate records using the Mapy.cz API (includes LLM processing for records without structured addresses)
-python geolocate.py
+# Or run individual steps:
+uv run prague-photos collect      # Scrape records from archive
+uv run prague-photos filter       # Filter and categorize records
+uv run prague-photos geolocate    # Geolocate using Mapy.cz + LLM
+uv run prague-photos export       # Export to CSV
 
-# 4. Export the final, geolocated data to a CSV file
-python export.py
+# Test LLM with limited records:
+uv run prague-photos geolocate --llm-limit 5
 ```
 
 ### LLM-Based Address Extraction
