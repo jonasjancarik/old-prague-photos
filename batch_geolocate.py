@@ -317,6 +317,7 @@ class BatchManager:
                                     {
                                         "llm_generated": True,
                                         "llm_model": self.model,
+                                        "llm_prompt_hash": self.prompt_hash,
                                         "llm_location_info": asdict(location_info),
                                         "llm_original_address": addr,
                                         "llm_confidence": location_info.confidence,
