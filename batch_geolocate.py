@@ -9,13 +9,15 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
-# Re-use logic from geolocate.py where possible
+# Re-use utilities from geolocate.py
 from geolocate import (
-    LLMGeolocator,
+    COMBINED_PROMPT_TEMPLATE,
     geocode_with_mapy_cz,
     save_to_file,
     LocationInfo,
     list_directory,
+    get_prompt_hash,
+    save_prompt,
 )
 
 load_dotenv()
@@ -40,8 +42,10 @@ class BatchManager:
         self.model = os.getenv("LLM_MODEL", "gemini/gemini-3-flash-preview").replace(
             "gemini/", "models/"
         )
-        self.geolocator = LLMGeolocator()
+        self.prompt_hash = get_prompt_hash(COMBINED_PROMPT_TEMPLATE)
+        save_prompt(self.prompt_hash, COMBINED_PROMPT_TEMPLATE)
         self.batches = self._load_batches()
+        logging.info(f"BatchManager initialized with model: {self.model}")
 
     def _load_batches(self) -> Dict:
         if os.path.exists(BATCHES_FILE):
@@ -109,7 +113,7 @@ class BatchManager:
                 ]
                 datace = record.get("datace", "")
 
-                prompt = self.geolocator.EXTRACTION_PROMPT_TEMPLATE.format(
+                prompt = COMBINED_PROMPT_TEMPLATE.format(
                     obsah=obsah,
                     misto_entries=misto_entries,
                     dilo_entries=dilo_entries,
@@ -120,7 +124,10 @@ class BatchManager:
                     "key": record["xid"],
                     "request": {
                         "contents": [{"parts": [{"text": prompt}], "role": "user"}],
-                        "generation_config": {"temperature": 1.0},
+                        "generation_config": {
+                            "temperature": 1.0,
+                            "thinking_config": {"thinking_level": "MEDIUM"},
+                        },
                     },
                 }
                 f.write(json.dumps(request, ensure_ascii=False) + "\n")
@@ -210,14 +217,45 @@ class BatchManager:
             logging.info(f"Downloading results for {job_name}...")
             content = self.client.files.download(file=output_file_name)
 
-            # Load original records to match back
-            # (Note: This could be optimized by caching or keeping the input file mapping)
+            # Load all filtered records into a map for fast lookup
+            record_map = {}
+            filtered_files = list_directory(INPUT_RECORDS_DIR)
+            for f in filtered_files:
+                if "records_without_cp" in f:
+                    with open(
+                        os.path.join(INPUT_RECORDS_DIR, f), "r", encoding="utf-8"
+                    ) as file:
+                        for r in json.load(file):
+                            record_map[r["xid"]] = r
+
+            # Get already geolocated IDs to support resuming
+            geolocated_ids = {
+                f.replace(".json", "") for f in list_directory(OUTPUT_DIR)
+            }
+            failed_ids = set()
+            for root, dirs, files in os.walk("output/geolocation/failed"):
+                for filename in files:
+                    failed_ids.add(filename.replace(".json", ""))
+
+            processed_ids = geolocated_ids.union(failed_ids)
+
             results_count = 0
-            for line in content.decode("utf-8").splitlines():
+            lines = content.decode("utf-8").splitlines()
+            total_lines = len(lines)
+            logging.info(f"Processing {total_lines} results from batch...")
+
+            for i, line in enumerate(lines):
                 if not line.strip():
                     continue
                 result_entry = json.loads(line)
                 xid = result_entry["key"]
+
+                if xid in processed_ids:
+                    # Skip already processed
+                    continue
+
+                if i % 100 == 0:
+                    logging.info(f"Progress: {i}/{total_lines}...")
 
                 # Check for errors in the individual request
                 if "error" in result_entry:
@@ -225,84 +263,75 @@ class BatchManager:
                     continue
 
                 response = result_entry["response"]
-                # Assuming response structure from generating content
                 try:
                     text = response["candidates"][0]["content"]["parts"][0]["text"]
-                    # Extraction logic similar to geolocate.py
                     start_idx = text.find("{")
                     end_idx = text.rfind("}") + 1
-                    if start_idx != -1 and end_idx != -1:
-                        json_str = text[start_idx:end_idx]
-                        data = json.loads(json_str)
+                    if start_idx == -1 or end_idx == -1:
+                        logging.warning(f"No JSON found in response for {xid}")
+                        continue
 
-                        location_info = LocationInfo(
-                            street_name=data.get("street_name"),
-                            neighborhood=data.get("neighborhood"),
-                            landmark=data.get("landmark"),
-                            building_name=data.get("building_name"),
-                            approximate_address=data.get("approximate_address"),
-                            confidence=data.get("confidence", "low"),
-                            historical_context=data.get("historical_context"),
+                    data = json.loads(text[start_idx:end_idx])
+
+                    # Determine if it's the old format (extraction only) or new (combined)
+                    if "extraction" in data and "suggested_addresses" in data:
+                        # NEW COMBINED FORMAT
+                        extraction_data = data["extraction"]
+                        addresses = data["suggested_addresses"]
+                    else:
+                        # OLD EXTRACTION-ONLY FORMAT
+                        extraction_data = data
+                        addresses = None
+
+                    location_info = LocationInfo(
+                        street_name=extraction_data.get("street_name"),
+                        neighborhood=extraction_data.get("neighborhood"),
+                        landmark=extraction_data.get("landmark"),
+                        building_name=extraction_data.get("building_name"),
+                        approximate_address=extraction_data.get("approximate_address"),
+                        confidence=extraction_data.get("confidence", "low"),
+                        historical_context=extraction_data.get("historical_context"),
+                    )
+
+                    record = record_map.get(xid)
+                    if not record:
+                        logging.warning(
+                            f"Could not find original record for {xid} in memory map"
                         )
+                        continue
 
-                        # Now synthesize and geocode (from geolocate.py logic)
-                        # We need the original record for datace etc.
-                        # For simplicity in this first version, we'll try to find it in filtered again
-                        # In a more robust version, we'd have it in a map.
-
-                        # Find original record
-                        record = None
-                        filtered_files = list_directory(INPUT_RECORDS_DIR)
-                        for f in filtered_files:
-                            if "records_without_cp" in f:
-                                with open(
-                                    os.path.join(INPUT_RECORDS_DIR, f),
-                                    "r",
-                                    encoding="utf-8",
-                                ) as file:
-                                    all_records = json.load(file)
-                                    for r in all_records:
-                                        if r["xid"] == xid:
-                                            record = r
-                                            break
-                            if record:
-                                break
-
-                        if not record:
-                            logging.warning(f"Could not find original record for {xid}")
+                    if location_info.confidence != "low":
+                        # If no addresses in the batch response (old format), skip
+                        if not addresses:
+                            logging.warning(
+                                f"Record {xid} has no suggested_addresses (old batch format). Skipping."
+                            )
+                            save_to_file(FAILED_DIR, record["xid"], record)
                             continue
 
-                        # Synthesis and Geocoding
-                        if location_info.confidence != "low":
-                            # We use synthesized addresses from LLMGeolocator
-                            addresses = self.geolocator.synthesize_addresses(
-                                location_info, record.get("datace", "")
-                            )
-                            success = False
-                            for addr in addresses:
-                                geo_result = geocode_with_mapy_cz(addr)
-                                if geo_result:
-                                    # Add LLM metadata
-                                    geo_result["llm_generated"] = True
-                                    geo_result["llm_model"] = self.model
-                                    geo_result["llm_location_info"] = asdict(
-                                        location_info
-                                    )
-                                    geo_result["llm_original_address"] = addr
-                                    geo_result["llm_confidence"] = (
-                                        location_info.confidence
-                                    )
+                        success = False
+                        for addr in addresses or []:
+                            geo_result = geocode_with_mapy_cz(addr)
+                            if geo_result:
+                                geo_result.update(
+                                    {
+                                        "llm_generated": True,
+                                        "llm_model": self.model,
+                                        "llm_location_info": asdict(location_info),
+                                        "llm_original_address": addr,
+                                        "llm_confidence": location_info.confidence,
+                                    }
+                                )
+                                record["geolocation"] = geo_result
+                                save_to_file(OUTPUT_DIR, record["xid"], record)
+                                results_count += 1
+                                success = True
+                                break
 
-                                    record["geolocation"] = geo_result
-                                    save_to_file(OUTPUT_DIR, record["xid"], record)
-                                    results_count += 1
-                                    success = True
-                                    break
-
-                            if not success:
-                                save_to_file(FAILED_DIR, record["xid"], record)
-                        else:
+                        if not success:
                             save_to_file(FAILED_DIR, record["xid"], record)
+                    else:
+                        save_to_file(FAILED_DIR, record["xid"], record)
 
                 except Exception as e:
                     logging.error(f"Failed to process result for {xid}: {e}")
