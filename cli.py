@@ -16,6 +16,9 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+batch_app = typer.Typer(help="Manage Gemini Batch Geolocation jobs.")
+app.add_typer(batch_app, name="geolocate-batch")
+
 
 @app.command()
 def collect(
@@ -138,6 +141,29 @@ def pipeline(
     export(minimal=True)
 
     typer.echo("\n✅ Pipeline complete! Output: output/old_prague_photos.csv")
+
+
+@batch_app.command("submit")
+def batch_submit(
+    limit: Annotated[
+        Optional[int],
+        typer.Option("--limit", help="Limit number of records to process"),
+    ] = None,
+):
+    """Submit a new Gemini Batch API job."""
+    from batch_geolocate import BatchManager
+
+    manager = BatchManager()
+    manager.submit(limit=limit)
+
+
+@batch_app.command("collect")
+def batch_collect():
+    """Check status and collect results from Gemini Batch API jobs."""
+    from batch_geolocate import BatchManager
+
+    manager = BatchManager()
+    manager.collect_results()
 
 
 if __name__ == "__main__":
