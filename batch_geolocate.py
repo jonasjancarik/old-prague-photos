@@ -58,9 +58,13 @@ class BatchManager:
         with open(BATCHES_FILE, "w", encoding="utf-8") as f:
             json.dump(self.batches, f, ensure_ascii=False, indent=2)
 
-    def submit(self, limit: Optional[int] = None):
-        """Phase 1 & 2: Prepare and submit batch job"""
-        # Load records needed
+    def submit(self, limit: Optional[int] = None, redo_llm: bool = False):
+        """Prepare and submit batch job.
+
+        Args:
+            limit: Max records to process (for testing)
+            redo_llm: If True, also re-process records that were previously LLM-geolocated
+        """
         records_to_process = []
 
         # Get already processed IDs
@@ -70,9 +74,33 @@ class BatchManager:
             for filename in files:
                 geolocation_failed_files.append(filename.replace(".json", ""))
 
-        processed_ids = {f.replace(".json", "") for f in geolocated_files}.union(
-            set(geolocation_failed_files)
-        )
+        # Check which geolocated records are LLM-generated (for --redo-llm)
+        llm_geolocated_ids = set()
+        direct_geolocated_ids = set()
+        for f in geolocated_files:
+            xid = f.replace(".json", "")
+            try:
+                with open(os.path.join(OUTPUT_DIR, f), "r", encoding="utf-8") as file:
+                    record = json.load(file)
+                    if record.get("geolocation", {}).get("llm_generated"):
+                        llm_geolocated_ids.add(xid)
+                    else:
+                        direct_geolocated_ids.add(xid)
+            except Exception:
+                direct_geolocated_ids.add(xid)  # Assume direct if can't read
+
+        # Determine which IDs to skip
+        if redo_llm:
+            # Skip only direct matches and failed, include old LLM records
+            processed_ids = direct_geolocated_ids.union(set(geolocation_failed_files))
+            logging.info(
+                f"--redo-llm: Will re-process {len(llm_geolocated_ids)} old LLM records"
+            )
+        else:
+            # Skip everything already processed
+            processed_ids = direct_geolocated_ids.union(llm_geolocated_ids).union(
+                set(geolocation_failed_files)
+            )
 
         # Load filtered records
         filtered_files = list_directory(INPUT_RECORDS_DIR)

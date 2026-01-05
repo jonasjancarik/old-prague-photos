@@ -149,12 +149,18 @@ def batch_submit(
         Optional[int],
         typer.Option("--limit", help="Limit number of records to process"),
     ] = None,
+    redo_llm: Annotated[
+        bool,
+        typer.Option(
+            "--redo-llm", help="Re-process records previously geolocated via LLM"
+        ),
+    ] = False,
 ):
     """Submit a new Gemini Batch API job."""
     from batch_geolocate import BatchManager
 
     manager = BatchManager()
-    manager.submit(limit=limit)
+    manager.submit(limit=limit, redo_llm=redo_llm)
 
 
 @batch_app.command("collect")
