@@ -108,10 +108,13 @@ class BatchManager:
                 set(geolocation_failed_files)
             )
 
-        # Load filtered records
+        # Load filtered records (records_without_cp and records_with_cp_in_record_obsah)
         filtered_files = list_directory(INPUT_RECORDS_DIR)
         for f in filtered_files:
-            if f.endswith(".json") and "records_without_cp" in f:
+            # Include both unstructured records AND those with čp. only in description
+            if f.endswith(".json") and (
+                "records_without_cp" in f or "records_with_cp_in_record_obsah" in f
+            ):
                 with open(
                     os.path.join(INPUT_RECORDS_DIR, f), "r", encoding="utf-8"
                 ) as file:
