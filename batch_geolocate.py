@@ -316,8 +316,8 @@ class BatchManager:
                 result_entry = json.loads(line)
                 xid = result_entry["key"]
 
-                if xid in processed_ids:
-                    # Skip already processed
+                if xid in processed_ids and not recollect:
+                    # Skip already processed (unless recollecting)
                     continue
 
                 if i % 100 == 0:
