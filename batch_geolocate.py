@@ -297,6 +297,16 @@ class BatchManager:
                         for r in json.load(file):
                             record_map[r["xid"]] = r
 
+            # Also load from failed directories (for --include-failed-cp batch results)
+            for root, dirs, files in os.walk("output/geolocation/failed"):
+                for filename in files:
+                    if filename.endswith(".json"):
+                        with open(
+                            os.path.join(root, filename), "r", encoding="utf-8"
+                        ) as file:
+                            r = json.load(file)
+                            record_map[r["xid"]] = r
+
             # Get already geolocated IDs to support resuming
             geolocated_ids = {
                 f.replace(".json", "") for f in list_directory(OUTPUT_DIR)
