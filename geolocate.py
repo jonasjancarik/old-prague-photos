@@ -110,13 +110,17 @@ Example:
 
 
 def geocode_with_mapy_cz(query: str) -> Optional[Dict]:
-    """Geocode a query using Mapy.cz API."""
+    """Geocode a query using Mapy.cz API.
+
+    Tries address search first, then falls back to general search for landmarks/POIs.
+    """
     api_key = os.getenv("MAPY_CZ_API_KEY")
     if not api_key:
         logging.warning("MAPY_CZ_API_KEY not set")
         return None
 
-    params = {
+    # First try: strict address search
+    params_address = {
         "query": query,
         "limit": 15,
         "locality": "Praha",
@@ -126,13 +130,34 @@ def geocode_with_mapy_cz(query: str) -> Optional[Dict]:
 
     try:
         for endpoint in ["geocode", "suggest"]:
-            response = requests.get(f"https://api.mapy.cz/v1/{endpoint}", params=params)
+            response = requests.get(
+                f"https://api.mapy.cz/v1/{endpoint}", params=params_address
+            )
             response.raise_for_status()
             data = response.json()
             if data.get("items"):
                 result = data["items"][0]
                 result["endpoint"] = endpoint
+                result["match_type"] = "address"
                 return result
+
+        # Fallback: general search (includes POIs, landmarks, etc.)
+        params_general = {
+            "query": query,
+            "limit": 15,
+            "locality": "Praha",
+            "apikey": api_key,
+        }
+
+        response = requests.get("https://api.mapy.cz/v1/suggest", params=params_general)
+        response.raise_for_status()
+        data = response.json()
+        if data.get("items"):
+            result = data["items"][0]
+            result["endpoint"] = "suggest"
+            result["match_type"] = data["items"][0].get("type", "unknown")
+            return result
+
         return None
     except Exception as e:
         logging.error(f"Geocoding failed for '{query}': {e}")

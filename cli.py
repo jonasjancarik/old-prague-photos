@@ -155,12 +155,19 @@ def batch_submit(
             "--redo-llm", help="Re-process records previously geolocated via LLM"
         ),
     ] = False,
+    include_failed_cp: Annotated[
+        bool,
+        typer.Option(
+            "--include-failed-cp",
+            help="Include failed structured address records for LLM processing",
+        ),
+    ] = False,
 ):
     """Submit a new Gemini Batch API job."""
     from batch_geolocate import BatchManager
 
     manager = BatchManager()
-    manager.submit(limit=limit, redo_llm=redo_llm)
+    manager.submit(limit=limit, redo_llm=redo_llm, include_failed_cp=include_failed_cp)
 
 
 @batch_app.command("collect")

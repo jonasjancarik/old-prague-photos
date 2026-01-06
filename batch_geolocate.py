@@ -58,12 +58,18 @@ class BatchManager:
         with open(BATCHES_FILE, "w", encoding="utf-8") as f:
             json.dump(self.batches, f, ensure_ascii=False, indent=2)
 
-    def submit(self, limit: Optional[int] = None, redo_llm: bool = False):
+    def submit(
+        self,
+        limit: Optional[int] = None,
+        redo_llm: bool = False,
+        include_failed_cp: bool = False,
+    ):
         """Prepare and submit batch job.
 
         Args:
             limit: Max records to process (for testing)
             redo_llm: If True, also re-process records that were previously LLM-geolocated
+            include_failed_cp: If True, include records that failed direct geocoding
         """
         records_to_process = []
 
@@ -113,6 +119,23 @@ class BatchManager:
                     for record in all_records:
                         if record["xid"] not in processed_ids:
                             records_to_process.append(record)
+
+        # Optionally include failed structured records for LLM processing
+        if include_failed_cp:
+            failed_cp_dir = "output/geolocation/failed/records_with_cp"
+            if os.path.exists(failed_cp_dir):
+                failed_cp_files = [
+                    f for f in list_directory(failed_cp_dir) if f.endswith(".json")
+                ]
+                logging.info(
+                    f"--include-failed-cp: Adding {len(failed_cp_files)} failed structured records"
+                )
+                for f in failed_cp_files:
+                    with open(
+                        os.path.join(failed_cp_dir, f), "r", encoding="utf-8"
+                    ) as file:
+                        record = json.load(file)
+                        records_to_process.append(record)
 
         if limit:
             records_to_process = records_to_process[:limit]
