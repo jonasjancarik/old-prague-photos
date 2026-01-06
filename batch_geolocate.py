@@ -244,18 +244,33 @@ class BatchManager:
 
         self._save_batches()
 
-    def collect_results(self):
-        """Check status first, then download results and geocode."""
+    def collect_results(self, recollect: bool = False):
+        """Check status first, then download results and geocode.
+
+        Args:
+            recollect: If True, re-process already collected batches (for geocoding fixes)
+        """
         self.check_status()
 
-        completed_jobs = [
-            j
-            for j, data in self.batches.items()
-            if data["state"] == "JOB_STATE_SUCCEEDED" and "collected_at" not in data
-        ]
+        if recollect:
+            # Re-process all succeeded jobs, not just uncollected ones
+            completed_jobs = [
+                j
+                for j, data in self.batches.items()
+                if data["state"] == "JOB_STATE_SUCCEEDED"
+            ]
+            logging.info(
+                f"--recollect: Will re-process {len(completed_jobs)} batch jobs"
+            )
+        else:
+            completed_jobs = [
+                j
+                for j, data in self.batches.items()
+                if data["state"] == "JOB_STATE_SUCCEEDED" and "collected_at" not in data
+            ]
 
         if not completed_jobs:
-            logging.info("No new completed jobs to collect.")
+            logging.info("No completed jobs to collect.")
             return
 
         for job_name in completed_jobs:

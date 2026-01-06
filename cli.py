@@ -171,12 +171,20 @@ def batch_submit(
 
 
 @batch_app.command("collect")
-def batch_collect():
+def batch_collect(
+    recollect: Annotated[
+        bool,
+        typer.Option(
+            "--recollect",
+            help="Re-geocode already collected batches (for geocoding fixes)",
+        ),
+    ] = False,
+):
     """Check status and collect results from Gemini Batch API jobs."""
     from batch_geolocate import BatchManager
 
     manager = BatchManager()
-    manager.collect_results()
+    manager.collect_results(recollect=recollect)
 
 
 if __name__ == "__main__":
