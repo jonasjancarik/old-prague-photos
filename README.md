@@ -134,6 +134,12 @@ The viewer is a static frontend (Leaflet map + feedback modal). It can run local
 
 Future idea: keep corrections in a live store (KV/D1) for instant map updates, and optionally run a daily GitHub Action that snapshots corrections into a PR (CSV + GeoJSON) for audit/history.
 
+### Architecture (Cloudflare)
+
+- Static site: `viewer/static/` (HTML/CSS/JS), deployed on **Cloudflare Pages**.
+- “Backend”: **Pages Functions** in `functions/api/*.js` (runs on **Cloudflare Workers runtime**) under `/api/*`.
+- DB: Cloudflare **D1** bound as `env.CORRECTIONS_DB` (see `wrangler.toml`).
+
 ### Build GeoJSON
 
 Generate the map data from the CSV export:
@@ -154,6 +160,19 @@ Open `http://127.0.0.1:8000`. Corrections are stored at `viewer/data/corrections
 
 ### Cloudflare Pages + D1 (recommended)
 
+TL;DR (common ops): see `ops.sh`.
+
+#### `ops.sh` cheat-sheet
+
+```bash
+./ops.sh build-data
+./ops.sh dev-fastapi
+./ops.sh dev-pages
+./ops.sh migrate-local
+./ops.sh migrate-remote
+PROJECT_NAME=<project-name> ./ops.sh deploy
+```
+
 1. Login + create D1:
    ```bash
    npx wrangler login
@@ -170,6 +189,17 @@ Open `http://127.0.0.1:8000`. Corrections are stored at `viewer/data/corrections
    ```
 
 For Turnstile in Cloudflare, set `TURNSTILE_SITE_KEY` as a Pages env var and `TURNSTILE_SECRET_KEY` as a Pages secret.
+
+#### Deploy (manual)
+
+```bash
+npx wrangler pages deploy viewer/static --project-name <project-name>
+```
+
+#### Notes
+
+- `/api/zoomify` resolves Zoomify metadata server-side (avoids browser CORS issues with `ImageProperties.xml`).
+- UI is Czech-only for now (copy lives in `viewer/static/*.html` + `viewer/static/*.js`).
 
 ## 🛠️ Utility Scripts
 

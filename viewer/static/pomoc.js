@@ -16,9 +16,12 @@ const state = {
 };
 
 const iframe = document.getElementById("help-iframe");
+const zoomWrap = iframe?.closest(".zoom-wrap");
+const zoomViewerEl = document.getElementById("help-zoom");
 const remainingEl = document.getElementById("remaining-count");
 const currentXidEl = document.getElementById("current-xid");
 const openArchiveEl = document.getElementById("open-archive");
+const detailsEl = document.getElementById("help-details");
 const submitOkBtn = document.getElementById("submit-ok");
 const submitCorrectionBtn = document.getElementById("submit-correction");
 const skipBtn = document.getElementById("skip-photo");
@@ -32,6 +35,9 @@ const formStatus = document.getElementById("form-status");
 const turnstileNote = document.getElementById("turnstile-note");
 
 const pragueFallback = [50.0755, 14.4378];
+
+let zoomViewer = null;
+let zoomLastXid = null;
 
 function setStatus(message, tone = "") {
   formStatus.textContent = message;
@@ -70,8 +76,46 @@ async function fetchJson(url) {
   return response.json();
 }
 
+async function loadZoomifyMeta(xid) {
+  const url = `/api/zoomify?xid=${encodeURIComponent(xid)}`;
+  return fetchJson(url);
+}
+
+async function loadZoomifyInto(xid) {
+  if (!zoomViewerEl || !zoomWrap) return;
+  if (zoomLastXid === xid) return;
+  zoomLastXid = xid;
+  zoomWrap.classList.remove("is-fallback");
+
+  try {
+    if (!window.OpenSeadragon) {
+      throw new Error("OpenSeadragon chybí");
+    }
+
+    const meta = await loadZoomifyMeta(xid);
+
+    if (!zoomViewer) {
+      zoomViewer = window.OpenSeadragon({
+        element: zoomViewerEl,
+        prefixUrl:
+          "https://unpkg.com/openseadragon@4.1.1/build/openseadragon/images/",
+        showNavigator: true,
+        maxZoomPixelRatio: 2,
+      });
+    }
+
+    if (!window.OldPragueZoomify?.createTileSource) {
+      throw new Error("Chybí helper pro Zoomify");
+    }
+    zoomViewer.open(window.OldPragueZoomify.createTileSource(meta));
+  } catch (error) {
+    console.warn("Zoom náhled selhal", error);
+    zoomWrap.classList.add("is-fallback");
+  }
+}
+
 function getArchiveUrl(xid) {
-  return `${state.archiveBaseUrl.replace(/\/$/, "")}/permalink?xid=${xid}`;
+  return `${state.archiveBaseUrl.replace(/\/$/, "")}/permalink?xid=${xid}&scan=1#scan1`;
 }
 
 function initMap() {
@@ -106,6 +150,10 @@ function showFeature(feature) {
   updateCounts();
   updateSubmitState();
 
+  if (window.OldPragueMeta?.renderDetails) {
+    window.OldPragueMeta.renderDetails(detailsEl, feature, state.archiveBaseUrl);
+  }
+
   if (messageEl) messageEl.value = "";
   if (emailEl) emailEl.value = "";
   if (helpForm) helpForm.classList.add("is-hidden");
@@ -117,6 +165,7 @@ function showFeature(feature) {
   const url = getArchiveUrl(xid);
   iframe.src = url;
   openArchiveEl.href = url;
+  loadZoomifyInto(xid);
 
   const [lon, lat] = feature.geometry.coordinates;
   const point = [lat, lon];

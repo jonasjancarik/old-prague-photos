@@ -1,6 +1,9 @@
 import json
 import os
 import re
+import html
+import time
+from urllib.parse import urljoin
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
@@ -28,6 +31,7 @@ app = FastAPI(title="Prohlížeč historických fotografií Prahy")
 
 _photos_cache: dict[str, Any] | None = None
 _feedback_lock = Lock()
+_zoomify_cache: dict[str, dict[str, Any]] = {}
 
 
 class FeedbackPayload(BaseModel):
@@ -95,6 +99,47 @@ def verify_turnstile(token: str, remoteip: str | None) -> None:
         raise HTTPException(status_code=400, detail="Ověření Turnstile selhalo")
 
 
+def _fetch_text(session: requests.Session, url: str) -> str:
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            response = session.get(url, timeout=20)
+            response.raise_for_status()
+            return response.text
+        except requests.RequestException as exc:
+            last_exc = exc
+            if attempt < 2:
+                time.sleep(0.5 * (attempt + 1))
+                continue
+            raise
+    raise last_exc or RuntimeError("Fetch failed")
+
+
+def _extract_zoomify_url(permalink_html: str, permalink_url: str) -> str | None:
+    match = re.search(r"Zoomify\.action[^\"']+", permalink_html, re.IGNORECASE)
+    if not match:
+        return None
+    rel = html.unescape(match.group(0))
+    return urljoin(permalink_url, rel)
+
+
+def _extract_zoomify_img_path(zoomify_html: str) -> str | None:
+    match = re.search(r'zoomifyImgPath\s*=\s*"([^"]+)"', zoomify_html)
+    return match.group(1) if match else None
+
+
+def _parse_image_properties(props_xml: str) -> dict[str, int | None]:
+    def find_int(attr: str) -> int | None:
+        match = re.search(rf'{attr}="(\d+)"', props_xml, re.IGNORECASE)
+        return int(match.group(1)) if match else None
+
+    return {
+        "width": find_int("WIDTH"),
+        "height": find_int("HEIGHT"),
+        "tileSize": find_int("TILESIZE"),
+    }
+
+
 def normalize_corrections() -> list[dict[str, Any]]:
     if not CORRECTIONS_PATH.exists():
         return []
@@ -154,6 +199,55 @@ def get_config() -> JSONResponse:
 @app.get("/api/photos")
 def get_photos() -> JSONResponse:
     return JSONResponse(load_photos())
+
+
+@app.get("/api/zoomify")
+def get_zoomify(xid: str) -> JSONResponse:
+    xid = xid.strip()
+    if not xid:
+        raise HTTPException(status_code=400, detail="Chybí xid")
+
+    cached = _zoomify_cache.get(xid)
+    if cached:
+        return JSONResponse(cached)
+
+    archive_base_url = os.environ.get(
+        "ARCHIVE_BASE_URL", "https://katalog.ahmp.cz/pragapublica"
+    ).rstrip("/")
+    permalink_url = f"{archive_base_url}/permalink?xid={xid}&scan=1"
+
+    session = requests.Session()
+    session.headers.update(
+        {
+            "User-Agent": "old-prague-photos/zoomify",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        }
+    )
+    try:
+        permalink_html = _fetch_text(session, permalink_url)
+        zoomify_url = _extract_zoomify_url(permalink_html, permalink_url)
+        if not zoomify_url:
+            raise HTTPException(status_code=502, detail="Zoomify odkaz nenalezen")
+
+        zoomify_html = _fetch_text(session, zoomify_url)
+        zoomify_img_path = _extract_zoomify_img_path(zoomify_html)
+        if not zoomify_img_path:
+            raise HTTPException(status_code=502, detail="zoomifyImgPath nenalezen")
+
+        props_url = f"{zoomify_img_path}/ImageProperties.xml"
+        props_xml = _fetch_text(session, props_url)
+        props = _parse_image_properties(props_xml)
+
+        payload: dict[str, Any] = {
+            "xid": xid,
+            "zoomifyImgPath": zoomify_img_path,
+            "imagePropertiesUrl": props_url,
+            **props,
+        }
+        _zoomify_cache[xid] = payload
+        return JSONResponse(payload)
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail="Nepodařilo se načíst zoomify") from exc
 
 
 @app.get("/api/corrections")

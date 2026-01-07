@@ -132,10 +132,22 @@
           </form>
         </section>
         <div class="modal-frame">
-          <iframe id="archive-iframe" title="Archivní záznam" loading="lazy" referrerpolicy="no-referrer"></iframe>
+          <div class="modal-main">
+            <div class="zoom-wrap">
+              <div id="zoom-viewer" class="zoom-viewer" aria-label="Náhled fotografie"></div>
+              <iframe id="archive-iframe" title="Archivní záznam" loading="lazy" referrerpolicy="no-referrer"></iframe>
+            </div>
+            <aside class="modal-meta" aria-label="Detaily fotografie">
+              <div class="modal-meta-head">
+                <p class="modal-meta-eyebrow">Detaily</p>
+                <h3 class="modal-meta-title">Informace o fotografii</h3>
+              </div>
+              <div id="photo-details" class="detail-list"></div>
+            </aside>
+          </div>
           <div class="modal-footer">
             <a id="archive-fallback" href="#" target="_blank" rel="noopener">
-              Otevřít v novém okně
+              Otevřít v archivu
             </a>
           </div>
         </div>
@@ -146,6 +158,9 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js"></script>
+  <script src="./zoomify.js"></script>
+  <script src="./photo-meta.js"></script>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=turnstileOnload" async
     defer></script>
   <script src="./app.js"></script>

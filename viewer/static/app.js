@@ -23,6 +23,8 @@ const turnstileNote = document.getElementById("turnstile-note");
 const archiveModal = document.getElementById("archive-modal");
 const archiveIframe = document.getElementById("archive-iframe");
 const archiveFallback = document.getElementById("archive-fallback");
+const zoomWrap = archiveIframe?.closest(".zoom-wrap");
+const zoomViewerEl = document.getElementById("zoom-viewer");
 const reportCta = document.getElementById("report-cta");
 const reportCtaWrap = document.querySelector(".report-cta");
 const correctionMapEl = document.getElementById("correction-map");
@@ -46,6 +48,48 @@ function clearStatus() {
   formStatus.dataset.tone = "";
 }
 
+let zoomViewer = null;
+let zoomLastXid = null;
+
+async function loadZoomifyMeta(xid) {
+  const url = `/api/zoomify?xid=${encodeURIComponent(xid)}`;
+  return fetchJson(url);
+}
+
+async function loadZoomifyInto(viewerEl, wrapEl, fallbackIframe, xid) {
+  if (!viewerEl || !wrapEl) return;
+  if (zoomLastXid === xid) return;
+
+  zoomLastXid = xid;
+  wrapEl.classList.remove("is-fallback");
+
+  try {
+    if (!window.OpenSeadragon) {
+      throw new Error("OpenSeadragon chybí");
+    }
+
+    const meta = await loadZoomifyMeta(xid);
+
+    if (!zoomViewer) {
+      zoomViewer = window.OpenSeadragon({
+        element: viewerEl,
+        prefixUrl:
+          "https://unpkg.com/openseadragon@4.1.1/build/openseadragon/images/",
+        showNavigator: true,
+        maxZoomPixelRatio: 2,
+      });
+    }
+
+    if (!window.OldPragueZoomify?.createTileSource) {
+      throw new Error("Chybí helper pro Zoomify");
+    }
+    zoomViewer.open(window.OldPragueZoomify.createTileSource(meta));
+  } catch (error) {
+    console.warn("Zoom náhled selhal", error);
+    wrapEl.classList.add("is-fallback");
+  }
+}
+
 function updateSubmitState() {
   const button = feedbackForm.querySelector("button[type='submit']");
   const canSubmit = Boolean(
@@ -57,7 +101,7 @@ function updateSubmitState() {
 
 function getArchiveUrl(feature) {
   if (!feature || !state.archiveBaseUrl) return "";
-  return `${state.archiveBaseUrl}/permalink?xid=${feature.properties.id}`;
+  return `${state.archiveBaseUrl}/permalink?xid=${feature.properties.id}&scan=1#scan1`;
 }
 
 function setUrlXid(xid, mode = "push") {
@@ -179,6 +223,10 @@ function openArchiveModal(url, xid, options = {}) {
   if (updateHistory && xid) {
     setUrlXid(xid);
   }
+
+  if (xid) {
+    loadZoomifyInto(zoomViewerEl, zoomWrap, archiveIframe, xid);
+  }
 }
 
 function closeArchiveModal(options = {}) {
@@ -187,6 +235,7 @@ function closeArchiveModal(options = {}) {
   archiveModal.classList.remove("is-open");
   archiveModal.setAttribute("aria-hidden", "true");
   archiveIframe.src = "";
+  zoomLastXid = null;
   document.body.style.overflow = "";
   if (updateHistory) {
     setUrlXid(null, "replace");
@@ -195,55 +244,8 @@ function closeArchiveModal(options = {}) {
 
 function renderDetails(feature) {
   if (!detailContainer) return;
-  detailContainer.innerHTML = "";
-  if (!feature) {
-    const placeholder = document.createElement("p");
-    placeholder.className = "placeholder";
-    placeholder.textContent = "Zatím není vybraná fotografie.";
-    detailContainer.appendChild(placeholder);
-    return;
-  }
-
-  const archiveUrl = getArchiveUrl(feature);
-
-  const items = [
-    ["Archivní ID", feature.properties.id],
-    ["Popis", feature.properties.description],
-    ["Datace", feature.properties.date_label],
-    ["Autor", feature.properties.author],
-    ["Poznámka", feature.properties.note],
-  ];
-
-  if (archiveUrl) {
-    items.unshift(["Archivní stránka", archiveUrl, "link"]);
-  }
-
-  items.forEach(([label, value, kind]) => {
-    if (!value) return;
-    const wrapper = document.createElement("div");
-    wrapper.className = "detail-item";
-
-    const labelEl = document.createElement("div");
-    labelEl.className = "detail-label";
-    labelEl.textContent = label;
-
-    const valueEl = document.createElement("p");
-    valueEl.className = "detail-value";
-    if (kind === "link") {
-      const link = document.createElement("a");
-      link.href = value;
-      link.target = "_blank";
-      link.rel = "noopener";
-      link.textContent = "Otevřít v archivu";
-      valueEl.appendChild(link);
-    } else {
-      valueEl.textContent = value;
-    }
-
-    wrapper.appendChild(labelEl);
-    wrapper.appendChild(valueEl);
-    detailContainer.appendChild(wrapper);
-  });
+  if (!window.OldPragueMeta?.renderDetails) return;
+  window.OldPragueMeta.renderDetails(detailContainer, feature, state.archiveBaseUrl);
 }
 
 function buildMarkerIcon() {

@@ -62,7 +62,13 @@
         <div class="help-grid">
           <div class="help-preview">
             <div class="preview-frame">
-              <iframe id="help-iframe" title="Archivní záznam" loading="lazy" referrerpolicy="no-referrer"></iframe>
+              <div class="zoom-wrap">
+                <div id="help-zoom" class="zoom-viewer" aria-label="Náhled fotografie"></div>
+                <iframe id="help-iframe" title="Archivní záznam" loading="lazy" referrerpolicy="no-referrer"></iframe>
+              </div>
+            </div>
+            <div class="help-meta" aria-label="Detaily fotografie">
+              <div id="help-details" class="detail-list"></div>
             </div>
           </div>
 
@@ -104,6 +110,9 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js"></script>
+  <script src="./zoomify.js"></script>
+  <script src="./photo-meta.js"></script>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=turnstileOnload" async
     defer></script>
   <script src="./pomoc.js"></script>
