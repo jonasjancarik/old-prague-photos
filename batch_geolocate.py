@@ -290,7 +290,8 @@ class BatchManager:
             record_map = {}
             filtered_files = list_directory(INPUT_RECORDS_DIR)
             for f in filtered_files:
-                if "records_without_cp" in f:
+                # Include records_without_cp AND records_with_cp_in_record_obsah
+                if "records_without_cp" in f or "records_with_cp_in_record_obsah" in f:
                     with open(
                         os.path.join(INPUT_RECORDS_DIR, f), "r", encoding="utf-8"
                     ) as file:
