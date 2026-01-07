@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="cs">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Staré fotografie Prahy</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;600&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Archivní prohlížeč</p>
+        <h1>Staré fotografie Prahy</h1>
+        <p class="subtitle">
+          Geolokalizované fotografie z archivu hlavního města Prahy. Toto není oficiální projekt hlavního města Prahy.
+        </p>
+        <div class="topbar-actions">
+          <a class="action-link" href="./pomoc.html">Chci pomoct s opravami</a>
+        </div>
+      </div>
+      <div class="topbar-meta">
+        <div class="stat">
+          <span class="stat-label">Zmapované snímky</span>
+          <span class="stat-value" id="photo-count">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Pokrytí</span>
+          <span class="stat-value">Praha a okolí</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="map-panel">
+        <div id="map" aria-label="Mapa s polohami fotografií"></div>
+        <div class="map-overlay">
+          <div class="chip">Klikněte na bod pro detail</div>
+          <div class="chip">Shluky pro rychlost</div>
+        </div>
+      </section>
+      <section class="how" aria-label="Jak to funguje">
+        <div class="card how-card">
+          <h2>Jak to funguje</h2>
+          <p class="how-lead">
+            Z archivu jsme nasbírali cca 10&nbsp;000 záznamů. Část jde geokódovat rovnou (adresa / č.p.) přes Mapy.cz.
+            Zbytek nejdřív projde LLM, které z popisu vytáhne kandidátní místa, a ta se pak zkusí geokódovat (dnes
+            typicky přes mapy.com / Mapy API).
+          </p>
+          <ul class="how-list">
+            <li>Výsledek: dataset s GPS souřadnicemi pro mapu.</li>
+            <li>Opravy: nahlášení se ukládá a může se projevit hned.</li>
+            <li>Historie: později lze dělat snapshoty do PR (volitelné).</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="modal" id="archive-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-modal-close></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-label="Archivní záznam">
+      <div class="modal-header">
+        <div>
+          <!-- <p class="modal-eyebrow">Archivní záznam</p>
+            <h2 class="modal-title">Náhled stránky</h2> -->
+        </div>
+        <button class="modal-close" type="button" data-modal-close>
+          Zavřít
+        </button>
+      </div>
+      <div class="modal-body">
+        <section class="card modal-feedback">
+          <div class="report-cta" id="report-cta-container">
+            <div class="report-icon">
+              <!-- Map pin icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+            </div>
+            <div class="report-meta">
+              <p class="report-eyebrow">Zpětná vazba</p>
+              <h2 class="report-title">Netrefili jsme to?</h2>
+              <p class="report-subtitle">
+                Je fotografie špatně umístěna na mapě? Dejte nám vědět.
+              </p>
+            </div>
+            <button class="primary report-button" type="button" id="report-cta">
+              Nahlásit polohu
+            </button>
+          </div>
+          <form id="feedback-form">
+            <input type="hidden" name="issue" value="wrong_location" />
+            <input type="hidden" name="correction_lat" />
+            <input type="hidden" name="correction_lon" />
+            <label class="inline-toggle">
+              <input type="checkbox" id="correction-toggle" />
+              <span>Chci upřesnit polohu</span>
+            </label>
+            <div class="correction-picker is-hidden">
+              <p class="helper">Klikněte do mapy a označte správné místo.</p>
+              <div id="correction-map" aria-label="Mapa pro opravu polohy"></div>
+            </div>
+            <label class="field">
+              <span>Chcete něco upřesnit? (volitelné)</span>
+              <textarea name="message" rows="3" placeholder="Např. správná ulice, orientační bod..."></textarea>
+            </label>
+            <label class="field">
+              <span>E-mail (volitelné, přihlášení k newsletteru)</span>
+              <input name="email" type="email" placeholder="vy@priklad.cz" />
+            </label>
+            <div class="turnstile-wrap">
+              <div id="turnstile"></div>
+              <p class="helper" id="turnstile-note">
+                Pro odeslání je nutný Turnstile.
+              </p>
+            </div>
+            <button type="submit" class="primary" disabled>
+              Odeslat zpětnou vazbu
+            </button>
+            <p class="form-status" id="form-status"></p>
+          </form>
+        </section>
+        <div class="modal-frame">
+          <iframe id="archive-iframe" title="Archivní záznam" loading="lazy" referrerpolicy="no-referrer"></iframe>
+          <div class="modal-footer">
+            <a id="archive-fallback" href="#" target="_blank" rel="noopener">
+              Otevřít v novém okně
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=turnstileOnload" async
+    defer></script>
+  <script src="./app.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,9 @@
+name = "old-prague-photos-viewer"
+compatibility_date = "2024-10-10"
+pages_build_output_dir = "viewer/static"
+
+[[d1_databases]]
+binding = "CORRECTIONS_DB"
+database_name = "old-prague-photos"
+database_id = "11954f0f-b2d1-4d2e-b98e-a89069069a68"
+migrations_dir = "migrations"

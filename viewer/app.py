@@ -1,0 +1,250 @@
+import json
+import os
+import re
+from datetime import datetime, timezone
+from pathlib import Path
+from threading import Lock
+from typing import Any
+
+import requests
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+ROOT = Path(__file__).resolve().parent
+STATIC_DIR = ROOT / "static"
+STATIC_DATA_DIR = STATIC_DIR / "data"
+DATA_DIR = ROOT / "data"
+PHOTOS_PATH = STATIC_DATA_DIR / "photos.geojson"
+FEEDBACK_PATH = DATA_DIR / "feedback.jsonl"
+CORRECTIONS_PATH = DATA_DIR / "corrections.jsonl"
+
+TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+app = FastAPI(title="Prohlížeč historických fotografií Prahy")
+
+_photos_cache: dict[str, Any] | None = None
+_feedback_lock = Lock()
+
+
+class FeedbackPayload(BaseModel):
+    xid: str = Field(min_length=1)
+    issue: str = Field(min_length=1, max_length=40)
+    message: str = Field(min_length=5, max_length=2000)
+    email: str | None = None
+    token: str | None = None
+
+
+class CorrectionPayload(BaseModel):
+    xid: str = Field(min_length=1)
+    lat: float | None = None
+    lon: float | None = None
+    verdict: str | None = None
+    message: str | None = Field(default=None, max_length=2000)
+    email: str | None = None
+    token: str | None = None
+
+
+def is_turnstile_bypass() -> bool:
+    value = os.environ.get("TURNSTILE_BYPASS", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def load_photos() -> dict[str, Any]:
+    global _photos_cache
+    if _photos_cache is None:
+        if not PHOTOS_PATH.exists():
+            raise HTTPException(
+                status_code=500,
+                detail="Chybí GeoJSON. Spusťte viewer/build_geojson.py",
+            )
+        with PHOTOS_PATH.open(encoding="utf-8") as handle:
+            _photos_cache = json.load(handle)
+    return _photos_cache
+
+
+def is_valid_email(email: str) -> bool:
+    return bool(EMAIL_PATTERN.match(email))
+
+
+def verify_turnstile(token: str, remoteip: str | None) -> None:
+    if is_turnstile_bypass():
+        return
+
+    secret = os.environ.get("TURNSTILE_SECRET_KEY", "").strip()
+    if not secret:
+        raise HTTPException(status_code=500, detail="Turnstile není nastaven")
+
+    data = {"secret": secret, "response": token}
+    if remoteip:
+        data["remoteip"] = remoteip
+
+    try:
+        response = requests.post(TURNSTILE_VERIFY_URL, data=data, timeout=8)
+        response.raise_for_status()
+        payload = response.json()
+    except requests.RequestException as exc:
+        raise HTTPException(
+            status_code=502, detail="Ověření Turnstile selhalo"
+        ) from exc
+
+    if not payload.get("success"):
+        raise HTTPException(status_code=400, detail="Ověření Turnstile selhalo")
+
+
+def normalize_corrections() -> list[dict[str, Any]]:
+    if not CORRECTIONS_PATH.exists():
+        return []
+
+    latest_verdict: dict[str, dict[str, Any]] = {}
+    latest_coords: dict[str, dict[str, Any]] = {}
+    with CORRECTIONS_PATH.open(encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            xid = record.get("xid")
+            if not xid:
+                continue
+            latest_verdict[xid] = {
+                "xid": xid,
+                "verdict": record.get("verdict"),
+                "received_at": record.get("received_at"),
+            }
+
+            has_coordinates = bool(record.get("has_coordinates"))
+            if has_coordinates:
+                latest_coords[xid] = {
+                    "lat": record.get("lat"),
+                    "lon": record.get("lon"),
+                    "has_coordinates": True,
+                }
+
+    merged: list[dict[str, Any]] = []
+    for xid, base in latest_verdict.items():
+        coords = latest_coords.get(xid, {"lat": None, "lon": None, "has_coordinates": False})
+        merged.append({**base, **coords})
+
+    return merged
+
+
+@app.get("/api/config")
+def get_config() -> JSONResponse:
+    photos = load_photos()
+    archive_base_url = os.environ.get(
+        "ARCHIVE_BASE_URL", "https://katalog.ahmp.cz/pragapublica"
+    ).rstrip("/")
+    return JSONResponse(
+        {
+            "turnstileSiteKey": os.environ.get("TURNSTILE_SITE_KEY", ""),
+            "turnstileBypass": is_turnstile_bypass(),
+            "archiveBaseUrl": archive_base_url,
+            "totalPhotos": len(photos.get("features", [])),
+        }
+    )
+
+
+@app.get("/api/photos")
+def get_photos() -> JSONResponse:
+    return JSONResponse(load_photos())
+
+
+@app.get("/api/corrections")
+def get_corrections() -> JSONResponse:
+    items = normalize_corrections()
+    return JSONResponse({"items": items, "count": len(items)})
+
+
+@app.post("/api/corrections")
+def submit_correction(payload: CorrectionPayload, request: Request) -> JSONResponse:
+    email = (payload.email or "").strip()
+    if email and not is_valid_email(email):
+        raise HTTPException(status_code=400, detail="Neplatný e-mail")
+
+    verdict = (payload.verdict or "").strip().lower()
+    has_coordinates = payload.lat is not None and payload.lon is not None
+    if not verdict:
+        verdict = "wrong" if has_coordinates else "flag"
+    if verdict not in {"ok", "wrong", "flag"}:
+        raise HTTPException(status_code=400, detail="Neplatný typ hlášení")
+
+    if (payload.lat is None) != (payload.lon is None):
+        raise HTTPException(status_code=400, detail="Neplatná poloha")
+
+    if verdict == "ok" and has_coordinates:
+        raise HTTPException(status_code=400, detail="Potvrzení OK nesmí obsahovat polohu")
+
+    if verdict == "wrong" and not has_coordinates:
+        raise HTTPException(status_code=400, detail="Pro opravu je nutná poloha")
+
+    if has_coordinates:
+        if payload.lat < -90 or payload.lat > 90 or payload.lon < -180 or payload.lon > 180:
+            raise HTTPException(status_code=400, detail="Neplatná poloha")
+
+    if not is_turnstile_bypass():
+        if not payload.token:
+            raise HTTPException(status_code=400, detail="Turnstile je povinný")
+        verify_turnstile(payload.token, request.client.host if request.client else None)
+
+    record = {
+        "id": f"corr_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
+        "xid": payload.xid,
+        "lat": payload.lat,
+        "lon": payload.lon,
+        "has_coordinates": has_coordinates,
+        "verdict": verdict,
+        "message": (payload.message or "Nahlášena špatná poloha.").strip(),
+        "email": email or None,
+        "newsletter_opt_in": bool(email),
+        "user_agent": request.headers.get("user-agent", ""),
+        "received_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with _feedback_lock:
+        with CORRECTIONS_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False))
+            handle.write("\n")
+
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/feedback")
+def submit_feedback(payload: FeedbackPayload, request: Request) -> JSONResponse:
+    email = (payload.email or "").strip()
+    if email and not is_valid_email(email):
+        raise HTTPException(status_code=400, detail="Neplatný e-mail")
+
+    if not is_turnstile_bypass():
+        if not payload.token:
+            raise HTTPException(status_code=400, detail="Turnstile je povinný")
+        verify_turnstile(payload.token, request.client.host if request.client else None)
+
+    record = {
+        "id": f"fb_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
+        "xid": payload.xid,
+        "issue": payload.issue,
+        "message": payload.message.strip(),
+        "email": email or None,
+        "newsletter_opt_in": bool(email),
+        "user_agent": request.headers.get("user-agent", ""),
+        "received_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with _feedback_lock:
+        with FEEDBACK_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False))
+            handle.write("\n")
+
+    return JSONResponse({"ok": True})
+
+
+app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

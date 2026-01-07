@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="cs">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pomoc s opravami — Staré fotografie Prahy</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;600&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Pomoc s opravami</p>
+        <h1>Opravte polohu fotografie</h1>
+        <p class="subtitle">
+          Náhodně vybereme fotku a ukážeme její umístění. Pokud nesedí, klikněte do mapy na správné místo a odešlete.
+        </p>
+        <div class="topbar-actions">
+          <a class="action-link" href="./index.html">Zpět na mapu</a>
+        </div>
+      </div>
+      <div class="topbar-meta">
+        <div class="stat">
+          <span class="stat-label">Zbývá</span>
+          <span class="stat-value" id="remaining-count">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Aktuální</span>
+          <span class="stat-value" id="current-xid">—</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="help">
+      <section class="card help-card">
+        <div class="help-controls">
+          <div class="help-vote">
+            <button class="vote vote-up" type="button" id="vote-up">
+              👍 Sedí
+            </button>
+            <button class="vote vote-down" type="button" id="vote-down">
+              👎 Nesedí
+            </button>
+          </div>
+          <div class="help-actions">
+            <button class="secondary" type="button" id="skip-photo">
+              Další fotka
+            </button>
+            <a class="secondary linklike" id="open-archive" href="#" target="_blank" rel="noopener">
+              Otevřít v archivu
+            </a>
+          </div>
+        </div>
+
+        <div class="help-grid">
+          <div class="help-preview">
+            <div class="preview-frame">
+              <iframe id="help-iframe" title="Archivní záznam" loading="lazy" referrerpolicy="no-referrer"></iframe>
+            </div>
+          </div>
+
+          <div class="help-map">
+            <p class="helper" id="help-map-note">Označená poloha je naše nejlepší shoda. Sedí?</p>
+            <div id="help-map" aria-label="Mapa pro opravu polohy"></div>
+          </div>
+        </div>
+
+        <div class="help-form is-hidden" id="help-form">
+          <div class="card help-down">
+            <p class="helper">Klikněte do mapy na správné místo. Pak odešlete opravu.</p>
+            <label class="field">
+              <span>Poznámka (volitelné)</span>
+              <textarea id="help-message" rows="3" placeholder="Např. správná ulice, orientační bod..."></textarea>
+            </label>
+            <label class="field">
+              <span>E-mail (volitelné, přihlášení k newsletteru)</span>
+              <input id="help-email" type="email" placeholder="vy@priklad.cz" />
+            </label>
+          </div>
+          <div class="turnstile-wrap">
+            <div id="turnstile"></div>
+            <p class="helper" id="turnstile-note">Pro odeslání je nutný Turnstile.</p>
+          </div>
+          <div class="help-submit">
+            <button class="primary help-primary" type="button" id="submit-ok" disabled>
+              Potvrdit OK
+            </button>
+            <button class="primary help-primary is-hidden" type="button" id="submit-correction" disabled>
+              Uložit opravu
+            </button>
+          </div>
+          <p class="form-status" id="form-status"></p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=turnstileOnload" async
+    defer></script>
+  <script src="./pomoc.js"></script>
+</body>
+
+</html>

@@ -1,74 +1,172 @@
+import argparse
+import html
+import math
 import os
+import re
+from urllib.parse import urljoin, urlparse, parse_qs
+
 import requests
-from bs4 import BeautifulSoup
 from PIL import Image
-from io import BytesIO
 
-# Define the URL of the page containing the Zoomify image
-page_url = "YOUR_PAGE_URL_HERE"
 
-# Fetch the HTML content of the page
-response = requests.get(page_url)
-html_content = response.text
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Download and stitch Zoomify tiles")
+    parser.add_argument("url", help="Permalink or Zoomify.action URL")
+    parser.add_argument("--output", default="final_image.jpg", help="Output image")
+    parser.add_argument(
+        "--tiles-dir", default="zoomify_tiles", help="Directory for tile cache"
+    )
+    return parser.parse_args()
 
-# Parse the HTML content
-soup = BeautifulSoup(html_content, "html.parser")
 
-# Extract the base URL and image properties from the JavaScript code in the HTML
-scripts = soup.find_all("script")
-zoomify_base_url = ""
-image_width = 0
-image_height = 0
-tile_size = 256  # Default tile size for Zoomify
+def extract_zoomify_url(page_html: str, base_url: str) -> str | None:
+    match = re.search(r'Zoomify\.action[^"\']+', page_html)
+    if not match:
+        return None
+    return urljoin(base_url, html.unescape(match.group(0)))
 
-for script in scripts:
-    if "zoomifyImgPath" in script.string:
-        lines = script.string.split("\n")
-        for line in lines:
-            if "zoomifyImgPath" in line:
-                zoomify_base_url = line.split("=")[1].strip().strip('"').strip(";")
-            if "totalWidth" in line:
-                image_width = int(line.split("=")[1].strip().strip(";"))
-            if "totalHeight" in line:
-                image_height = int(line.split("=")[1].strip().strip(";"))
 
-# Ensure we have all necessary information
-if not zoomify_base_url or not image_width or not image_height:
-    raise ValueError("Failed to extract image properties from the HTML content")
+def extract_zoomify_img_path(page_html: str) -> str | None:
+    match = re.search(r'zoomifyImgPath\s*=\s*"([^"]+)"', page_html)
+    return match.group(1) if match else None
 
-# Create a directory to store the downloaded tiles
-tiles_dir = "zoomify_tiles"
-os.makedirs(tiles_dir, exist_ok=True)
 
-# Calculate the number of tiles
-num_tiles_x = (image_width + tile_size - 1) // tile_size
-num_tiles_y = (image_height + tile_size - 1) // tile_size
+def fetch_zoomify_page(session: requests.Session, url: str) -> str:
+    response = session.get(url, timeout=20)
+    response.raise_for_status()
+    return response.text
 
-# Download all tiles
-for tile_y in range(num_tiles_y):
-    for tile_x in range(num_tiles_x):
-        tile_url = f"{zoomify_base_url}/TileGroup0/{0}-{tile_x}-{tile_y}.jpg"
-        tile_path = os.path.join(tiles_dir, f"tile_{tile_x}_{tile_y}.jpg")
 
-        # Download the tile
-        tile_response = requests.get(tile_url)
-        if tile_response.status_code == 200:
-            with open(tile_path, "wb") as tile_file:
-                tile_file.write(tile_response.content)
-            print(f"Downloaded {tile_url}")
-        else:
-            print(f"Failed to download {tile_url}")
+def resolve_zoomify(session: requests.Session, url: str) -> str:
+    cleaned_url = url.replace("\\", "").split("#", maxsplit=1)[0]
 
-# Stitch the tiles together
-final_image = Image.new("RGB", (image_width, image_height))
+    page_html = None
+    try:
+        page_html = fetch_zoomify_page(session, cleaned_url)
+    except requests.RequestException:
+        page_html = None
 
-for tile_y in range(num_tiles_y):
-    for tile_x in range(num_tiles_x):
-        tile_path = os.path.join(tiles_dir, f"tile_{tile_x}_{tile_y}.jpg")
-        if os.path.exists(tile_path):
-            tile_image = Image.open(tile_path)
-            final_image.paste(tile_image, (tile_x * tile_size, tile_y * tile_size))
+    if page_html:
+        if extract_zoomify_img_path(page_html):
+            return page_html
 
-# Save the final stitched image
-final_image.save("final_image.jpg")
-print("Final image saved as 'final_image.jpg'")
+        zoomify_url = extract_zoomify_url(page_html, cleaned_url)
+        if zoomify_url:
+            zoomify_html = fetch_zoomify_page(session, zoomify_url)
+            if extract_zoomify_img_path(zoomify_html):
+                return zoomify_html
+
+    parsed = urlparse(cleaned_url)
+    xid = parse_qs(parsed.query).get("xid", [None])[0]
+    if xid:
+        permalink = f"{parsed.scheme}://{parsed.netloc}/pragapublica/permalink?xid={xid}"
+        permalink_html = fetch_zoomify_page(session, permalink)
+        zoomify_url = extract_zoomify_url(permalink_html, permalink)
+        if zoomify_url:
+            zoomify_html = fetch_zoomify_page(session, zoomify_url)
+            if extract_zoomify_img_path(zoomify_html):
+                return zoomify_html
+
+    raise ValueError("Failed to resolve Zoomify image")
+
+
+def fetch_image_properties(session: requests.Session, base_url: str) -> dict[str, int]:
+    props_url = f"{base_url}/ImageProperties.xml"
+    response = session.get(props_url, timeout=20)
+    response.raise_for_status()
+    text = response.text
+
+    def find_int(attr: str) -> int:
+        match = re.search(rf'{attr}="(\d+)"', text)
+        if not match:
+            raise ValueError(f"Missing {attr} in ImageProperties.xml")
+        return int(match.group(1))
+
+    return {
+        "width": find_int("WIDTH"),
+        "height": find_int("HEIGHT"),
+        "tile_size": find_int("TILESIZE"),
+    }
+
+
+def build_tiers(width: int, height: int, tile_size: int) -> list[tuple[int, int]]:
+    tiers = []
+    w, h = width, height
+    while w > tile_size or h > tile_size:
+        tiers.append((w, h))
+        w = (w + 1) // 2
+        h = (h + 1) // 2
+    tiers.append((w, h))
+    return list(reversed(tiers))
+
+
+def tiles_for(size: tuple[int, int], tile_size: int) -> tuple[int, int]:
+    w, h = size
+    return (math.ceil(w / tile_size), math.ceil(h / tile_size))
+
+
+def tile_group_index(
+    tiers: list[tuple[int, int]], tile_size: int, z: int, x: int, y: int
+) -> int:
+    offset = 0
+    for tier in tiers[:z]:
+        tiles_x, tiles_y = tiles_for(tier, tile_size)
+        offset += tiles_x * tiles_y
+
+    tiles_x, _ = tiles_for(tiers[z], tile_size)
+    return (offset + y * tiles_x + x) // 256
+
+
+def main() -> None:
+    args = parse_args()
+    session = requests.Session()
+
+    zoomify_html = resolve_zoomify(session, args.url)
+    zoomify_img_path = extract_zoomify_img_path(zoomify_html)
+    if not zoomify_img_path:
+        raise ValueError("Failed to extract zoomifyImgPath")
+
+    props = fetch_image_properties(session, zoomify_img_path)
+    image_width = props["width"]
+    image_height = props["height"]
+    tile_size = props["tile_size"]
+
+    tiles_dir = args.tiles_dir
+    os.makedirs(tiles_dir, exist_ok=True)
+
+    tiers = build_tiers(image_width, image_height, tile_size)
+    max_zoom = len(tiers) - 1
+    tiles_x, tiles_y = tiles_for(tiers[max_zoom], tile_size)
+
+    for tile_y in range(tiles_y):
+        for tile_x in range(tiles_x):
+            group = tile_group_index(tiers, tile_size, max_zoom, tile_x, tile_y)
+            tile_url = (
+                f"{zoomify_img_path}/TileGroup{group}/{max_zoom}-{tile_x}-{tile_y}.jpg"
+            )
+            tile_path = os.path.join(tiles_dir, f"tile_{tile_x}_{tile_y}.jpg")
+            if os.path.exists(tile_path):
+                continue
+
+            tile_response = session.get(tile_url, timeout=20)
+            if tile_response.status_code == 200:
+                with open(tile_path, "wb") as tile_file:
+                    tile_file.write(tile_response.content)
+                print(f"Downloaded {tile_url}")
+            else:
+                print(f"Failed to download {tile_url}")
+
+    final_image = Image.new("RGB", (image_width, image_height))
+    for tile_y in range(tiles_y):
+        for tile_x in range(tiles_x):
+            tile_path = os.path.join(tiles_dir, f"tile_{tile_x}_{tile_y}.jpg")
+            if os.path.exists(tile_path):
+                tile_image = Image.open(tile_path)
+                final_image.paste(tile_image, (tile_x * tile_size, tile_y * tile_size))
+
+    final_image.save(args.output)
+    print(f"Final image saved as '{args.output}'")
+
+
+if __name__ == "__main__":
+    main()

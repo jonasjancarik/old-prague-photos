@@ -1,6 +1,10 @@
 .vscode
 output/
 .ignore*
+zoomify_tiles
+.wrangler/
+.dev.vars
+viewer/data/*.jsonl
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

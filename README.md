@@ -52,6 +52,16 @@ GEMINI_API_KEY="your_gemini_api_key_here"      # Recommended (cheap + fast)
 # Optional: Override the default model (defaults to gemini/gemini-2.0-flash)
 # LLM_MODEL="gpt-4o"                           # For OpenAI
 # LLM_MODEL="claude-3-haiku-20240307"          # For Anthropic
+
+# Viewer app (Cloudflare Turnstile)
+TURNSTILE_SITE_KEY="your_turnstile_site_key_here"
+TURNSTILE_SECRET_KEY="your_turnstile_secret_key_here"
+
+# Optional: disable Turnstile for local dev
+TURNSTILE_BYPASS="1"
+
+# Optional: override archive base URL used for links
+ARCHIVE_BASE_URL="https://katalog.ahmp.cz/pragapublica"
 ```
 
 **Note:** An LLM API key is required for the LLM-based address extraction feature.
@@ -117,6 +127,49 @@ uv run cli geolocate --help
 After running all the steps, the final dataset will be available at `output/old_prague_photos.csv`.
 
 ---
+
+## 🗺️ Viewer App
+
+The viewer is a static frontend (Leaflet map + feedback modal). It can run locally via FastAPI or as a static site on Cloudflare Pages with a D1 database for live corrections.
+
+Future idea: keep corrections in a live store (KV/D1) for instant map updates, and optionally run a daily GitHub Action that snapshots corrections into a PR (CSV + GeoJSON) for audit/history.
+
+### Build GeoJSON
+
+Generate the map data from the CSV export:
+
+```bash
+python viewer/build_geojson.py
+```
+
+This writes `viewer/static/data/photos.geojson` for static hosting.
+
+### Run locally (FastAPI)
+
+```bash
+uv run uvicorn viewer.app:app --reload
+```
+
+Open `http://127.0.0.1:8000`. Corrections are stored at `viewer/data/corrections.jsonl`.
+
+### Cloudflare Pages + D1 (recommended)
+
+1. Login + create D1:
+   ```bash
+   npx wrangler login
+   npx wrangler d1 create old-prague-photos
+   ```
+2. Update `wrangler.toml` with the D1 `database_id`.
+3. Apply migrations:
+   ```bash
+   npx wrangler d1 migrations apply CORRECTIONS_DB --local
+   ```
+4. Local dev with Pages:
+   ```bash
+   TURNSTILE_BYPASS=1 npx wrangler pages dev viewer/static --local
+   ```
+
+For Turnstile in Cloudflare, set `TURNSTILE_SITE_KEY` as a Pages env var and `TURNSTILE_SECRET_KEY` as a Pages secret.
 
 ## 🛠️ Utility Scripts
 
