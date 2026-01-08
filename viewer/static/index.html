@@ -140,48 +140,45 @@
                 </div>
               </div>
 
-              <!-- Correction view -->
-              <div class="modal-correction is-hidden" id="modal-correction-view">
+              <div class="modal-correction is-hidden" id="correction-view-container">
                 <div class="modal-meta-head">
                   <p class="modal-meta-eyebrow">Oprava polohy</p>
                   <h3 class="modal-meta-title">Zadejte správné místo</h3>
                 </div>
 
-                <form id="feedback-form" class="is-open"> <!-- form stays open in its container -->
-                  <input type="hidden" name="issue" value="wrong_location" />
-                  <input type="hidden" name="correction_lat" />
-                  <input type="hidden" name="correction_lon" />
-
+                <div id="correction-form-standard">
                   <div class="correction-picker">
                     <p class="helper">Přetáhněte špendlík na mapě na správné místo.</p>
-                    <div id="correction-map" aria-label="Mapa pro opravu polohy"></div>
+                    <div id="shared-correction-map" class="correction-map-shared" aria-label="Mapa pro opravu polohy">
+                    </div>
                   </div>
 
                   <label class="field">
-                    <span>Upřesnění (volitelné)</span>
-                    <textarea name="message" rows="2" placeholder="Např. patro, směr focení..."></textarea>
+                    <span>Poznámka (volitelné)</span>
+                    <textarea id="correction-message" rows="3"
+                      placeholder="Např. správná ulice, orientační bod..."></textarea>
                   </label>
 
                   <label class="field">
                     <span>E-mail (volitelné)</span>
-                    <input name="email" type="email" placeholder="vy@priklad.cz" />
+                    <input id="correction-email" type="email" placeholder="vy@priklad.cz" />
                   </label>
 
                   <div class="turnstile-wrap">
-                    <div id="turnstile"></div>
-                    <p class="helper" id="turnstile-note"></p>
+                    <div id="correction-turnstile"></div>
                   </div>
 
-                  <div class="form-actions">
-                    <button type="submit" class="primary" disabled>
-                      Uložit polohu
-                    </button>
-                    <button type="button" class="secondary" id="cancel-correction">
+                  <div id="correction-status" class="status-message"></div>
+
+                  <div class="modal-actions">
+                    <button class="secondary" type="button" id="correction-cancel-btn">
                       Zrušit
                     </button>
+                    <button class="primary" type="button" id="correction-submit-btn" disabled>
+                      Uložit opravu
+                    </button>
                   </div>
-                  <p class="form-status" id="form-status"></p>
-                </form>
+                </div>
               </div>
             </aside>
           </div>
@@ -201,6 +198,7 @@
   <script src="https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js"></script>
   <script src="./zoomify.js"></script>
   <script src="./photo-meta.js"></script>
+  <script src="./correction-ui.js"></script>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=turnstileOnload" async
     defer></script>
   <script src="./app.js"></script>

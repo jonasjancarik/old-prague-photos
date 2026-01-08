@@ -5,11 +5,7 @@ const state = {
   originalMarker: null,
   proposedMarker: null,
   mode: null, // null | "ok" | "wrong"
-  turnstileSiteKey: "",
-  turnstileBypass: false,
-  turnstileReady: false,
-  turnstileWidgetId: null,
-  turnstileToken: "",
+  remainingCloud: 0,
   archiveBaseUrl: "https://katalog.ahmp.cz/pragapublica",
   features: [],
   remaining: [],
@@ -25,18 +21,10 @@ const zoomViewerEl = document.getElementById("help-zoom");
 const remainingEl = document.getElementById("remaining-count");
 const currentXidEl = document.getElementById("current-xid");
 const detailsEl = document.getElementById("help-details");
-const submitOkBtn = document.getElementById("submit-ok");
-const submitCorrectionBtn = document.getElementById("submit-correction");
-const prevBtn = document.getElementById("prev-photo");
-const skipBtn = document.getElementById("skip-photo");
 const voteUpBtn = document.getElementById("vote-up");
 const voteDownBtn = document.getElementById("vote-down");
-const helpForm = document.getElementById("help-form");
-const helpMapNote = document.getElementById("help-map-note");
-const messageEl = document.getElementById("help-message");
-const emailEl = document.getElementById("help-email");
-const formStatus = document.getElementById("form-status");
-const turnstileNote = document.getElementById("turnstile-note");
+const skipBtn = document.getElementById("skip-photo");
+const prevBtn = document.getElementById("prev-photo");
 
 const pragueFallback = [50.0755, 14.4378];
 
@@ -83,17 +71,13 @@ async function refreshRemainingCloud() {
 }
 
 function updateSubmitState() {
-  const hasTurnstile = state.turnstileBypass || Boolean(state.turnstileToken);
+  const isWrong = state.mode === "wrong";
+  const hasToken = !!(state.turnstileToken || state.turnstileBypass);
+  const hasProposed = !!state.proposed;
 
-  const canOk = Boolean(state.current) && state.mode === "ok" && hasTurnstile;
-  const canWrong =
-    Boolean(state.current) &&
-    state.mode === "wrong" &&
-    Boolean(state.proposed) &&
-    hasTurnstile;
-
-  submitOkBtn.disabled = !canOk;
-  submitCorrectionBtn.disabled = !canWrong;
+  if (submitCorrectionBtn) {
+    submitCorrectionBtn.disabled = !isWrong || !hasProposed || !hasToken;
+  }
 }
 
 async function fetchJson(url) {
@@ -177,18 +161,6 @@ function initMap() {
       attribution: osmAttr,
     }).addTo(state.map);
   }
-
-  state.map.on("click", (event) => {
-    if (state.mode !== "wrong") return;
-    const { lat, lng } = event.latlng;
-    state.proposed = { lat: Number(lat.toFixed(6)), lon: Number(lng.toFixed(6)) };
-    if (!state.proposedMarker) {
-      state.proposedMarker = L.marker([lat, lng]).addTo(state.map);
-    } else {
-      state.proposedMarker.setLatLng([lat, lng]);
-    }
-    updateSubmitState();
-  });
 }
 
 function showFeature(feature) {
@@ -203,11 +175,11 @@ function showFeature(feature) {
     window.OldPragueMeta.renderDetails(detailsEl, feature, state.archiveBaseUrl);
   }
 
-  if (messageEl) messageEl.value = "";
-  if (emailEl) emailEl.value = "";
-  if (helpForm) helpForm.classList.add("is-hidden");
-  submitOkBtn.classList.remove("is-hidden");
-  submitCorrectionBtn.classList.add("is-hidden");
+  if (window.OldPragueMeta?.renderDetails) {
+    window.OldPragueMeta.renderDetails(detailsEl, feature, state.archiveBaseUrl);
+  }
+
+  if (correctionView) correctionView.classList.add("is-hidden");
 
   // Reflect previous vote state
   const xid = feature.properties.id;
@@ -266,12 +238,24 @@ function setMode(mode) {
   }
 
   // For "wrong", show the form
-  if (!helpForm) return;
-  helpForm.classList.remove("is-hidden");
-  if (submitOkBtn) submitOkBtn.classList.add("is-hidden");
-  if (submitCorrectionBtn) submitCorrectionBtn.classList.remove("is-hidden");
-  if (helpMapNote) helpMapNote.textContent = "Nesedí? Klikněte do mapy na správné místo.";
-  updateSubmitState();
+  if (!correctionView) return;
+
+  correctionView.classList.remove("is-hidden");
+  CorrectionUI.open(state.current, {
+    turnstileSiteKey: state.turnstileSiteKey,
+    turnstileBypass: state.turnstileBypass,
+    onSuccess: () => {
+      setTimeout(() => {
+        if (correctionView) correctionView.classList.add("is-hidden");
+        pickRandom();
+      }, 1500);
+    },
+    onCancel: () => {
+      if (correctionView) correctionView.classList.add("is-hidden");
+      voteDownBtn.classList.remove("is-voted");
+      state.mode = null;
+    }
+  });
 }
 
 async function pickRandom() {
@@ -391,7 +375,7 @@ async function submitCorrection() {
 
 async function submitOk() {
   console.log("submitOk started, state:", { xid: state.current?.properties?.id, mode: state.mode, bypass: state.turnstileBypass });
-  if (!state.current) return;
+  if (!state.current || state.mode !== "ok") return;
 
   clearStatus();
 
@@ -443,6 +427,8 @@ async function bootstrap() {
   state.archiveBaseUrl = config.archiveBaseUrl || state.archiveBaseUrl;
 
   initMap();
+  CorrectionUI.init("shared-correction-map");
+  CorrectionUI.setTurnstileBypass(state.turnstileBypass);
   renderTurnstile();
 
   const photos = await fetchJson("/data/photos.geojson");
@@ -453,8 +439,16 @@ async function bootstrap() {
   pickRandom();
 }
 
-submitOkBtn.addEventListener("click", () => submitOk());
-submitCorrectionBtn.addEventListener("click", () => submitCorrection());
+/* removed submitOkBtn listener */
+const correctionSubmitBtn = document.getElementById("correction-submit-btn");
+if (correctionSubmitBtn) {
+  correctionSubmitBtn.addEventListener("click", () => CorrectionUI.submit());
+}
+
+const correctionCancelBtnShared = document.getElementById("correction-cancel-btn");
+if (correctionCancelBtnShared) {
+  correctionCancelBtnShared.addEventListener("click", () => CorrectionUI.cancel());
+}
 skipBtn.addEventListener("click", () => pickRandom());
 if (prevBtn) prevBtn.addEventListener("click", () => pickPrev());
 voteUpBtn.addEventListener("click", () => setMode("ok"));

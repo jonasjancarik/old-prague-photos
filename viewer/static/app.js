@@ -13,10 +13,6 @@ const state = {
   featuresById: new Map(),
   overlapCluster: null,
   clusteringEnabled: true,
-  correctionLat: null,
-  correctionLon: null,
-  correctionMap: null,
-  correctionMarker: null,
 };
 
 const detailContainer = document.getElementById("photo-details");
@@ -31,20 +27,11 @@ const zoomWrap = archiveIframe?.closest(".zoom-wrap");
 const zoomViewerEl = document.getElementById("zoom-viewer");
 const reportCta = document.getElementById("report-cta");
 const reportCtaWrap = document.getElementById("report-cta-container");
-const correctionMapEl = document.getElementById("correction-map");
-const cancelCorrectionBtn = document.getElementById("cancel-correction");
 const metaView = document.getElementById("modal-meta-view");
-const correctionView = document.getElementById("modal-correction-view");
+const correctionView = document.getElementById("correction-view-container");
 
 const infoModal = document.getElementById("info-modal");
 const infoOpenBtn = document.getElementById("info-open");
-
-const correctionLatInput = feedbackForm?.querySelector(
-  "input[name='correction_lat']",
-);
-const correctionLonInput = feedbackForm?.querySelector(
-  "input[name='correction_lon']",
-);
 
 const pragueFallback = [50.0755, 14.4378];
 
@@ -132,75 +119,6 @@ function setUrlXid(xid, mode = "push") {
   }
 }
 
-function setCorrection(lat, lon) {
-  state.correctionLat = lat;
-  state.correctionLon = lon;
-  if (correctionLatInput) correctionLatInput.value = String(lat);
-  if (correctionLonInput) correctionLonInput.value = String(lon);
-  updateSubmitState();
-}
-
-function clearCorrection() {
-  state.correctionLat = null;
-  state.correctionLon = null;
-  if (correctionLatInput) correctionLatInput.value = "";
-  if (correctionLonInput) correctionLonInput.value = "";
-  updateSubmitState();
-}
-
-function ensureCorrectionMap() {
-  if (!correctionMapEl || state.correctionMap) return;
-  state.correctionMap = L.map(correctionMapEl, {
-    zoomControl: false,
-    scrollWheelZoom: false,
-  }).setView(pragueFallback, 13);
-
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-    attribution: "&copy; OpenStreetMap přispěvatelé",
-  }).addTo(state.correctionMap);
-
-  state.correctionMap.on("click", (event) => {
-    const { lat, lng } = event.latlng;
-    updateCorrectionMarker(lat, lng);
-  });
-}
-
-function updateCorrectionMarker(lat, lng) {
-  if (!state.correctionMarker) {
-    state.correctionMarker = L.marker([lat, lng], {
-      draggable: true
-    }).addTo(state.correctionMap);
-
-    state.correctionMarker.on("dragend", (event) => {
-      const marker = event.target;
-      const position = marker.getLatLng();
-      setCorrection(Number(position.lat.toFixed(6)), Number(position.lng.toFixed(6)));
-    });
-  } else {
-    state.correctionMarker.setLatLng([lat, lng]);
-  }
-  setCorrection(Number(lat.toFixed(6)), Number(lng.toFixed(6)));
-}
-
-function resetCorrectionMap(feature) {
-  if (!state.correctionMap || !feature) return;
-  const [lon, lat] = feature.geometry.coordinates;
-  state.correctionMap.setView([lat, lon], 15);
-
-  if (feature.properties?.corrected) {
-    const { lat: cLat, lon: cLon } = feature.properties.corrected;
-    updateCorrectionMarker(cLat, cLon);
-    return;
-  }
-
-  if (state.correctionMarker) {
-    state.correctionMap.removeLayer(state.correctionMarker);
-    state.correctionMarker = null;
-  }
-  clearCorrection();
-}
-
 function openArchiveModal(url, xid, options = {}) {
   if (!archiveModal || !archiveIframe || !archiveFallback) return;
   const { updateHistory = true } = options;
@@ -223,7 +141,6 @@ function openArchiveModal(url, xid, options = {}) {
   if (feedbackForm) {
     feedbackForm.classList.remove("is-open");
   }
-  clearCorrection();
   if (reportCtaWrap) {
     reportCtaWrap.classList.remove("is-hidden");
   }
@@ -524,6 +441,9 @@ async function bootstrap() {
   applyCorrections(features, corrections.items || []);
   addMarkers(features);
   renderDetails(null);
+
+  CorrectionUI.init("shared-correction-map");
+  CorrectionUI.setTurnstileBypass(state.turnstileBypass);
   photoCount.textContent = features.length
     ? features.length.toLocaleString()
     : "—";
@@ -614,35 +534,28 @@ function renderSearchResults(results, container) {
 
 feedbackForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  clearStatus();
+  setStatus("Odesílám...", "info");
 
   if (!state.selectedFeature) {
     setStatus("Nejprve vyberte bod na mapě.", "error");
     return;
   }
 
-  if (!state.turnstileToken) {
-    if (!state.turnstileBypass) {
-      setStatus("Dokončete Turnstile kontrolu.", "error");
-      return;
-    }
+  if (!state.turnstileToken && !state.turnstileBypass) {
+    setStatus("Dokončete Turnstile kontrolu.", "error");
+    return;
   }
 
   const formData = new FormData(feedbackForm);
-  const rawMessage = String(formData.get("message") || "").trim();
-  const hasCoordinates = state.correctionLat !== null && state.correctionLon !== null;
   const payload = {
     xid: state.selectedFeature.properties.id,
-    lat: state.correctionLat ?? null,
-    lon: state.correctionLon ?? null,
-    verdict: hasCoordinates ? "wrong" : "flag",
-    message: rawMessage || "Nahlášena špatná poloha.",
+    message: String(formData.get("message") || "").trim(),
     email: formData.get("email"),
     token: state.turnstileToken || "",
   };
 
   try {
-    const response = await fetch("/api/corrections", {
+    const response = await fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -656,15 +569,6 @@ feedbackForm.addEventListener("submit", async (event) => {
     setStatus("Děkujeme! Zpětná vazba byla přijata.", "success");
     feedbackForm.reset();
     feedbackForm.classList.remove("is-open");
-    if (state.correctionMarker && state.correctionMap) {
-      state.correctionMap.removeLayer(state.correctionMarker);
-      state.correctionMarker = null;
-    }
-    clearCorrection();
-    if (correctionToggle) {
-      correctionToggle.checked = false;
-      correctionMapEl?.parentElement?.classList.add("is-hidden");
-    }
     if (reportCtaWrap) {
       reportCtaWrap.classList.remove("is-hidden");
     }
@@ -682,31 +586,32 @@ if (reportCta) {
   reportCta.addEventListener("click", () => {
     if (metaView) metaView.classList.add("is-hidden");
     if (correctionView) correctionView.classList.remove("is-hidden");
-    if (feedbackForm) feedbackForm.classList.add("is-open");
 
-    ensureCorrectionMap();
-    resetCorrectionMap(state.selectedFeature);
-
-    updateSubmitState();
-    renderTurnstile();
-    setTimeout(() => {
-      if (state.correctionMap) {
-        state.correctionMap.invalidateSize();
+    CorrectionUI.open(state.selectedFeature, {
+      turnstileSiteKey: state.turnstileSiteKey,
+      turnstileBypass: state.turnstileBypass,
+      onSuccess: () => {
+        setTimeout(() => {
+          if (metaView) metaView.classList.remove("is-hidden");
+          if (correctionView) correctionView.classList.add("is-hidden");
+        }, 1500);
+      },
+      onCancel: () => {
+        if (metaView) metaView.classList.remove("is-hidden");
+        if (correctionView) correctionView.classList.add("is-hidden");
       }
-    }, 100);
+    });
   });
 }
 
-if (cancelCorrectionBtn) {
-  cancelCorrectionBtn.addEventListener("click", () => {
-    if (metaView) metaView.classList.remove("is-hidden");
-    if (correctionView) correctionView.classList.add("is-hidden");
-    if (state.correctionMarker && state.correctionMap) {
-      state.correctionMap.removeLayer(state.correctionMarker);
-      state.correctionMarker = null;
-    }
-    clearCorrection();
-  });
+const correctionSubmitBtn = document.getElementById("correction-submit-btn");
+if (correctionSubmitBtn) {
+  correctionSubmitBtn.addEventListener("click", () => CorrectionUI.submit());
+}
+
+const sharedCancelBtn = document.getElementById("correction-cancel-btn");
+if (sharedCancelBtn) {
+  sharedCancelBtn.addEventListener("click", () => CorrectionUI.cancel());
 }
 
 // Correction toggle removed - replaced by view switching
