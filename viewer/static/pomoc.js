@@ -11,6 +11,8 @@ const state = {
   archiveBaseUrl: "https://katalog.ahmp.cz/pragapublica",
   features: [],
   remaining: [],
+  history: [],
+  voted: {}, // xid -> "ok" | "wrong"
   current: null,
   proposed: null,
 };
@@ -20,10 +22,10 @@ const zoomWrap = iframe?.closest(".zoom-wrap");
 const zoomViewerEl = document.getElementById("help-zoom");
 const remainingEl = document.getElementById("remaining-count");
 const currentXidEl = document.getElementById("current-xid");
-const openArchiveEl = document.getElementById("open-archive");
 const detailsEl = document.getElementById("help-details");
 const submitOkBtn = document.getElementById("submit-ok");
 const submitCorrectionBtn = document.getElementById("submit-correction");
+const prevBtn = document.getElementById("prev-photo");
 const skipBtn = document.getElementById("skip-photo");
 const voteUpBtn = document.getElementById("vote-up");
 const voteDownBtn = document.getElementById("vote-down");
@@ -50,10 +52,32 @@ function clearStatus() {
 }
 
 function updateCounts() {
-  remainingEl.textContent = state.remaining.length
-    ? state.remaining.length.toLocaleString()
-    : "—";
+  if (remainingEl) {
+    remainingEl.textContent = state.remaining.length
+      ? state.remaining.length.toLocaleString()
+      : "—";
+  }
   currentXidEl.textContent = state.current?.properties?.id || "—";
+  if (prevBtn) {
+    prevBtn.disabled = state.history.length === 0;
+  }
+}
+
+async function refreshRemainingCloud() {
+  try {
+    const corrections = await fetchJson("/api/corrections");
+    const done = new Set(
+      (corrections.items || [])
+        .filter((item) => item?.xid && (item?.has_coordinates || item?.verdict === "ok"))
+        .map((item) => item.xid)
+    );
+
+    // Update local remaining pool while keeping out things already done by others
+    state.remaining = state.features.filter((f) => !done.has(f.properties.id));
+    updateCounts();
+  } catch (err) {
+    console.warn("Refresh counteru selhal", err);
+  }
 }
 
 function updateSubmitState() {
@@ -159,13 +183,18 @@ function showFeature(feature) {
   if (helpForm) helpForm.classList.add("is-hidden");
   submitOkBtn.classList.remove("is-hidden");
   submitCorrectionBtn.classList.add("is-hidden");
-  if (helpMapNote) helpMapNote.textContent = "Označená poloha je naše nejlepší shoda. Sedí?";
 
+  // Reflect previous vote state
   const xid = feature.properties.id;
+  const prevVote = state.voted[xid];
+  voteUpBtn.classList.toggle("is-voted", prevVote === "ok");
+  voteDownBtn.classList.toggle("is-voted", prevVote === "wrong");
+
   const url = getArchiveUrl(xid);
   iframe.src = url;
-  openArchiveEl.href = url;
-  loadZoomifyInto(xid);
+  if (zoomLastXid !== xid) {
+    loadZoomifyInto(xid);
+  }
 
   const [lon, lat] = feature.geometry.coordinates;
   const point = [lat, lon];
@@ -191,46 +220,76 @@ function showFeature(feature) {
 }
 
 function setMode(mode) {
+  console.log("setMode:", mode);
   state.mode = mode;
   clearStatus();
 
-  if (!helpForm) return;
-  helpForm.classList.remove("is-hidden");
+  const xid = state.current?.properties?.id;
+  if (xid) {
+    state.voted[xid] = mode;
+  }
 
+  // Update button visuals
+  voteUpBtn.classList.toggle("is-voted", mode === "ok");
+  voteDownBtn.classList.toggle("is-voted", mode === "wrong");
+
+  // For "ok", submit immediately and auto-advance
   if (mode === "ok") {
-    submitOkBtn.classList.remove("is-hidden");
-    submitCorrectionBtn.classList.add("is-hidden");
-    if (helpMapNote) helpMapNote.textContent = "Sedí? Potvrďte 👍.";
-    updateSubmitState();
+    console.log("Calling submitOk directly from setMode");
+    submitOk();
     return;
   }
 
-  submitOkBtn.classList.add("is-hidden");
-  submitCorrectionBtn.classList.remove("is-hidden");
+  // For "wrong", show the form
+  if (!helpForm) return;
+  helpForm.classList.remove("is-hidden");
+  if (submitOkBtn) submitOkBtn.classList.add("is-hidden");
+  if (submitCorrectionBtn) submitCorrectionBtn.classList.remove("is-hidden");
   if (helpMapNote) helpMapNote.textContent = "Nesedí? Klikněte do mapy na správné místo.";
   updateSubmitState();
 }
 
-function pickRandom() {
+async function pickRandom() {
+  // Optional: Refresh count from server to see other people's progress
+  // We don't await so UI doesn't lag
+  refreshRemainingCloud();
+
   if (!state.remaining.length) {
     state.remaining = [...state.features];
   }
 
   const idx = Math.floor(Math.random() * state.remaining.length);
   const feature = state.remaining.splice(idx, 1)[0];
+
+  if (state.current) {
+    state.history.push(state.current);
+  }
+
   showFeature(feature);
+}
+
+function pickPrev() {
+  if (state.history.length === 0) return;
+  const prevFeature = state.history.pop();
+
+  // Put current back to remaining if it's not the one we just popped
+  if (state.current) {
+    state.remaining.push(state.current);
+  }
+
+  showFeature(prevFeature);
 }
 
 function renderTurnstile() {
   if (state.turnstileBypass) {
-    turnstileNote.textContent = "Turnstile je vypnutý pro lokální vývoj.";
+    if (turnstileNote) turnstileNote.textContent = "Turnstile je vypnutý pro lokální vývoj.";
     updateSubmitState();
     return;
   }
 
   if (!state.turnstileReady || !state.turnstileSiteKey) {
     if (!state.turnstileSiteKey) {
-      turnstileNote.textContent = "Chybí Turnstile klíč.";
+      if (turnstileNote) turnstileNote.textContent = "Chybí Turnstile klíč.";
     }
     return;
   }
@@ -306,12 +365,15 @@ async function submitCorrection() {
 }
 
 async function submitOk() {
-  if (!state.current || state.mode !== "ok") return;
+  console.log("submitOk started, state:", { xid: state.current?.properties?.id, mode: state.mode, bypass: state.turnstileBypass });
+  if (!state.current) return;
 
   clearStatus();
 
   if (!state.turnstileToken && !state.turnstileBypass) {
+    console.warn("Blocked by Turnstile: token missing and bypass is false");
     setStatus("Dokončete Turnstile kontrolu.", "error");
+    if (helpForm) helpForm.classList.remove("is-hidden");
     return;
   }
 
@@ -322,6 +384,7 @@ async function submitOk() {
     token: state.turnstileToken || "",
   };
 
+  console.log("Submitting OK payload:", payload);
   submitOkBtn.disabled = true;
 
   try {
@@ -360,18 +423,7 @@ async function bootstrap() {
   const photos = await fetchJson("/data/photos.geojson");
   state.features = photos.features || [];
 
-  const corrections = await fetchJson("/api/corrections").catch(() => ({
-    items: [],
-  }));
-
-  const done = new Set(
-    (corrections.items || [])
-      .filter((item) => item?.xid && (item?.has_coordinates || item?.verdict === "ok"))
-      .map((item) => item.xid),
-  );
-
-  state.remaining = state.features.filter((f) => !done.has(f.properties.id));
-  updateCounts();
+  await refreshRemainingCloud();
 
   pickRandom();
 }
@@ -379,6 +431,7 @@ async function bootstrap() {
 submitOkBtn.addEventListener("click", () => submitOk());
 submitCorrectionBtn.addEventListener("click", () => submitCorrection());
 skipBtn.addEventListener("click", () => pickRandom());
+if (prevBtn) prevBtn.addEventListener("click", () => pickPrev());
 voteUpBtn.addEventListener("click", () => setMode("ok"));
 voteDownBtn.addEventListener("click", () => setMode("wrong"));
 

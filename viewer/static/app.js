@@ -9,6 +9,8 @@ const state = {
   turnstileWidgetId: null,
   turnstileToken: "",
   featuresById: new Map(),
+  overlapCluster: null,
+  clusteringEnabled: true,
   correctionLat: null,
   correctionLon: null,
   correctionMap: null,
@@ -26,9 +28,15 @@ const archiveFallback = document.getElementById("archive-fallback");
 const zoomWrap = archiveIframe?.closest(".zoom-wrap");
 const zoomViewerEl = document.getElementById("zoom-viewer");
 const reportCta = document.getElementById("report-cta");
-const reportCtaWrap = document.querySelector(".report-cta");
+const reportCtaWrap = document.getElementById("report-cta-container");
 const correctionMapEl = document.getElementById("correction-map");
-const correctionToggle = document.getElementById("correction-toggle");
+const cancelCorrectionBtn = document.getElementById("cancel-correction");
+const metaView = document.getElementById("modal-meta-view");
+const correctionView = document.getElementById("modal-correction-view");
+
+const infoModal = document.getElementById("info-modal");
+const infoOpenBtn = document.getElementById("info-open");
+
 const correctionLatInput = feedbackForm?.querySelector(
   "input[name='correction_lat']",
 );
@@ -94,7 +102,7 @@ function updateSubmitState() {
   const button = feedbackForm.querySelector("button[type='submit']");
   const canSubmit = Boolean(
     state.selectedFeature &&
-      (state.turnstileBypass || state.turnstileToken),
+    (state.turnstileBypass || state.turnstileToken),
   );
   button.disabled = !canSubmit;
 }
@@ -152,13 +160,25 @@ function ensureCorrectionMap() {
 
   state.correctionMap.on("click", (event) => {
     const { lat, lng } = event.latlng;
-    if (!state.correctionMarker) {
-      state.correctionMarker = L.marker([lat, lng]).addTo(state.correctionMap);
-    } else {
-      state.correctionMarker.setLatLng([lat, lng]);
-    }
-    setCorrection(Number(lat.toFixed(6)), Number(lng.toFixed(6)));
+    updateCorrectionMarker(lat, lng);
   });
+}
+
+function updateCorrectionMarker(lat, lng) {
+  if (!state.correctionMarker) {
+    state.correctionMarker = L.marker([lat, lng], {
+      draggable: true
+    }).addTo(state.correctionMap);
+
+    state.correctionMarker.on("dragend", (event) => {
+      const marker = event.target;
+      const position = marker.getLatLng();
+      setCorrection(Number(position.lat.toFixed(6)), Number(position.lng.toFixed(6)));
+    });
+  } else {
+    state.correctionMarker.setLatLng([lat, lng]);
+  }
+  setCorrection(Number(lat.toFixed(6)), Number(lng.toFixed(6)));
 }
 
 function resetCorrectionMap(feature) {
@@ -168,14 +188,7 @@ function resetCorrectionMap(feature) {
 
   if (feature.properties?.corrected) {
     const { lat: cLat, lon: cLon } = feature.properties.corrected;
-    if (!state.correctionMarker) {
-      state.correctionMarker = L.marker([cLat, cLon]).addTo(
-        state.correctionMap,
-      );
-    } else {
-      state.correctionMarker.setLatLng([cLat, cLon]);
-    }
-    setCorrection(cLat, cLon);
+    updateCorrectionMarker(cLat, cLon);
     return;
   }
 
@@ -202,21 +215,13 @@ function openArchiveModal(url, xid, options = {}) {
   archiveModal.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
   renderTurnstile();
-  if (correctionToggle?.checked) {
-    ensureCorrectionMap();
-    resetCorrectionMap(state.selectedFeature);
-    if (state.correctionMap) {
-      setTimeout(() => state.correctionMap.invalidateSize(), 0);
-    }
-  }
+  if (metaView) metaView.classList.remove("is-hidden");
+  if (correctionView) correctionView.classList.add("is-hidden");
+
   if (feedbackForm) {
     feedbackForm.classList.remove("is-open");
   }
-  if (correctionToggle) {
-    correctionToggle.checked = false;
-    correctionMapEl?.parentElement?.classList.add("is-hidden");
-    clearCorrection();
-  }
+  clearCorrection();
   if (reportCtaWrap) {
     reportCtaWrap.classList.remove("is-hidden");
   }
@@ -237,8 +242,20 @@ function closeArchiveModal(options = {}) {
   archiveIframe.src = "";
   zoomLastXid = null;
   document.body.style.overflow = "";
+
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur();
+  }
+
   if (updateHistory) {
     setUrlXid(null, "replace");
+  }
+
+  // Ensure map recalculates its size after the modal is gone
+  if (state.map) {
+    setTimeout(() => {
+      state.map.invalidateSize({ animate: true });
+    }, 250);
   }
 }
 
@@ -267,6 +284,14 @@ function initMap() {
     attribution: "&copy; OpenStreetMap přispěvatelé",
   }).addTo(state.map);
 
+  const clusterToggle = document.getElementById("cluster-toggle");
+  if (clusterToggle) {
+    state.clusteringEnabled = clusterToggle.checked;
+    clusterToggle.addEventListener("change", (e) => {
+      toggleClustering(e.target.checked);
+    });
+  }
+
   state.cluster = L.markerClusterGroup({
     showCoverageOnHover: false,
     maxClusterRadius: 46,
@@ -278,10 +303,55 @@ function initMap() {
       }),
   });
 
-  state.map.addLayer(state.cluster);
+  // "Smart Clustering" for overlapping points (very small radius)
+  state.overlapCluster = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 2, // Only group very close or identical coordinates
+    iconCreateFunction: (cluster) =>
+      L.divIcon({
+        html: `<div class="cluster-badge tiny">${cluster.getChildCount()}</div>`,
+        className: "cluster-wrapper",
+        iconSize: [24, 24],
+      }),
+  });
+
+  if (state.clusteringEnabled) {
+    state.map.addLayer(state.cluster);
+  } else {
+    state.map.addLayer(state.overlapCluster);
+  }
+}
+
+function toggleClustering(enabled) {
+  if (!enabled && !localStorage.getItem("cluster-warning-shown")) {
+    const proceed = confirm(
+      "Vypnutí seskupování může při velkém počtu fotek výrazně zpomalit prohlížeč. Chcete pokračovat?\n\n(Body se stejnou polohou zůstanou seskupené i tak, aby byly přístupné.)"
+    );
+    if (!proceed) {
+      const toggle = document.getElementById("cluster-toggle");
+      if (toggle) toggle.checked = true;
+      return;
+    }
+    localStorage.setItem("cluster-warning-shown", "true");
+  }
+
+  state.clusteringEnabled = enabled;
+  if (!state.map) return;
+
+  if (enabled) {
+    if (state.map.hasLayer(state.overlapCluster)) state.map.removeLayer(state.overlapCluster);
+    state.map.addLayer(state.cluster);
+  } else {
+    if (state.map.hasLayer(state.cluster)) state.map.removeLayer(state.cluster);
+    state.map.addLayer(state.overlapCluster);
+  }
 }
 
 function addMarkers(features) {
+  state.cluster.clearLayers();
+  state.overlapCluster.clearLayers();
+  state.featuresById.clear();
+
   const bounds = L.latLngBounds();
   const icon = buildMarkerIcon();
 
@@ -290,12 +360,23 @@ function addMarkers(features) {
       state.featuresById.set(feature.properties.id, feature);
     }
     const [lon, lat] = feature.geometry.coordinates;
-    const marker = L.marker([lat, lon], { icon });
-    marker.on("click", () => {
-      selectFeature(feature, { openModal: true, updateHistory: true, panTo: true });
-    });
+    const markerParams = { icon };
+
+    // We create separate marker instances for each cluster group
+    const m1 = L.marker([lat, lon], markerParams);
+    const m2 = L.marker([lat, lon], markerParams);
+
+    const setup = (m) => {
+      m.on("click", () => {
+        selectFeature(feature, { openModal: true, updateHistory: true, panTo: true });
+      });
+    };
+    setup(m1);
+    setup(m2);
+
     bounds.extend([lat, lon]);
-    state.cluster.addLayer(marker);
+    state.cluster.addLayer(m1);
+    state.overlapCluster.addLayer(m2);
   });
 
   if (features.length) {
@@ -326,14 +407,14 @@ function selectFeature(feature, options = {}) {
 
 function renderTurnstile() {
   if (state.turnstileBypass) {
-    turnstileNote.textContent = "Turnstile je vypnutý pro lokální vývoj.";
+    if (turnstileNote) turnstileNote.textContent = "Turnstile je vypnutý pro lokální vývoj.";
     updateSubmitState();
     return;
   }
 
   if (!state.turnstileReady || !state.turnstileSiteKey) {
     if (!state.turnstileSiteKey) {
-      turnstileNote.textContent = "Chybí Turnstile klíč.";
+      if (turnstileNote) turnstileNote.textContent = "Chybí Turnstile klíč.";
     }
     return;
   }
@@ -420,6 +501,13 @@ async function bootstrap() {
     ? features.length.toLocaleString()
     : "—";
 
+  const verifiedCount = document.getElementById("verified-count");
+  if (verifiedCount) {
+    verifiedCount.textContent = corrections.count
+      ? corrections.count.toLocaleString()
+      : "0";
+  }
+
   const xid = new URLSearchParams(window.location.search).get("xid");
   if (xid && state.featuresById.has(xid)) {
     selectFeature(state.featuresById.get(xid), {
@@ -428,6 +516,73 @@ async function bootstrap() {
       panTo: true,
     });
   }
+
+  initSearch();
+}
+
+function initSearch() {
+  const searchInput = document.getElementById("map-search");
+  const searchResults = document.getElementById("search-results");
+  if (!searchInput || !searchResults) return;
+
+  let debounceTimer;
+  searchInput.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    const query = searchInput.value.trim();
+    if (query.length < 3) {
+      searchResults.classList.add("is-hidden");
+      return;
+    }
+
+    debounceTimer = setTimeout(async () => {
+      try {
+        const results = await fetchGeocode(query);
+        renderSearchResults(results, searchResults);
+      } catch (err) {
+        console.error("Vyhledávání selhalo", err);
+      }
+    }, 400);
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+      searchResults.classList.add("is-hidden");
+    }
+  });
+}
+
+async function fetchGeocode(query) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ", Praha")}&limit=5`;
+  const response = await fetch(url, {
+    headers: { "Accept-Language": "cs-CZ" }
+  });
+  if (!response.ok) throw new Error("Chyba při hledání");
+  return response.json();
+}
+
+function renderSearchResults(results, container) {
+  if (!results.length) {
+    container.classList.add("is-hidden");
+    return;
+  }
+
+  container.innerHTML = results.map(res => `
+    <div class="search-item" data-lat="${res.lat}" data-lon="${res.lon}">
+      ${res.display_name.split(",").slice(0, 3).join(",")}
+    </div>
+  `).join("");
+
+  container.classList.remove("is-hidden");
+
+  container.querySelectorAll(".search-item").forEach(item => {
+    item.addEventListener("click", () => {
+      const lat = parseFloat(item.dataset.lat);
+      const lon = parseFloat(item.dataset.lon);
+      state.map.setView([lat, lon], 16, { animate: true });
+      container.classList.add("is-hidden");
+      document.getElementById("map-search").value = item.textContent.trim();
+    });
+  });
 }
 
 feedbackForm.addEventListener("submit", async (event) => {
@@ -496,42 +651,57 @@ feedbackForm.addEventListener("submit", async (event) => {
   }
 });
 
-if (reportCta && feedbackForm) {
+if (reportCta) {
   reportCta.addEventListener("click", () => {
-    feedbackForm.classList.add("is-open");
-    if (reportCtaWrap) {
-      reportCtaWrap.classList.add("is-hidden");
-    }
+    if (metaView) metaView.classList.add("is-hidden");
+    if (correctionView) correctionView.classList.remove("is-hidden");
+    if (feedbackForm) feedbackForm.classList.add("is-open");
+
+    ensureCorrectionMap();
+    resetCorrectionMap(state.selectedFeature);
+
     updateSubmitState();
     renderTurnstile();
     setTimeout(() => {
       if (state.correctionMap) {
         state.correctionMap.invalidateSize();
       }
-      feedbackForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }, 100);
   });
 }
 
-if (correctionToggle && correctionMapEl) {
-  correctionToggle.addEventListener("change", () => {
-    if (correctionToggle.checked) {
-      correctionMapEl.parentElement?.classList.remove("is-hidden");
-      ensureCorrectionMap();
-      resetCorrectionMap(state.selectedFeature);
-      if (state.correctionMap) {
-        setTimeout(() => state.correctionMap.invalidateSize(), 0);
-      }
-    } else {
-      correctionMapEl.parentElement?.classList.add("is-hidden");
-      if (state.correctionMarker && state.correctionMap) {
-        state.correctionMap.removeLayer(state.correctionMarker);
-        state.correctionMarker = null;
-      }
-      clearCorrection();
+if (cancelCorrectionBtn) {
+  cancelCorrectionBtn.addEventListener("click", () => {
+    if (metaView) metaView.classList.remove("is-hidden");
+    if (correctionView) correctionView.classList.add("is-hidden");
+    if (state.correctionMarker && state.correctionMap) {
+      state.correctionMap.removeLayer(state.correctionMarker);
+      state.correctionMarker = null;
     }
+    clearCorrection();
   });
 }
+
+// Correction toggle removed - replaced by view switching
+
+if (infoOpenBtn && infoModal) {
+  infoOpenBtn.addEventListener("click", () => {
+    infoModal.classList.add("is-open");
+    infoModal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+  });
+}
+
+const closeInfoModal = () => {
+  if (!infoModal) return;
+  infoModal.classList.remove("is-open");
+  infoModal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+};
+
+document.querySelectorAll("[data-info-close]").forEach((el) => {
+  el.addEventListener("click", closeInfoModal);
+});
 
 document.querySelectorAll("[data-modal-close]").forEach((el) => {
   el.addEventListener("click", () => closeArchiveModal({ updateHistory: true }));

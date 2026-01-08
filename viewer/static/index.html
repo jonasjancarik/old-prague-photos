@@ -25,6 +25,7 @@
           Geolokalizované fotografie z archivu hlavního města Prahy. Toto není oficiální projekt hlavního města Prahy.
         </p>
         <div class="topbar-actions">
+          <button class="secondary" type="button" id="info-open">O co jde</button>
           <a class="action-link" href="./pomoc.html">Chci pomoct s opravami</a>
         </div>
       </div>
@@ -34,36 +35,65 @@
           <span class="stat-value" id="photo-count">—</span>
         </div>
         <div class="stat">
-          <span class="stat-label">Pokrytí</span>
-          <span class="stat-value">Praha a okolí</span>
+          <span class="stat-label">Ověřeno komunitou</span>
+          <span class="stat-value" id="verified-count">—</span>
         </div>
       </div>
     </header>
 
     <main class="content">
+      <div class="map-toolbar">
+        <div class="search-container">
+          <input type="text" id="map-search" placeholder="Hledat adresu nebo místo..." aria-label="Hledat na mapě" />
+          <div id="search-results" class="search-results is-hidden"></div>
+        </div>
+        <div class="cluster-toggle-container">
+          <label class="toggle-switch">
+            <input type="checkbox" id="cluster-toggle" checked />
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label">Seskupovat fotografie</span>
+        </div>
+      </div>
       <section class="map-panel">
         <div id="map" aria-label="Mapa s polohami fotografií"></div>
         <div class="map-overlay">
-          <div class="chip">Klikněte na bod pro detail</div>
-          <div class="chip">Shluky pro rychlost</div>
-        </div>
-      </section>
-      <section class="how" aria-label="Jak to funguje">
-        <div class="card how-card">
-          <h2>Jak to funguje</h2>
-          <p class="how-lead">
-            Z archivu jsme nasbírali cca 10&nbsp;000 záznamů. Část jde geokódovat rovnou (adresa / č.p.) přes Mapy.cz.
-            Zbytek nejdřív projde LLM, které z popisu vytáhne kandidátní místa, a ta se pak zkusí geokódovat (dnes
-            typicky přes mapy.com / Mapy API).
-          </p>
-          <ul class="how-list">
-            <li>Výsledek: dataset s GPS souřadnicemi pro mapu.</li>
-            <li>Opravy: nahlášení se ukládá a může se projevit hned.</li>
-            <li>Historie: později lze dělat snapshoty do PR (volitelné).</li>
-          </ul>
+          <div class="chip">Klikněte na bod pro fotografii</div>
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- Info Modal -->
+  <div class="modal" id="info-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-info-close></div>
+    <div class="modal-dialog info-dialog" role="dialog" aria-modal="true" aria-label="O projektu">
+      <div class="modal-header">
+        <div>
+          <p class="modal-eyebrow">Informace</p>
+          <h2 class="modal-title">Jak to funguje</h2>
+        </div>
+        <button class="modal-close" type="button" data-info-close>
+          Zavřít
+        </button>
+      </div>
+      <div class="modal-body info-body">
+        <div class="card info-card">
+          <p class="how-lead">
+            Z archivu jsme nasbírali cca 10&nbsp;000 záznamů. Část jde geokódovat rovnou (adresa / č.p.) přes Mapy.cz.
+            Zbytek nejdřív projde LLM, které z popisu vytáhne kandidátní místa.
+          </p>
+          <ul class="how-list">
+            <li><strong>Výsledek:</strong> dataset s GPS souřadnicemi pro mapu.</li>
+            <li><strong>Opravy:</strong> vaše nahlášení se ukládá a po schválení se projeví všem.</li>
+            <li><strong>Cíl:</strong> Vytvořit co nejpřesnější mapu historických fotografií Prahy.</li>
+          </ul>
+          <div class="info-footer">
+            <p>Tento projekt je komunitní a open-source. Data pocházejí z Archivu hlavního města Prahy.</p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="modal" id="archive-modal" aria-hidden="true">
     <div class="modal-backdrop" data-modal-close></div>
@@ -78,71 +108,81 @@
         </button>
       </div>
       <div class="modal-body">
-        <section class="card modal-feedback">
-          <div class="report-cta" id="report-cta-container">
-            <div class="report-icon">
-              <!-- Map pin icon -->
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
-              </svg>
-            </div>
-            <div class="report-meta">
-              <p class="report-eyebrow">Zpětná vazba</p>
-              <h2 class="report-title">Netrefili jsme to?</h2>
-              <p class="report-subtitle">
-                Je fotografie špatně umístěna na mapě? Dejte nám vědět.
-              </p>
-            </div>
-            <button class="primary report-button" type="button" id="report-cta">
-              Nahlásit polohu
-            </button>
-          </div>
-          <form id="feedback-form">
-            <input type="hidden" name="issue" value="wrong_location" />
-            <input type="hidden" name="correction_lat" />
-            <input type="hidden" name="correction_lon" />
-            <label class="inline-toggle">
-              <input type="checkbox" id="correction-toggle" />
-              <span>Chci upřesnit polohu</span>
-            </label>
-            <div class="correction-picker is-hidden">
-              <p class="helper">Klikněte do mapy a označte správné místo.</p>
-              <div id="correction-map" aria-label="Mapa pro opravu polohy"></div>
-            </div>
-            <label class="field">
-              <span>Chcete něco upřesnit? (volitelné)</span>
-              <textarea name="message" rows="3" placeholder="Např. správná ulice, orientační bod..."></textarea>
-            </label>
-            <label class="field">
-              <span>E-mail (volitelné, přihlášení k newsletteru)</span>
-              <input name="email" type="email" placeholder="vy@priklad.cz" />
-            </label>
-            <div class="turnstile-wrap">
-              <div id="turnstile"></div>
-              <p class="helper" id="turnstile-note">
-                Pro odeslání je nutný Turnstile.
-              </p>
-            </div>
-            <button type="submit" class="primary" disabled>
-              Odeslat zpětnou vazbu
-            </button>
-            <p class="form-status" id="form-status"></p>
-          </form>
-        </section>
         <div class="modal-frame">
           <div class="modal-main">
             <div class="zoom-wrap">
               <div id="zoom-viewer" class="zoom-viewer" aria-label="Náhled fotografie"></div>
               <iframe id="archive-iframe" title="Archivní záznam" loading="lazy" referrerpolicy="no-referrer"></iframe>
             </div>
-            <aside class="modal-meta" aria-label="Detaily fotografie">
-              <div class="modal-meta-head">
-                <p class="modal-meta-eyebrow">Detaily</p>
-                <h3 class="modal-meta-title">Informace o fotografii</h3>
+
+            <aside class="modal-sidebar" id="modal-sidebar" aria-label="Detaily a opravy">
+              <!-- Meta view -->
+              <div class="modal-meta" id="modal-meta-view">
+                <div class="modal-meta-head">
+                  <p class="modal-meta-eyebrow">Detaily</p>
+                  <h3 class="modal-meta-title">Informace o fotografii</h3>
+                </div>
+                <div id="photo-details" class="detail-list"></div>
+
+                <div class="report-cta-container">
+                  <div class="report-cta" id="report-cta-container">
+                    <div class="report-meta">
+                      <p class="report-eyebrow">Zpětná vazba</p>
+                      <h2 class="report-title">Netrefili jsme to?</h2>
+                      <p class="report-subtitle">
+                        Je fotografie špatně umístěna?
+                      </p>
+                    </div>
+                    <button class="primary report-button" type="button" id="report-cta">
+                      Opravit polohu
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div id="photo-details" class="detail-list"></div>
+
+              <!-- Correction view -->
+              <div class="modal-correction is-hidden" id="modal-correction-view">
+                <div class="modal-meta-head">
+                  <p class="modal-meta-eyebrow">Oprava polohy</p>
+                  <h3 class="modal-meta-title">Zadejte správné místo</h3>
+                </div>
+
+                <form id="feedback-form" class="is-open"> <!-- form stays open in its container -->
+                  <input type="hidden" name="issue" value="wrong_location" />
+                  <input type="hidden" name="correction_lat" />
+                  <input type="hidden" name="correction_lon" />
+
+                  <div class="correction-picker">
+                    <p class="helper">Přetáhněte špendlík na mapě na správné místo.</p>
+                    <div id="correction-map" aria-label="Mapa pro opravu polohy"></div>
+                  </div>
+
+                  <label class="field">
+                    <span>Upřesnění (volitelné)</span>
+                    <textarea name="message" rows="2" placeholder="Např. patro, směr focení..."></textarea>
+                  </label>
+
+                  <label class="field">
+                    <span>E-mail (volitelné)</span>
+                    <input name="email" type="email" placeholder="vy@priklad.cz" />
+                  </label>
+
+                  <div class="turnstile-wrap">
+                    <div id="turnstile"></div>
+                    <p class="helper" id="turnstile-note"></p>
+                  </div>
+
+                  <div class="form-actions">
+                    <button type="submit" class="primary" disabled>
+                      Uložit polohu
+                    </button>
+                    <button type="button" class="secondary" id="cancel-correction">
+                      Zrušit
+                    </button>
+                  </div>
+                  <p class="form-status" id="form-status"></p>
+                </form>
+              </div>
             </aside>
           </div>
           <div class="modal-footer">

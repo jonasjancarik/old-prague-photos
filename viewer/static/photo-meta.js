@@ -27,18 +27,15 @@
     const archiveUrl = getArchiveUrl(archiveBaseUrl, xid);
 
     const items = [
-      ["Typ", props.kind],
-      ["Archivní ID", props.id],
       ["Popis", props.description],
       ["Datace", props.date_label],
       ["Autor", props.author],
       ["Poznámka", props.note],
-      ["Zhlédnutí", props.views],
       ["Geolokace", props.geolocation_type],
     ];
 
     if (archiveUrl) {
-      items.unshift(["Archivní stránka", archiveUrl, "link"]);
+      items.push(["Archivní stránka", archiveUrl, "link"]);
     }
 
     items.forEach(([label, value, kind]) => {

@@ -10,10 +10,14 @@ from threading import Lock
 from typing import Any
 
 import requests
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
+# Load .env for local development
+load_dotenv()
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
@@ -174,7 +178,9 @@ def normalize_corrections() -> list[dict[str, Any]]:
 
     merged: list[dict[str, Any]] = []
     for xid, base in latest_verdict.items():
-        coords = latest_coords.get(xid, {"lat": None, "lon": None, "has_coordinates": False})
+        coords = latest_coords.get(
+            xid, {"lat": None, "lon": None, "has_coordinates": False}
+        )
         merged.append({**base, **coords})
 
     return merged
@@ -247,7 +253,9 @@ def get_zoomify(xid: str) -> JSONResponse:
         _zoomify_cache[xid] = payload
         return JSONResponse(payload)
     except requests.RequestException as exc:
-        raise HTTPException(status_code=502, detail="Nepodařilo se načíst zoomify") from exc
+        raise HTTPException(
+            status_code=502, detail="Nepodařilo se načíst zoomify"
+        ) from exc
 
 
 @app.get("/api/corrections")
@@ -273,13 +281,20 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
         raise HTTPException(status_code=400, detail="Neplatná poloha")
 
     if verdict == "ok" and has_coordinates:
-        raise HTTPException(status_code=400, detail="Potvrzení OK nesmí obsahovat polohu")
+        raise HTTPException(
+            status_code=400, detail="Potvrzení OK nesmí obsahovat polohu"
+        )
 
     if verdict == "wrong" and not has_coordinates:
         raise HTTPException(status_code=400, detail="Pro opravu je nutná poloha")
 
     if has_coordinates:
-        if payload.lat < -90 or payload.lat > 90 or payload.lon < -180 or payload.lon > 180:
+        if (
+            payload.lat < -90
+            or payload.lat > 90
+            or payload.lon < -180
+            or payload.lon > 180
+        ):
             raise HTTPException(status_code=400, detail="Neplatná poloha")
 
     if not is_turnstile_bypass():
