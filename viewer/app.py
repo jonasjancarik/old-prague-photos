@@ -196,7 +196,6 @@ def get_config() -> JSONResponse:
         {
             "turnstileSiteKey": os.environ.get("TURNSTILE_SITE_KEY", ""),
             "turnstileBypass": is_turnstile_bypass(),
-            "mapyCzApiKey": os.environ.get("MAPY_CZ_API_KEY", ""),
             "archiveBaseUrl": archive_base_url,
             "totalPhotos": len(photos.get("features", [])),
         }
