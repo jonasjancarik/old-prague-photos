@@ -8,6 +8,7 @@ const state = {
   turnstileReady: false,
   turnstileWidgetId: null,
   turnstileToken: "",
+  mapyCzApiKey: "",
   featuresById: new Map(),
   overlapCluster: null,
   clusteringEnabled: true,
@@ -279,10 +280,35 @@ function initMap() {
     scrollWheelZoom: true,
   }).setView(pragueFallback, 12);
 
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-    attribution: "&copy; OpenStreetMap přispěvatelé",
-  }).addTo(state.map);
+  const osmAttr = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> přispěvatelé';
+  const mapyAttr = '&copy; <a href="https://www.mapy.cz">Mapy.cz</a>';
+
+  if (state.mapyCzApiKey) {
+    const mapyLayer = L.tileLayer(`https://api.mapy.cz/v1/maptiles/basic/256/{z}/{x}/{y}?apikey=${state.mapyCzApiKey}`, {
+      maxZoom: 19,
+      attribution: `${mapyAttr}, ${osmAttr}`
+    });
+    mapyLayer.addTo(state.map);
+
+    // Fallback: If mapy.cz tiles fail to load, we could add OSM under it or handle errors, 
+    // but usually we just add OSM as a backup layer in case the key is invalid
+    let fallbackActive = false;
+    mapyLayer.on('tileerror', () => {
+      if (fallbackActive) return;
+      fallbackActive = true;
+      console.warn("Mapy.cz tiles failed, falling back to OSM");
+      state.map.removeLayer(mapyLayer);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: osmAttr,
+      }).addTo(state.map);
+    });
+  } else {
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: osmAttr,
+    }).addTo(state.map);
+  }
 
   const clusterToggle = document.getElementById("cluster-toggle");
   if (clusterToggle) {
@@ -474,9 +500,12 @@ function applyCorrections(features, corrections) {
 }
 
 async function bootstrap() {
-  initMap();
-
   const config = await fetchJson("/api/config").catch(() => ({}));
+  state.turnstileSiteKey = config.turnstileSiteKey || "";
+  state.turnstileBypass = Boolean(config.turnstileBypass);
+  state.mapyCzApiKey = config.mapyCzApiKey || "";
+  state.archiveBaseUrl = config.archiveBaseUrl || "";
+
   let photos;
   try {
     photos = await fetchJson("/data/photos.geojson");
@@ -484,9 +513,7 @@ async function bootstrap() {
     photos = await fetchJson("/api/photos");
   }
 
-  state.turnstileSiteKey = config.turnstileSiteKey || "";
-  state.turnstileBypass = Boolean(config.turnstileBypass);
-  state.archiveBaseUrl = config.archiveBaseUrl || "";
+  initMap();
 
   renderTurnstile();
 

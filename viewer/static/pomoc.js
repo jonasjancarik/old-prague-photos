@@ -8,6 +8,7 @@ const state = {
   turnstileReady: false,
   turnstileWidgetId: null,
   turnstileToken: "",
+  mapyCzApiKey: "",
   archiveBaseUrl: "https://katalog.ahmp.cz/pragapublica",
   features: [],
   remaining: [],
@@ -148,10 +149,33 @@ function initMap() {
     scrollWheelZoom: true,
   }).setView(pragueFallback, 13);
 
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-    attribution: "&copy; OpenStreetMap přispěvatelé",
-  }).addTo(state.map);
+  const osmAttr = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> přispěvatelé';
+  const mapyAttr = '&copy; <a href="https://www.mapy.cz">Mapy.cz</a>';
+
+  if (state.mapyCzApiKey) {
+    const mapyLayer = L.tileLayer(`https://api.mapy.cz/v1/maptiles/basic/256/{z}/{x}/{y}?apikey=${state.mapyCzApiKey}`, {
+      maxZoom: 19,
+      attribution: `${mapyAttr}, ${osmAttr}`
+    });
+    mapyLayer.addTo(state.map);
+
+    let fallbackActive = false;
+    mapyLayer.on('tileerror', () => {
+      if (fallbackActive) return;
+      fallbackActive = true;
+      console.warn("Mapy.cz tiles failed, falling back to OSM");
+      state.map.removeLayer(mapyLayer);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: osmAttr,
+      }).addTo(state.map);
+    });
+  } else {
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: osmAttr,
+    }).addTo(state.map);
+  }
 
   state.map.on("click", (event) => {
     if (state.mode !== "wrong") return;
@@ -412,12 +436,13 @@ async function submitOk() {
 }
 
 async function bootstrap() {
-  initMap();
-
   const config = await fetchJson("/api/config").catch(() => ({}));
   state.turnstileSiteKey = config.turnstileSiteKey || "";
   state.turnstileBypass = Boolean(config.turnstileBypass);
+  state.mapyCzApiKey = config.mapyCzApiKey || "";
   state.archiveBaseUrl = config.archiveBaseUrl || state.archiveBaseUrl;
+
+  initMap();
   renderTurnstile();
 
   const photos = await fetchJson("/data/photos.geojson");
