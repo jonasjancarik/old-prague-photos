@@ -5,7 +5,11 @@ const state = {
   originalMarker: null,
   proposedMarker: null,
   mode: null, // null | "ok" | "wrong"
-  remainingCloud: 0,
+  turnstileSiteKey: "",
+  turnstileBypass: false,
+  turnstileReady: false,
+  turnstileWidgetId: null,
+  turnstileToken: "",
   archiveBaseUrl: "https://katalog.ahmp.cz/pragapublica",
   features: [],
   remaining: [],
@@ -21,10 +25,18 @@ const zoomViewerEl = document.getElementById("help-zoom");
 const remainingEl = document.getElementById("remaining-count");
 const currentXidEl = document.getElementById("current-xid");
 const detailsEl = document.getElementById("help-details");
+const submitCorrectionBtn = document.getElementById("submit-correction");
+const cancelCorrectionBtn = document.getElementById("cancel-correction");
+const prevBtn = document.getElementById("prev-photo");
+const skipBtn = document.getElementById("skip-photo");
 const voteUpBtn = document.getElementById("vote-up");
 const voteDownBtn = document.getElementById("vote-down");
-const skipBtn = document.getElementById("skip-photo");
-const prevBtn = document.getElementById("prev-photo");
+const helpForm = document.getElementById("help-form");
+const helpMapNote = document.querySelector(".help-form .helper");
+const messageEl = document.getElementById("help-message");
+const emailEl = document.getElementById("help-email");
+const formStatus = document.getElementById("form-status");
+const turnstileNote = document.getElementById("turnstile-note");
 
 const pragueFallback = [50.0755, 14.4378];
 
@@ -161,6 +173,18 @@ function initMap() {
       attribution: osmAttr,
     }).addTo(state.map);
   }
+
+  state.map.on("click", (event) => {
+    if (state.mode !== "wrong") return;
+    const { lat, lng } = event.latlng;
+    state.proposed = { lat: Number(lat.toFixed(6)), lon: Number(lng.toFixed(6)) };
+    if (!state.proposedMarker) {
+      state.proposedMarker = L.marker([lat, lng]).addTo(state.map);
+    } else {
+      state.proposedMarker.setLatLng([lat, lng]);
+    }
+    updateSubmitState();
+  });
 }
 
 function showFeature(feature) {
@@ -175,11 +199,9 @@ function showFeature(feature) {
     window.OldPragueMeta.renderDetails(detailsEl, feature, state.archiveBaseUrl);
   }
 
-  if (window.OldPragueMeta?.renderDetails) {
-    window.OldPragueMeta.renderDetails(detailsEl, feature, state.archiveBaseUrl);
-  }
-
-  if (correctionView) correctionView.classList.add("is-hidden");
+  if (messageEl) messageEl.value = "";
+  if (emailEl) emailEl.value = "";
+  if (helpForm) helpForm.classList.add("is-hidden");
 
   // Reflect previous vote state
   const xid = feature.properties.id;
@@ -238,24 +260,19 @@ function setMode(mode) {
   }
 
   // For "wrong", show the form
-  if (!correctionView) return;
+  if (!helpForm) return;
+  state.proposed = null; // Reset proposed point when entering mode
+  if (state.proposedMarker) {
+    state.map.removeLayer(state.proposedMarker);
+    state.proposedMarker = null;
+  }
 
-  correctionView.classList.remove("is-hidden");
-  CorrectionUI.open(state.current, {
-    turnstileSiteKey: state.turnstileSiteKey,
-    turnstileBypass: state.turnstileBypass,
-    onSuccess: () => {
-      setTimeout(() => {
-        if (correctionView) correctionView.classList.add("is-hidden");
-        pickRandom();
-      }, 1500);
-    },
-    onCancel: () => {
-      if (correctionView) correctionView.classList.add("is-hidden");
-      voteDownBtn.classList.remove("is-voted");
-      state.mode = null;
-    }
-  });
+  helpForm.classList.remove("is-hidden");
+  if (submitCorrectionBtn) {
+    submitCorrectionBtn.classList.remove("is-hidden");
+  }
+  if (helpMapNote) helpMapNote.textContent = "Nesedí? Klikněte do mapy na správné místo.";
+  updateSubmitState();
 }
 
 async function pickRandom() {
@@ -427,8 +444,6 @@ async function bootstrap() {
   state.archiveBaseUrl = config.archiveBaseUrl || state.archiveBaseUrl;
 
   initMap();
-  CorrectionUI.init("shared-correction-map");
-  CorrectionUI.setTurnstileBypass(state.turnstileBypass);
   renderTurnstile();
 
   const photos = await fetchJson("/data/photos.geojson");
@@ -440,14 +455,21 @@ async function bootstrap() {
 }
 
 /* removed submitOkBtn listener */
-const correctionSubmitBtn = document.getElementById("correction-submit-btn");
-if (correctionSubmitBtn) {
-  correctionSubmitBtn.addEventListener("click", () => CorrectionUI.submit());
+if (submitCorrectionBtn) {
+  submitCorrectionBtn.addEventListener("click", submitCorrection);
 }
-
-const correctionCancelBtnShared = document.getElementById("correction-cancel-btn");
-if (correctionCancelBtnShared) {
-  correctionCancelBtnShared.addEventListener("click", () => CorrectionUI.cancel());
+if (cancelCorrectionBtn) {
+  cancelCorrectionBtn.addEventListener("click", () => {
+    state.mode = null;
+    if (helpForm) helpForm.classList.add("is-hidden");
+    voteDownBtn.classList.remove("is-voted");
+    if (state.proposedMarker) {
+      state.map.removeLayer(state.proposedMarker);
+      state.proposedMarker = null;
+    }
+    state.proposed = null;
+    updateSubmitState(); // Update button states after cancelling
+  });
 }
 skipBtn.addEventListener("click", () => pickRandom());
 if (prevBtn) prevBtn.addEventListener("click", () => pickPrev());

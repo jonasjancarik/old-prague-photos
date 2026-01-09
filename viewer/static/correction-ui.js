@@ -1,191 +1,282 @@
 /**
  * Shared Correction UI Module
- * Handles the logic for crowdsourced position corrections (map, form, submission).
+ * Provides a consistent correction experience across the application.
  */
-const CorrectionUI = (() => {
-    const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
+const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
 
-    let state = {
+(() => {
+    const CorrectionUI = {
         map: null,
         marker: null,
-        currentFeature: null,
-        proposedLat: null,
-        proposedLon: null,
-        onSuccess: null,
-        onCancel: null,
+        originalCoords: null,
+        proposedCoords: null,
+        containerEl: null,
+        mapEl: null,
+        submitBtn: null,
+        cancelBtn: null,
+        messageEl: null,
+        emailEl: null,
+        statusEl: null,
+        turnstileContainerEl: null,
+        turnstileNoteEl: null,
+        turnstileWidgetId: null,
         turnstileToken: "",
         turnstileBypass: false,
-        turnstileWidgetId: null
-    };
+        turnstileSiteKey: "",
+        onSubmit: null,
+        onCancel: null,
+        feature: null,
 
-    function initMap(containerId) {
-        if (state.map) return;
-        const mapEl = document.getElementById(containerId);
-        if (!mapEl) return;
+        /**
+         * Initialize the Correction UI.
+         * @param {Object} options
+         * @param {HTMLElement} options.container - The container element for the correction UI.
+         * @param {HTMLElement} options.mapEl - The map container element.
+         * @param {HTMLElement} options.submitBtn - The submit button.
+         * @param {HTMLElement} options.cancelBtn - The cancel button.
+         * @param {HTMLElement} options.messageEl - The message textarea.
+         * @param {HTMLElement} options.emailEl - The email input.
+         * @param {HTMLElement} options.statusEl - The status message element.
+         * @param {HTMLElement} options.turnstileContainerEl - The Turnstile container element.
+         * @param {HTMLElement} options.turnstileNoteEl - The Turnstile note element.
+         * @param {string} options.turnstileSiteKey - The Turnstile site key.
+         * @param {boolean} options.turnstileBypass - Whether to bypass Turnstile (dev mode).
+         * @param {Function} options.onSubmit - Callback after successful submission (feature, proposedCoords).
+         * @param {Function} options.onCancel - Callback when cancel is clicked.
+         */
+        init(options) {
+            this.containerEl = options.container;
+            this.mapEl = options.mapEl;
+            this.submitBtn = options.submitBtn;
+            this.cancelBtn = options.cancelBtn;
+            this.messageEl = options.messageEl;
+            this.emailEl = options.emailEl;
+            this.statusEl = options.statusEl;
+            this.turnstileContainerEl = options.turnstileContainerEl;
+            this.turnstileNoteEl = options.turnstileNoteEl;
+            this.turnstileSiteKey = options.turnstileSiteKey || "";
+            this.turnstileBypass = options.turnstileBypass || false;
+            this.onSubmit = options.onSubmit || (() => { });
+            this.onCancel = options.onCancel || (() => { });
 
-        state.map = L.map(containerId, {
-            zoomControl: true,
-            scrollWheelZoom: true,
-        }).setView([50.08, 14.42], 13);
+            if (this.submitBtn) {
+                this.submitBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    this.submit();
+                });
+            }
+            if (this.cancelBtn) {
+                this.cancelBtn.addEventListener("click", () => {
+                    this.close();
+                    this.onCancel();
+                });
+            }
 
-        const osmAttr = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> přispěvatelé';
-        const mapyAttr = '&copy; <a href="https://www.mapy.cz">Mapy.cz</a>';
+            this.renderTurnstile();
+        },
 
-        if (MAPY_CZ_API_KEY) {
-            const mapyLayer = L.tileLayer(`https://api.mapy.cz/v1/maptiles/basic/256/{z}/{x}/{y}?apikey=${MAPY_CZ_API_KEY}`, {
-                maxZoom: 19,
-                attribution: `${mapyAttr}, ${osmAttr}`
+        ensureMap() {
+            if (this.map) return;
+            if (!this.mapEl) return;
+
+            this.map = L.map(this.mapEl, {
+                center: [50.08, 14.43],
+                zoom: 15,
+                zoomControl: true,
             });
-            mapyLayer.addTo(state.map);
 
-            let fallbackActive = false;
-            mapyLayer.on('tileerror', () => {
-                if (fallbackActive) return;
-                fallbackActive = true;
-                state.map.removeLayer(mapyLayer);
+            const osmAttr = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+            const mapyAttr = '&copy; <a href="https://www.mapy.cz">Mapy.cz</a>';
+
+            if (MAPY_CZ_API_KEY) {
+                const mapyLayer = L.tileLayer(`https://api.mapy.cz/v1/maptiles/basic/256/{z}/{x}/{y}?apikey=${MAPY_CZ_API_KEY}`, {
+                    maxZoom: 19,
+                    attribution: `${mapyAttr}, ${osmAttr}`
+                });
+                mapyLayer.addTo(this.map);
+                let fallbackActive = false;
+                mapyLayer.on('tileerror', () => {
+                    if (fallbackActive) return;
+                    fallbackActive = true;
+                    this.map.removeLayer(mapyLayer);
+                    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                        maxZoom: 19,
+                        attribution: osmAttr,
+                    }).addTo(this.map);
+                });
+            } else {
                 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
                     maxZoom: 19,
                     attribution: osmAttr,
-                }).addTo(state.map);
-            });
-        } else {
-            L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                maxZoom: 19,
-                attribution: osmAttr,
-            }).addTo(state.map);
-        }
-
-        state.map.on("click", (e) => {
-            setProposed(e.latlng.lat, e.latlng.lng);
-        });
-    }
-
-    function setProposed(lat, lon) {
-        state.proposedLat = Number(lat.toFixed(6));
-        state.proposedLon = Number(lon.toFixed(6));
-
-        if (!state.marker) {
-            state.marker = L.marker([lat, lon], { draggable: true }).addTo(state.map);
-            state.marker.on("dragend", (e) => {
-                const pos = e.target.getLatLng();
-                state.proposedLat = Number(pos.lat.toFixed(6));
-                state.proposedLon = Number(pos.lng.toFixed(6));
-                updateSubmitButton();
-            });
-        } else {
-            state.marker.setLatLng([lat, lon]);
-        }
-        updateSubmitButton();
-    }
-
-    function updateSubmitButton() {
-        const btn = document.getElementById("correction-submit-btn");
-        if (!btn) return;
-        const hasPosition = state.proposedLat !== null;
-        const hasToken = !!(state.turnstileToken || state.turnstileBypass);
-        btn.disabled = !hasPosition || !hasToken;
-    }
-
-    function open(feature, options = {}) {
-        state.currentFeature = feature;
-        state.onSuccess = options.onSuccess || null;
-        state.onCancel = options.onCancel || null;
-        state.turnstileBypass = !!options.turnstileBypass;
-
-        // Reset state
-        state.proposedLat = null;
-        state.proposedLon = null;
-        if (state.marker) {
-            state.map.removeLayer(state.marker);
-            state.marker = null;
-        }
-
-        const [lon, lat] = feature.geometry.coordinates;
-        state.map.setView([lat, lon], 17);
-        state.map.invalidateSize();
-
-        // Reset form fields
-        const msgEl = document.getElementById("correction-message");
-        const emailEl = document.getElementById("correction-email");
-        if (msgEl) msgEl.value = "";
-        if (emailEl) emailEl.value = "";
-
-        updateSubmitButton();
-        renderTurnstile(options.turnstileSiteKey);
-    }
-
-    function renderTurnstile(siteKey) {
-        if (state.turnstileBypass || !siteKey || !window.turnstile) return;
-        if (state.turnstileWidgetId !== null) return;
-
-        state.turnstileWidgetId = window.turnstile.render("#correction-turnstile", {
-            sitekey: siteKey,
-            callback: (token) => {
-                state.turnstileToken = token;
-                updateSubmitButton();
+                }).addTo(this.map);
             }
-        });
-    }
 
-    async function submit() {
-        if (!state.currentFeature || state.proposedLat === null) return;
+            this.map.on("click", (event) => {
+                const { lat, lng } = event.latlng;
+                this.setProposedCoords(lat, lng);
+            });
+        },
 
-        const msgEl = document.getElementById("correction-message");
-        const emailEl = document.getElementById("correction-email");
-        const statusEl = document.getElementById("correction-status");
+        /**
+         * Open the correction UI for a specific feature.
+         * @param {Object} feature - The GeoJSON feature.
+         */
+        open(feature) {
+            this.feature = feature;
+            this.proposedCoords = null;
+            this.clearStatus();
 
-        const payload = {
-            xid: state.currentFeature.properties.id,
-            lat: state.proposedLat,
-            lon: state.proposedLon,
-            verdict: "wrong",
-            message: (msgEl?.value || "").trim() || "Nahlášena špatná poloha.",
-            email: (emailEl?.value || "").trim() || null,
-            token: state.turnstileToken || "",
-        };
+            if (this.messageEl) this.messageEl.value = "";
+            if (this.emailEl) this.emailEl.value = "";
 
-        try {
-            const response = await fetch("/api/corrections", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
+            const [lon, lat] = feature.geometry.coordinates;
+            this.originalCoords = { lat, lon };
+
+            this.ensureMap();
+
+            if (this.marker) {
+                this.map.removeLayer(this.marker);
+                this.marker = null;
+            }
+
+            this.marker = L.marker([lat, lon], { draggable: true }).addTo(this.map);
+            this.marker.on("dragend", () => {
+                const pos = this.marker.getLatLng();
+                this.setProposedCoords(pos.lat, pos.lng);
             });
 
-            if (!response.ok) {
-                const error = await response.json().catch(() => ({}));
-                throw new Error(error.detail || "Odeslání selhalo");
+            this.map.setView([lat, lon], 17);
+            setTimeout(() => this.map.invalidateSize(), 100);
+
+            if (this.containerEl) this.containerEl.classList.remove("is-hidden");
+            this.updateSubmitState();
+        },
+
+        /**
+         * Close the correction UI.
+         */
+        close() {
+            if (this.marker && this.map) {
+                this.map.removeLayer(this.marker);
+                this.marker = null;
+            }
+            this.proposedCoords = null;
+            this.feature = null;
+            this.clearStatus();
+            if (this.containerEl) this.containerEl.classList.add("is-hidden");
+        },
+
+        setProposedCoords(lat, lon) {
+            this.proposedCoords = { lat: Number(lat.toFixed(6)), lon: Number(lon.toFixed(6)) };
+            if (this.marker) {
+                this.marker.setLatLng([lat, lon]);
+            }
+            this.updateSubmitState();
+        },
+
+        updateSubmitState() {
+            const hasToken = !!(this.turnstileToken || this.turnstileBypass);
+            const hasProposed = !!this.proposedCoords;
+            if (this.submitBtn) {
+                this.submitBtn.disabled = !hasProposed || !hasToken;
+            }
+        },
+
+        setStatus(message, type) {
+            if (!this.statusEl) return;
+            this.statusEl.textContent = message;
+            this.statusEl.className = "form-status";
+            if (type) this.statusEl.classList.add(`is-${type}`);
+        },
+
+        clearStatus() {
+            if (this.statusEl) {
+                this.statusEl.textContent = "";
+                this.statusEl.className = "form-status";
+            }
+        },
+
+        renderTurnstile() {
+            if (this.turnstileBypass) {
+                if (this.turnstileNoteEl) this.turnstileNoteEl.textContent = "Turnstile je vypnutý pro lokální vývoj.";
+                this.updateSubmitState();
+                return;
             }
 
-            if (statusEl) {
-                statusEl.textContent = "Děkujeme! Oprava byla odeslána.";
-                statusEl.className = "status-message success";
+            if (!window.turnstile || !this.turnstileSiteKey || !this.turnstileContainerEl) {
+                if (this.turnstileNoteEl && !this.turnstileSiteKey) {
+                    this.turnstileNoteEl.textContent = "Chybí Turnstile klíč.";
+                }
+                return;
             }
 
-            if (state.onSuccess) state.onSuccess();
+            if (this.turnstileWidgetId !== null) return;
 
-            // Reset Turnstile
-            state.turnstileToken = "";
-            if (state.turnstileWidgetId !== null && window.turnstile) {
-                window.turnstile.reset(state.turnstileWidgetId);
+            this.turnstileWidgetId = window.turnstile.render(this.turnstileContainerEl, {
+                sitekey: this.turnstileSiteKey,
+                callback: (token) => {
+                    this.turnstileToken = token;
+                    this.updateSubmitState();
+                },
+                "expired-callback": () => {
+                    this.turnstileToken = "";
+                    this.updateSubmitState();
+                },
+                "error-callback": () => {
+                    this.turnstileToken = "";
+                    this.updateSubmitState();
+                },
+            });
+        },
+
+        async submit() {
+            if (!this.feature || !this.proposedCoords) {
+                this.setStatus("Nejprve vyberte bod na mapě.", "error");
+                return;
             }
-        } catch (err) {
-            if (statusEl) {
-                statusEl.textContent = err.message || "Chyba při odesílání";
-                statusEl.className = "status-message error";
+
+            if (!this.turnstileToken && !this.turnstileBypass) {
+                this.setStatus("Dokončete Turnstile kontrolu.", "error");
+                return;
             }
-        }
-    }
 
-    function cancel() {
-        if (state.onCancel) state.onCancel();
-    }
+            const payload = {
+                xid: this.feature.properties.id,
+                lat: this.proposedCoords.lat,
+                lon: this.proposedCoords.lon,
+                verdict: "wrong",
+                message: (this.messageEl?.value || "").trim() || "Nahlášena špatná poloha.",
+                email: (this.emailEl?.value || "").trim() || null,
+                token: this.turnstileToken || "",
+            };
 
-    return {
-        init: (containerId) => initMap(containerId),
-        open,
-        submit,
-        cancel,
-        setTurnstileBypass: (v) => { state.turnstileBypass = v; },
-        setTurnstileToken: (t) => { state.turnstileToken = t; updateSubmitButton(); }
+            if (this.submitBtn) this.submitBtn.disabled = true;
+
+            try {
+                const response = await fetch("/api/corrections", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || "Odeslání selhalo");
+                }
+
+                this.setStatus("Díky! Oprava byla uložena.", "success");
+                this.turnstileToken = "";
+                if (this.turnstileWidgetId !== null && window.turnstile) {
+                    window.turnstile.reset(this.turnstileWidgetId);
+                }
+                this.onSubmit(this.feature, this.proposedCoords);
+                setTimeout(() => this.close(), 500);
+            } catch (error) {
+                this.setStatus(error.message || "Odeslání selhalo", "error");
+                this.updateSubmitState();
+            }
+        },
     };
+
+    window.CorrectionUI = CorrectionUI;
 })();

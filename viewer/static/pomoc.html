@@ -78,43 +78,29 @@
           <p class="form-status" id="form-status"></p>
         </div>
 
-        <div class="help-form is-hidden" id="correction-view-container">
-          <div class="modal-meta-head">
-            <p class="modal-meta-eyebrow">Oprava polohy</p>
-            <h3 class="modal-meta-title">Zadejte správné místo</h3>
-          </div>
-
-          <div id="correction-form-standard">
-            <div class="correction-picker">
-              <p class="helper">Přetáhněte špendlík na mapě na správné místo.</p>
-              <div id="shared-correction-map" class="correction-map-shared" aria-label="Mapa pro opravu polohy"></div>
-            </div>
-
+        <div class="help-form is-hidden" id="help-form">
+          <div class="card help-down">
+            <p class="helper">Klikněte do mapy na správné místo. Pak odešlete opravu.</p>
             <label class="field">
               <span>Poznámka (volitelné)</span>
-              <textarea id="correction-message" rows="3"
-                placeholder="Např. správná ulice, orientační bod..."></textarea>
+              <textarea id="help-message" rows="3" placeholder="Např. správná ulice, orientační bod..."></textarea>
             </label>
-
             <label class="field">
-              <span>E-mail (volitelné)</span>
-              <input id="correction-email" type="email" placeholder="vy@priklad.cz" />
+              <span>E-mail (volitelné, přihlášení k newsletteru)</span>
+              <input id="help-email" type="email" placeholder="vy@priklad.cz" />
             </label>
-
-            <div class="turnstile-wrap">
-              <div id="correction-turnstile"></div>
-            </div>
-
-            <div id="correction-status" class="status-message"></div>
-
-            <div class="help-submit">
-              <button class="secondary help-secondary" type="button" id="correction-cancel-btn">
-                Zrušit
-              </button>
-              <button class="primary help-primary" type="button" id="correction-submit-btn" disabled>
-                Uložit opravu
-              </button>
-            </div>
+          </div>
+          <div class="turnstile-wrap">
+            <div id="turnstile"></div>
+            <p class="helper" id="turnstile-note">Pro odeslání je nutný Turnstile.</p>
+          </div>
+          <div class="help-submit">
+            <button class="secondary help-secondary" type="button" id="cancel-correction">
+              Zrušit
+            </button>
+            <button class="primary help-primary is-hidden" type="button" id="submit-correction" disabled>
+              Uložit opravu
+            </button>
           </div>
         </div>
       </section>
