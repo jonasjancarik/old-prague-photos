@@ -101,6 +101,10 @@ async function loadZoomifyInto(viewerEl, wrapEl, fallbackIframe, xid) {
 }
 
 function updateSubmitState() {
+  if (window.CorrectionUI) {
+    window.CorrectionUI.updateSubmitState();
+    return;
+  }
   const button = feedbackForm.querySelector("button[type='submit']");
   const canSubmit = Boolean(
     state.selectedFeature &&
@@ -204,6 +208,8 @@ function resetCorrectionMap(feature) {
 function openArchiveModal(url, xid, options = {}) {
   if (!archiveModal || !archiveIframe || !archiveFallback) return;
   const { updateHistory = true } = options;
+  archiveModal.style.display = "grid";
+  archiveIframe.style.pointerEvents = "";
   if (url) {
     archiveIframe.src = url;
     archiveFallback.href = url;
@@ -242,12 +248,25 @@ function closeArchiveModal(options = {}) {
   archiveModal.classList.remove("is-open");
   archiveModal.setAttribute("aria-hidden", "true");
   archiveIframe.src = "";
+  archiveIframe.style.pointerEvents = "none";
   zoomLastXid = null;
   document.body.style.overflow = "";
+  if (window.CorrectionUI) {
+    window.CorrectionUI.close();
+  }
+  if (metaView) metaView.classList.remove("is-hidden");
+  if (correctionView) correctionView.classList.add("is-hidden");
+  if (feedbackForm) feedbackForm.classList.remove("is-open");
 
   if (document.activeElement instanceof HTMLElement) {
     document.activeElement.blur();
   }
+
+  setTimeout(() => {
+    if (!archiveModal.classList.contains("is-open")) {
+      archiveModal.style.display = "none";
+    }
+  }, 200);
 
   if (updateHistory) {
     setUrlXid(null, "replace");
@@ -433,6 +452,11 @@ function selectFeature(feature, options = {}) {
 }
 
 function renderTurnstile() {
+  if (window.CorrectionUI) {
+    window.CorrectionUI.renderTurnstile();
+    return;
+  }
+
   if (state.turnstileBypass) {
     if (turnstileNote) turnstileNote.textContent = "Turnstile je vypnutý pro lokální vývoj.";
     updateSubmitState();
@@ -568,6 +592,10 @@ async function bootstrap() {
         if (correctionView) correctionView.classList.add("is-hidden");
       },
     });
+
+    if (window.turnstile) {
+      window.CorrectionUI.renderTurnstile();
+    }
   }
 
   initSearch();
@@ -640,6 +668,10 @@ function renderSearchResults(results, container) {
 
 feedbackForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (window.CorrectionUI) {
+    window.CorrectionUI.submit();
+    return;
+  }
   clearStatus();
 
   if (!state.selectedFeature) {
