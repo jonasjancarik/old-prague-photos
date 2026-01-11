@@ -709,6 +709,7 @@ if (reportCta) {
     if (!state.selectedFeature) return;
     if (metaView) metaView.classList.add("is-hidden");
     if (correctionView) correctionView.classList.remove("is-hidden");
+    if (feedbackForm) feedbackForm.classList.add("is-open");
     if (window.CorrectionUI) {
       window.CorrectionUI.open(state.selectedFeature);
     }
