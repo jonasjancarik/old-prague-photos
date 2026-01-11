@@ -39,6 +39,7 @@ SESSION_TTL_SECONDS = 6 * 60 * 60
 app = FastAPI(title="Prohlížeč historických fotografií Prahy")
 
 _photos_cache: dict[str, Any] | None = None
+_photos_cache_mtime: float | None = None
 _feedback_lock = Lock()
 _zoomify_cache: dict[str, dict[str, Any]] = {}
 _xid_group_cache: dict[str, str] | None = None
@@ -80,15 +81,18 @@ def is_turnstile_bypass() -> bool:
 
 
 def load_photos() -> dict[str, Any]:
-    global _photos_cache
-    if _photos_cache is None:
-        if not PHOTOS_PATH.exists():
-            raise HTTPException(
-                status_code=500,
-                detail="Chybí GeoJSON. Spusťte viewer/build_geojson.py",
-            )
+    global _photos_cache, _photos_cache_mtime, _xid_group_cache
+    if not PHOTOS_PATH.exists():
+        raise HTTPException(
+            status_code=500,
+            detail="Chybí GeoJSON. Spusťte viewer/build_geojson.py",
+        )
+    mtime = PHOTOS_PATH.stat().st_mtime
+    if _photos_cache is None or _photos_cache_mtime != mtime:
         with PHOTOS_PATH.open(encoding="utf-8") as handle:
             _photos_cache = json.load(handle)
+        _photos_cache_mtime = mtime
+        _xid_group_cache = None
     return _photos_cache
 
 

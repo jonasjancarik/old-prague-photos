@@ -27,7 +27,13 @@ case "$cmd" in
     python viewer/build_geojson.py
     ;;
   dev-fastapi)
-    uv run uvicorn viewer.app:app --reload
+    uv run uvicorn viewer.app:app --reload \
+      --reload-dir viewer \
+      --reload-dir viewer/static \
+      --reload-include "*.html" \
+      --reload-include "*.css" \
+      --reload-include "*.js" \
+      --reload-include "*.geojson"
     ;;
   dev-pages)
     TURNSTILE_BYPASS="${TURNSTILE_BYPASS:-1}" npx wrangler pages dev viewer/static --local
@@ -55,4 +61,3 @@ case "$cmd" in
     exit 2
     ;;
 esac
-

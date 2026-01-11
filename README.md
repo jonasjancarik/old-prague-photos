@@ -130,7 +130,7 @@ After running all the steps, the final dataset will be available at `output/old_
 
 ## 🗺️ Viewer App
 
-The viewer is a static frontend (Leaflet map + feedback modal). It can run locally via FastAPI or as a static site on Cloudflare Pages with a D1 database for live corrections. Photos are grouped by identical `obsah + autor + datace` so versions appear together; corrections apply to the whole group. There is also a duplicate review UI at `/dup-review.html` for manually merging groups that share the exact same coordinates.
+The viewer is a static frontend (Leaflet map + feedback modal). It can run locally via FastAPI or as a static site on Cloudflare Pages with a D1 database for live corrections. Photos are grouped by identical `obsah + autor + datace` so versions appear together; corrections apply to the whole group. There is also a similarity review UI at `/dup-review.html` for manually merging groups that look like the same shot (even if scans differ). By default it compares groups with identical coordinates; if `viewer/static/data/similarity_candidates.json` exists, those pairs are included too.
 
 Future idea: keep corrections in a live store (KV/D1) for instant map updates, and optionally run a daily GitHub Action that snapshots corrections into a PR (CSV + GeoJSON) for audit/history.
 
@@ -150,10 +150,26 @@ python viewer/build_geojson.py
 
 This writes `viewer/static/data/photos.geojson` for static hosting.
 
+### Build similarity candidates
+
+Generate candidate pairs for similar shots using perceptual hashing:
+
+```bash
+python viewer/build_similarity.py
+```
+
+This writes `viewer/static/data/similarity_candidates.json` for the review UI and caches hashes in `output/similarity/`.
+
 ### Run locally (FastAPI)
 
 ```bash
-uv run uvicorn viewer.app:app --reload
+uv run uvicorn viewer.app:app --reload \
+  --reload-dir viewer \
+  --reload-dir viewer/static \
+  --reload-include "*.html" \
+  --reload-include "*.css" \
+  --reload-include "*.js" \
+  --reload-include "*.geojson"
 ```
 
 Open `http://127.0.0.1:8000`. Corrections are stored at `viewer/data/corrections.jsonl`.
