@@ -17,6 +17,7 @@ const state = {
   correctionLon: null,
   correctionMap: null,
   correctionMarker: null,
+  features: [],
 };
 
 const detailContainer = document.getElementById("photo-details");
@@ -393,7 +394,8 @@ function toggleClustering(enabled) {
   }
 }
 
-function addMarkers(features) {
+function addMarkers(features, options = {}) {
+  const { fitBounds = true } = options;
   state.cluster.clearLayers();
   state.overlapCluster.clearLayers();
   state.featuresById.clear();
@@ -425,7 +427,7 @@ function addMarkers(features) {
     state.overlapCluster.addLayer(m2);
   });
 
-  if (features.length) {
+  if (features.length && fitBounds) {
     state.map.fitBounds(bounds, { padding: [40, 40] });
   }
 }
@@ -545,6 +547,7 @@ async function bootstrap() {
     items: [],
   }));
   const features = photos.features || [];
+  state.features = features;
   applyCorrections(features, corrections.items || []);
   addMarkers(features);
   renderDetails(null);
@@ -582,10 +585,27 @@ async function bootstrap() {
       turnstileNoteEl: turnstileNote,
       turnstileSiteKey: state.turnstileSiteKey,
       turnstileBypass: state.turnstileBypass,
-      onSubmit: () => {
+      onSubmit: (feature, proposedCoords) => {
         if (metaView) metaView.classList.remove("is-hidden");
         if (correctionView) correctionView.classList.add("is-hidden");
         if (reportCtaWrap) reportCtaWrap.classList.remove("is-hidden");
+        if (feature && proposedCoords) {
+          const lat = Number(proposedCoords.lat);
+          const lon = Number(proposedCoords.lon);
+          if (Number.isFinite(lat) && Number.isFinite(lon)) {
+            feature.geometry.coordinates = [lon, lat];
+            feature.properties = feature.properties || {};
+            feature.properties.corrected = { lat, lon };
+            if (Array.isArray(state.features) && state.features.length) {
+              addMarkers(state.features, { fitBounds: false });
+            }
+            if (state.map) {
+              state.map.setView([lat, lon], Math.max(state.map.getZoom(), 14), {
+                animate: true,
+              });
+            }
+          }
+        }
       },
       onCancel: () => {
         if (metaView) metaView.classList.remove("is-hidden");
