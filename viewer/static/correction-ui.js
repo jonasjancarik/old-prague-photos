@@ -132,6 +132,9 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
             const [lon, lat] = feature.geometry.coordinates;
             this.originalCoords = { lat, lon };
 
+            // Show container BEFORE creating map so it has dimensions
+            if (this.containerEl) this.containerEl.classList.remove("is-hidden");
+
             this.ensureMap();
 
             if (this.marker) {
@@ -146,9 +149,14 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
             });
 
             this.map.setView([lat, lon], 17);
-            setTimeout(() => this.map.invalidateSize(), 100);
 
-            if (this.containerEl) this.containerEl.classList.remove("is-hidden");
+            // Use requestAnimationFrame for better timing
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    if (this.map) this.map.invalidateSize();
+                }, 150);
+            });
+
             this.updateSubmitState();
         },
 

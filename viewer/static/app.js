@@ -1,4 +1,4 @@
-const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
+// MAPY_CZ_API_KEY is defined in correction-ui.js
 
 const state = {
   map: null,
