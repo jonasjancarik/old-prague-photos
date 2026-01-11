@@ -1,7 +1,6 @@
 const TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
-const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const SESSION_COOKIE_NAME = "opp_turnstile_session";
 
 function parseBool(value) {
@@ -121,29 +120,18 @@ async function verifyTurnstile(token, env, remoteip) {
 
 async function handleGet(env) {
   const query = `
-    WITH latest_any AS (
-      SELECT COALESCE(group_id, xid) AS group_key, MAX(id) AS any_id
-      FROM corrections
-      GROUP BY group_key
-    ),
-    latest_coords AS (
-      SELECT COALESCE(group_id, xid) AS group_key, MAX(id) AS coord_id
-      FROM corrections
-      WHERE has_coordinates = 1
-      GROUP BY group_key
+    WITH latest AS (
+      SELECT group_id_a, group_id_b, MAX(id) AS any_id
+      FROM merge_decisions
+      GROUP BY group_id_a, group_id_b
     )
     SELECT
-      a.xid,
-      a.group_id,
-      a.verdict,
-      a.created_at AS received_at,
-      c.lat,
-      c.lon,
-      COALESCE(c.has_coordinates, 0) AS has_coordinates
-    FROM latest_any la
-    JOIN corrections a ON a.id = la.any_id
-    LEFT JOIN latest_coords lc ON lc.group_key = la.group_key
-    LEFT JOIN corrections c ON c.id = lc.coord_id
+      m.group_id_a,
+      m.group_id_b,
+      m.verdict,
+      m.created_at AS received_at
+    FROM latest l
+    JOIN merge_decisions m ON m.id = l.any_id
   `;
 
   const result = await env.CORRECTIONS_DB.prepare(query).all();
@@ -159,54 +147,20 @@ async function handlePost(request, env) {
     return jsonResponse({ detail: "Neplatný JSON" }, 400);
   }
 
-  const xid = String(body?.xid || "").trim();
-  if (!xid) {
-    return jsonResponse({ detail: "Chybí xid" }, 400);
+  let groupIdA = String(body?.group_id_a || "").trim();
+  let groupIdB = String(body?.group_id_b || "").trim();
+  if (!groupIdA || !groupIdB) {
+    return jsonResponse({ detail: "Chybí skupina" }, 400);
+  }
+  if (groupIdA === groupIdB) {
+    return jsonResponse({ detail: "Nelze sloučit stejnou skupinu" }, 400);
   }
 
-  const groupId = String(body?.group_id || "").trim();
-  const lat = body?.lat ?? null;
-  const lon = body?.lon ?? null;
-  const hasCoordinates = lat !== null && lon !== null;
-
-  const verdictRaw = body?.verdict ? String(body.verdict).trim().toLowerCase() : "";
-  let verdict = verdictRaw;
-  if (!verdict) {
-    verdict = hasCoordinates ? "wrong" : "flag";
+  let verdict = String(body?.verdict || "").trim().toLowerCase();
+  if (!verdict) verdict = "same";
+  if (!["same", "different"].includes(verdict)) {
+    return jsonResponse({ detail: "Neplatný typ rozhodnutí" }, 400);
   }
-  if (!["ok", "wrong", "flag"].includes(verdict)) {
-    return jsonResponse({ detail: "Neplatný typ hlášení" }, 400);
-  }
-
-  if ((lat === null) !== (lon === null)) {
-    return jsonResponse({ detail: "Neplatná poloha" }, 400);
-  }
-
-  if (verdict === "ok" && hasCoordinates) {
-    return jsonResponse({ detail: "Potvrzení OK nesmí obsahovat polohu" }, 400);
-  }
-
-  if (verdict === "wrong" && !hasCoordinates) {
-    return jsonResponse({ detail: "Pro opravu je nutná poloha" }, 400);
-  }
-
-  if (hasCoordinates) {
-    const latNum = Number(lat);
-    const lonNum = Number(lon);
-    if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) {
-      return jsonResponse({ detail: "Neplatná poloha" }, 400);
-    }
-    if (latNum < -90 || latNum > 90 || lonNum < -180 || lonNum > 180) {
-      return jsonResponse({ detail: "Neplatná poloha" }, 400);
-    }
-  }
-
-  const email = String(body?.email || "").trim();
-  if (email && !EMAIL_PATTERN.test(email)) {
-    return jsonResponse({ detail: "Neplatný e-mail" }, 400);
-  }
-
-  const message = String(body?.message || "Nahlášena špatná poloha.").trim();
 
   const hasSession = await hasValidSession(request, env);
   if (!hasSession) {
@@ -221,32 +175,20 @@ async function handlePost(request, env) {
     }
   }
 
+  if (groupIdA > groupIdB) {
+    [groupIdA, groupIdB] = [groupIdB, groupIdA];
+  }
+
   const statement = env.CORRECTIONS_DB.prepare(
     `
-      INSERT INTO corrections (
-        xid,
-        group_id,
-        lat,
-        lon,
-        has_coordinates,
-        verdict,
-        message,
-        email,
-        user_agent
+      INSERT INTO merge_decisions (
+        group_id_a,
+        group_id_b,
+        verdict
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?)
     `,
-  ).bind(
-    xid,
-    groupId || null,
-    hasCoordinates ? Number(lat) : null,
-    hasCoordinates ? Number(lon) : null,
-    hasCoordinates ? 1 : 0,
-    verdict,
-    message,
-    email || null,
-    request.headers.get("User-Agent") || "",
-  );
+  ).bind(groupIdA, groupIdB, verdict);
 
   await statement.run();
 

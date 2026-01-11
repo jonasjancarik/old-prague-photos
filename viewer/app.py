@@ -3,6 +3,8 @@ import os
 import re
 import html
 import time
+import hmac
+import hashlib
 from urllib.parse import urljoin
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,16 +28,20 @@ DATA_DIR = ROOT / "data"
 PHOTOS_PATH = STATIC_DATA_DIR / "photos.geojson"
 FEEDBACK_PATH = DATA_DIR / "feedback.jsonl"
 CORRECTIONS_PATH = DATA_DIR / "corrections.jsonl"
+MERGES_PATH = DATA_DIR / "merges.jsonl"
 
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+SESSION_COOKIE_NAME = "opp_turnstile_session"
+SESSION_TTL_SECONDS = 6 * 60 * 60
 
 app = FastAPI(title="Prohlížeč historických fotografií Prahy")
 
 _photos_cache: dict[str, Any] | None = None
 _feedback_lock = Lock()
 _zoomify_cache: dict[str, dict[str, Any]] = {}
+_xid_group_cache: dict[str, str] | None = None
 
 
 class FeedbackPayload(BaseModel):
@@ -48,11 +54,23 @@ class FeedbackPayload(BaseModel):
 
 class CorrectionPayload(BaseModel):
     xid: str = Field(min_length=1)
+    group_id: str | None = None
     lat: float | None = None
     lon: float | None = None
     verdict: str | None = None
     message: str | None = Field(default=None, max_length=2000)
     email: str | None = None
+    token: str | None = None
+
+
+class VerifyPayload(BaseModel):
+    token: str | None = None
+
+
+class MergePayload(BaseModel):
+    group_id_a: str = Field(min_length=1)
+    group_id_b: str = Field(min_length=1)
+    verdict: str | None = None
     token: str | None = None
 
 
@@ -74,8 +92,63 @@ def load_photos() -> dict[str, Any]:
     return _photos_cache
 
 
+def build_xid_group_cache() -> dict[str, str]:
+    global _xid_group_cache
+    if _xid_group_cache is None:
+        mapping: dict[str, str] = {}
+        try:
+            photos = load_photos()
+        except HTTPException:
+            photos = {}
+        for feature in photos.get("features", []):
+            props = feature.get("properties") or {}
+            xid = str(props.get("id") or "").strip()
+            group_id = str(props.get("group_id") or "").strip()
+            if xid and group_id:
+                mapping[xid] = group_id
+        _xid_group_cache = mapping
+    return _xid_group_cache
+
+
 def is_valid_email(email: str) -> bool:
     return bool(EMAIL_PATTERN.match(email))
+
+
+def _session_secret() -> str:
+    return (
+        os.environ.get("TURNSTILE_SESSION_SECRET", "").strip()
+        or os.environ.get("TURNSTILE_SECRET_KEY", "").strip()
+    )
+
+
+def _sign_session(exp: int) -> str:
+    secret = _session_secret()
+    if not secret and is_turnstile_bypass():
+        secret = "dev-bypass"
+    if not secret:
+        raise HTTPException(status_code=500, detail="Chybí session secret")
+    payload = str(exp).encode("utf-8")
+    return hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+
+
+def _has_valid_session(request: Request) -> bool:
+    raw = request.cookies.get(SESSION_COOKIE_NAME)
+    if not raw:
+        return False
+    parts = raw.split(".", 1)
+    if len(parts) != 2:
+        return False
+    exp_str, sig = parts
+    if not exp_str.isdigit():
+        return False
+    exp = int(exp_str)
+    if exp < int(time.time()):
+        return False
+    try:
+        expected = _sign_session(exp)
+    except HTTPException:
+        return False
+    return hmac.compare_digest(expected, sig)
 
 
 def verify_turnstile(token: str, remoteip: str | None) -> None:
@@ -148,8 +221,9 @@ def normalize_corrections() -> list[dict[str, Any]]:
     if not CORRECTIONS_PATH.exists():
         return []
 
-    latest_verdict: dict[str, dict[str, Any]] = {}
-    latest_coords: dict[str, dict[str, Any]] = {}
+    latest_by_group: dict[str, dict[str, Any]] = {}
+    latest_coords_by_group: dict[str, dict[str, Any]] = {}
+    xid_group = build_xid_group_cache()
     with CORRECTIONS_PATH.open(encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()
@@ -162,24 +236,30 @@ def normalize_corrections() -> list[dict[str, Any]]:
             xid = record.get("xid")
             if not xid:
                 continue
-            latest_verdict[xid] = {
+            group_id = (
+                str(record.get("group_id") or "").strip()
+                or xid_group.get(xid)
+                or xid
+            )
+            latest_by_group[group_id] = {
                 "xid": xid,
+                "group_id": group_id,
                 "verdict": record.get("verdict"),
                 "received_at": record.get("received_at"),
             }
 
             has_coordinates = bool(record.get("has_coordinates"))
             if has_coordinates:
-                latest_coords[xid] = {
+                latest_coords_by_group[group_id] = {
                     "lat": record.get("lat"),
                     "lon": record.get("lon"),
                     "has_coordinates": True,
                 }
 
     merged: list[dict[str, Any]] = []
-    for xid, base in latest_verdict.items():
-        coords = latest_coords.get(
-            xid, {"lat": None, "lon": None, "has_coordinates": False}
+    for group_id, base in latest_by_group.items():
+        coords = latest_coords_by_group.get(
+            group_id, {"lat": None, "lon": None, "has_coordinates": False}
         )
         merged.append({**base, **coords})
 
@@ -205,6 +285,30 @@ def get_config() -> JSONResponse:
 @app.get("/api/photos")
 def get_photos() -> JSONResponse:
     return JSONResponse(load_photos())
+
+
+@app.post("/api/verify")
+def verify_session(payload: VerifyPayload, request: Request) -> JSONResponse:
+    if not is_turnstile_bypass():
+        if payload.token:
+            verify_turnstile(
+                payload.token, request.client.host if request.client else None
+            )
+        elif not _has_valid_session(request):
+            raise HTTPException(status_code=400, detail="Turnstile je povinný")
+
+    exp = int(time.time()) + SESSION_TTL_SECONDS
+    value = f"{exp}.{_sign_session(exp)}"
+    response = JSONResponse({"ok": True})
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        value,
+        max_age=SESSION_TTL_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+    )
+    return response
 
 
 @app.get("/api/zoomify")
@@ -298,13 +402,21 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
             raise HTTPException(status_code=400, detail="Neplatná poloha")
 
     if not is_turnstile_bypass():
-        if not payload.token:
+        if payload.token:
+            verify_turnstile(
+                payload.token, request.client.host if request.client else None
+            )
+        elif not _has_valid_session(request):
             raise HTTPException(status_code=400, detail="Turnstile je povinný")
-        verify_turnstile(payload.token, request.client.host if request.client else None)
+
+    group_id = (payload.group_id or "").strip()
+    if not group_id:
+        group_id = build_xid_group_cache().get(payload.xid, "")
 
     record = {
         "id": f"corr_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
         "xid": payload.xid,
+        "group_id": group_id or None,
         "lat": payload.lat,
         "lon": payload.lon,
         "has_coordinates": has_coordinates,
@@ -319,6 +431,90 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with _feedback_lock:
         with CORRECTIONS_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False))
+            handle.write("\n")
+
+    return JSONResponse({"ok": True})
+
+
+def normalize_merges() -> list[dict[str, Any]]:
+    if not MERGES_PATH.exists():
+        return []
+
+    latest: dict[str, dict[str, Any]] = {}
+    with MERGES_PATH.open(encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            group_id_a = str(record.get("group_id_a") or "").strip()
+            group_id_b = str(record.get("group_id_b") or "").strip()
+            verdict = str(record.get("verdict") or "").strip().lower()
+            if not group_id_a or not group_id_b:
+                continue
+            if group_id_a == group_id_b:
+                continue
+            if verdict not in {"same", "different"}:
+                continue
+            if group_id_a > group_id_b:
+                group_id_a, group_id_b = group_id_b, group_id_a
+            key = f"{group_id_a}::{group_id_b}"
+            latest[key] = {
+                "group_id_a": group_id_a,
+                "group_id_b": group_id_b,
+                "verdict": verdict,
+                "received_at": record.get("received_at"),
+            }
+
+    return list(latest.values())
+
+
+@app.get("/api/merges")
+def get_merges() -> JSONResponse:
+    items = normalize_merges()
+    return JSONResponse({"items": items, "count": len(items)})
+
+
+@app.post("/api/merges")
+def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
+    group_id_a = payload.group_id_a.strip()
+    group_id_b = payload.group_id_b.strip()
+    if group_id_a == group_id_b:
+        raise HTTPException(status_code=400, detail="Nelze sloučit stejnou skupinu")
+
+    verdict = (payload.verdict or "").strip().lower()
+    if not verdict:
+        verdict = "same"
+    if verdict not in {"same", "different"}:
+        raise HTTPException(status_code=400, detail="Neplatný typ rozhodnutí")
+
+    if not is_turnstile_bypass():
+        if payload.token:
+            verify_turnstile(
+                payload.token, request.client.host if request.client else None
+            )
+        elif not _has_valid_session(request):
+            raise HTTPException(status_code=400, detail="Turnstile je povinný")
+
+    if group_id_a > group_id_b:
+        group_id_a, group_id_b = group_id_b, group_id_a
+
+    record = {
+        "id": f"merge_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
+        "group_id_a": group_id_a,
+        "group_id_b": group_id_b,
+        "verdict": verdict,
+        "user_agent": request.headers.get("user-agent", ""),
+        "received_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with _feedback_lock:
+        with MERGES_PATH.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, ensure_ascii=False))
             handle.write("\n")
 

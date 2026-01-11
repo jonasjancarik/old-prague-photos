@@ -250,6 +250,7 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
 
             const payload = {
                 xid: this.feature.properties.id,
+                group_id: this.feature.properties.group_root || this.feature.properties.group_id || null,
                 lat: this.proposedCoords.lat,
                 lon: this.proposedCoords.lon,
                 verdict: "wrong",

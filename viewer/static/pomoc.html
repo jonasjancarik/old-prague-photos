@@ -32,7 +32,7 @@
           <span class="stat-value" id="remaining-count">—</span>
         </div>
         <div class="stat">
-          <span class="stat-label">Identifikátor</span>
+          <span class="stat-label">Skupina</span>
           <span class="stat-value" id="current-xid">—</span>
         </div>
       </div>
@@ -78,9 +78,26 @@
           <p class="form-status" id="form-status"></p>
         </div>
 
+      </section>
+    </main>
+  </div>
+
+  <div class="modal" id="help-correction-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-help-close></div>
+    <div class="modal-dialog modal-compact" role="dialog" aria-modal="true" aria-label="Oprava polohy">
+      <div class="modal-header">
+        <div>
+          <p class="modal-eyebrow">Oprava polohy</p>
+          <h2 class="modal-title">Doplňte poznámku</h2>
+        </div>
+        <button class="modal-close" type="button" data-help-close>
+          Zavřít
+        </button>
+      </div>
+      <div class="modal-body">
         <div class="help-form is-hidden" id="help-form">
           <div class="card help-down">
-            <p class="helper">Klikněte do mapy na správné místo. Pak odešlete opravu.</p>
+            <p class="helper" id="help-map-note">Klikněte do mapy na správné místo. Pak odešlete opravu.</p>
             <label class="field">
               <span>Poznámka (volitelné)</span>
               <textarea id="help-message" rows="3" placeholder="Např. správná ulice, orientační bod..."></textarea>
@@ -90,10 +107,7 @@
               <input id="help-email" type="email" placeholder="vy@priklad.cz" />
             </label>
           </div>
-          <div class="turnstile-wrap">
-            <div id="turnstile"></div>
-            <p class="helper" id="turnstile-note">Pro odeslání je nutný Turnstile.</p>
-          </div>
+          <p class="helper" id="turnstile-note"></p>
           <div class="help-submit">
             <button class="secondary help-secondary" type="button" id="cancel-correction">
               Zrušit
@@ -102,9 +116,38 @@
               Uložit opravu
             </button>
           </div>
+          <p class="form-status" id="modal-status"></p>
         </div>
-      </section>
-    </main>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="verify-modal" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog modal-compact" role="dialog" aria-modal="true" aria-label="Ověření">
+      <div class="modal-header">
+        <div>
+          <p class="modal-eyebrow">Ověření</p>
+          <h2 class="modal-title">Než začneme</h2>
+        </div>
+      </div>
+      <div class="modal-body verify-body">
+        <p class="helper">Potvrďte, že nejste robot. Ověření platí pro celou relaci.</p>
+        <label class="field">
+          <span>E-mail (volitelné)</span>
+          <input id="verify-email" type="email" placeholder="vy@priklad.cz" />
+        </label>
+        <div class="turnstile-wrap">
+          <div id="verify-turnstile"></div>
+          <p class="helper" id="verify-status">Pro pokračování je potřeba ověření.</p>
+        </div>
+        <div class="verify-actions">
+          <button class="primary" type="button" id="verify-continue" disabled>
+            Pokračovat
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -112,6 +155,7 @@
   <script src="https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js"></script>
   <script src="./zoomify.js"></script>
   <script src="./photo-meta.js"></script>
+  <script src="./grouping.js"></script>
   <script src="./correction-ui.js"></script>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=turnstileOnload" async
     defer></script>

@@ -130,7 +130,7 @@ After running all the steps, the final dataset will be available at `output/old_
 
 ## 🗺️ Viewer App
 
-The viewer is a static frontend (Leaflet map + feedback modal). It can run locally via FastAPI or as a static site on Cloudflare Pages with a D1 database for live corrections.
+The viewer is a static frontend (Leaflet map + feedback modal). It can run locally via FastAPI or as a static site on Cloudflare Pages with a D1 database for live corrections. Photos are grouped by identical `obsah + autor + datace` so versions appear together; corrections apply to the whole group. There is also a duplicate review UI at `/dup-review.html` for manually merging groups that share the exact same coordinates.
 
 Future idea: keep corrections in a live store (KV/D1) for instant map updates, and optionally run a daily GitHub Action that snapshots corrections into a PR (CSV + GeoJSON) for audit/history.
 

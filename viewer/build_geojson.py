@@ -1,6 +1,7 @@
 import argparse
 import csv
 import json
+import hashlib
 from pathlib import Path
 
 def parse_args() -> argparse.Namespace:
@@ -25,6 +26,22 @@ def to_float(value: str) -> float | None:
         return None
 
 
+def normalize_group_value(value: str | None) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def build_group_id(row: dict[str, str]) -> str:
+    parts = [
+        normalize_group_value(row.get("obsah")),
+        normalize_group_value(row.get("autor")),
+        normalize_group_value(row.get("datace")),
+    ]
+    key = "\x1f".join(parts)
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()
+
+
 def main() -> None:
     args = parse_args()
     input_path = Path(args.input)
@@ -41,12 +58,14 @@ def main() -> None:
 
             properties = {
                 "id": row.get("xid", "").strip(),
+                "group_id": build_group_id(row),
                 "kind": row.get("druh", "").strip(),
                 "description": row.get("obsah", "").strip(),
                 "date_label": row.get("datace", "").strip(),
                 "start_date": row.get("start_date", "").strip(),
                 "end_date": row.get("end_date", "").strip(),
                 "author": row.get("autor", "").strip(),
+                "signature": row.get("signatura", "").strip(),
                 "note": row.get("poznámka", "").strip(),
                 "views": row.get("zobrazeno", "").strip(),
                 "geolocation_type": row.get("geolocation_type", "").strip(),

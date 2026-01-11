@@ -3,6 +3,7 @@
 const state = {
   map: null,
   cluster: null,
+  selectedGroup: null,
   selectedFeature: null,
   archiveBaseUrl: "",
   turnstileSiteKey: "",
@@ -11,6 +12,11 @@ const state = {
   turnstileWidgetId: null,
   turnstileToken: "",
   featuresById: new Map(),
+  groupById: new Map(),
+  groupByXid: new Map(),
+  groupIdByXid: new Map(),
+  resolveGroupId: (id) => id,
+  correctionsByGroup: new Map(),
   overlapCluster: null,
   clusteringEnabled: true,
   correctionLat: null,
@@ -18,6 +24,7 @@ const state = {
   correctionMap: null,
   correctionMarker: null,
   features: [],
+  groups: [],
 };
 
 const detailContainer = document.getElementById("photo-details");
@@ -284,7 +291,21 @@ function closeArchiveModal(options = {}) {
 function renderDetails(feature) {
   if (!detailContainer) return;
   if (!window.OldPragueMeta?.renderDetails) return;
-  window.OldPragueMeta.renderDetails(detailContainer, feature, state.archiveBaseUrl);
+  const group = state.selectedGroup;
+  window.OldPragueMeta.renderDetails(detailContainer, feature, state.archiveBaseUrl, {
+    groupItems: group?.items || [],
+    selectedId: feature?.properties?.id || "",
+    onSelectVersion: (xid) => {
+      if (!xid || !state.featuresById.has(xid)) return;
+      const nextGroup = state.groupByXid.get(xid);
+      if (nextGroup) state.selectedGroup = nextGroup;
+      selectFeature(state.featuresById.get(xid), {
+        openModal: true,
+        updateHistory: true,
+        panTo: false,
+      });
+    },
+  });
 }
 
 function buildMarkerIcon() {
@@ -394,20 +415,19 @@ function toggleClustering(enabled) {
   }
 }
 
-function addMarkers(features, options = {}) {
+function addMarkers(groups, options = {}) {
   const { fitBounds = true } = options;
   state.cluster.clearLayers();
   state.overlapCluster.clearLayers();
-  state.featuresById.clear();
 
   const bounds = L.latLngBounds();
   const icon = buildMarkerIcon();
 
-  features.forEach((feature) => {
-    if (feature.properties?.id) {
-      state.featuresById.set(feature.properties.id, feature);
-    }
-    const [lon, lat] = feature.geometry.coordinates;
+  groups.forEach((group) => {
+    if (!group) return;
+    const lat = Number(group.lat);
+    const lon = Number(group.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
     const markerParams = { icon };
 
     // We create separate marker instances for each cluster group
@@ -416,7 +436,7 @@ function addMarkers(features, options = {}) {
 
     const setup = (m) => {
       m.on("click", () => {
-        selectFeature(feature, { openModal: true, updateHistory: true, panTo: true });
+        selectGroup(group, { openModal: true, updateHistory: true, panTo: true });
       });
     };
     setup(m1);
@@ -427,9 +447,23 @@ function addMarkers(features, options = {}) {
     state.overlapCluster.addLayer(m2);
   });
 
-  if (features.length && fitBounds) {
+  if (groups.length && fitBounds) {
     state.map.fitBounds(bounds, { padding: [40, 40] });
   }
+}
+
+function selectGroup(group, options = {}) {
+  if (!group) return;
+  state.selectedGroup = group;
+  const selectedXid = options.selectedXid;
+  let feature = group.primary;
+  if (selectedXid && state.featuresById.has(selectedXid)) {
+    const candidate = state.featuresById.get(selectedXid);
+    if (candidate?.properties?.group_root === group.id) {
+      feature = candidate;
+    }
+  }
+  selectFeature(feature, options);
 }
 
 function selectFeature(feature, options = {}) {
@@ -506,26 +540,6 @@ async function fetchJson(url) {
   return response.json();
 }
 
-function applyCorrections(features, corrections) {
-  if (!Array.isArray(features)) return;
-  const map = new Map();
-  corrections.forEach((item) => {
-    if (!item || !item.xid) return;
-    map.set(item.xid, item);
-  });
-
-  features.forEach((feature) => {
-    const xid = feature.properties?.id;
-    if (!xid || !map.has(xid)) return;
-    const correction = map.get(xid);
-    const lat = Number(correction.lat);
-    const lon = Number(correction.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-    feature.geometry.coordinates = [lon, lat];
-    feature.properties.corrected = { lat, lon };
-  });
-}
-
 async function bootstrap() {
   const config = await fetchJson("/api/config").catch(() => ({}));
   state.turnstileSiteKey = config.turnstileSiteKey || "";
@@ -543,32 +557,59 @@ async function bootstrap() {
 
   renderTurnstile();
 
+  const features = photos.features || [];
+  state.features = features;
+
+  const mergeData = await fetchJson("/api/merges").catch(() => ({
+    items: [],
+  }));
+  const mergeItems = mergeData.items || [];
+
+  const grouping = window.OldPragueGrouping;
+  const { map: groupIdByXid, groupIds } = grouping.buildGroupIdByXid(features);
+  state.groupIdByXid = groupIdByXid;
+  state.resolveGroupId = grouping.buildMergeResolver(groupIds, mergeItems);
+
   const corrections = await fetchJson("/api/corrections").catch(() => ({
     items: [],
   }));
-  const features = photos.features || [];
-  state.features = features;
-  applyCorrections(features, corrections.items || []);
-  addMarkers(features);
+  state.correctionsByGroup = grouping.applyCorrections(
+    features,
+    corrections.items || [],
+    groupIdByXid,
+    state.resolveGroupId,
+  );
+
+  const groupIndex = grouping.buildGroups(features, state.resolveGroupId);
+  state.groups = groupIndex.groups;
+  state.groupById = groupIndex.groupById;
+  state.groupByXid = groupIndex.groupByXid;
+  state.featuresById = groupIndex.featureById;
+
+  addMarkers(state.groups);
   renderDetails(null);
-  photoCount.textContent = features.length
-    ? features.length.toLocaleString()
+  photoCount.textContent = state.groups.length
+    ? state.groups.length.toLocaleString()
     : "—";
 
   const verifiedCount = document.getElementById("verified-count");
   if (verifiedCount) {
-    verifiedCount.textContent = corrections.count
-      ? corrections.count.toLocaleString()
+    verifiedCount.textContent = state.correctionsByGroup.size
+      ? state.correctionsByGroup.size.toLocaleString()
       : "0";
   }
 
   const xid = new URLSearchParams(window.location.search).get("xid");
   if (xid && state.featuresById.has(xid)) {
-    selectFeature(state.featuresById.get(xid), {
-      openModal: true,
-      updateHistory: false,
-      panTo: true,
-    });
+    const group = state.groupByXid.get(xid);
+    if (group) {
+      selectGroup(group, {
+        openModal: true,
+        updateHistory: false,
+        panTo: true,
+        selectedXid: xid,
+      });
+    }
   }
 
   // Initialize shared Correction UI
@@ -593,11 +634,22 @@ async function bootstrap() {
           const lat = Number(proposedCoords.lat);
           const lon = Number(proposedCoords.lon);
           if (Number.isFinite(lat) && Number.isFinite(lon)) {
-            feature.geometry.coordinates = [lon, lat];
-            feature.properties = feature.properties || {};
-            feature.properties.corrected = { lat, lon };
-            if (Array.isArray(state.features) && state.features.length) {
-              addMarkers(state.features, { fitBounds: false });
+            const groupId =
+              feature.properties?.group_root || feature.properties?.group_id;
+            const group = groupId ? state.groupById.get(groupId) : null;
+            const targets = group?.items?.length ? group.items : [feature];
+            targets.forEach((item) => {
+              item.geometry.coordinates = [lon, lat];
+              item.properties = item.properties || {};
+              item.properties.corrected = { lat, lon };
+            });
+            if (group) {
+              group.lat = lat;
+              group.lon = lon;
+              group.primary = group.items[0] || feature;
+            }
+            if (Array.isArray(state.groups) && state.groups.length) {
+              addMarkers(state.groups, { fitBounds: false });
             }
             if (state.map) {
               state.map.setView([lat, lon], Math.max(state.map.getZoom(), 14), {
@@ -709,8 +761,14 @@ feedbackForm.addEventListener("submit", async (event) => {
   const formData = new FormData(feedbackForm);
   const rawMessage = String(formData.get("message") || "").trim();
   const hasCoordinates = state.correctionLat !== null && state.correctionLon !== null;
+  const groupId =
+    state.selectedGroup?.id ||
+    state.selectedFeature?.properties?.group_root ||
+    state.selectedFeature?.properties?.group_id ||
+    null;
   const payload = {
     xid: state.selectedFeature.properties.id,
+    group_id: groupId,
     lat: state.correctionLat ?? null,
     lon: state.correctionLon ?? null,
     verdict: hasCoordinates ? "wrong" : "flag",
@@ -804,11 +862,15 @@ document.addEventListener("keydown", (event) => {
 window.addEventListener("popstate", () => {
   const xid = new URLSearchParams(window.location.search).get("xid");
   if (xid && state.featuresById.has(xid)) {
-    selectFeature(state.featuresById.get(xid), {
-      openModal: true,
-      updateHistory: false,
-      panTo: false,
-    });
+    const group = state.groupByXid.get(xid);
+    if (group) {
+      selectGroup(group, {
+        openModal: true,
+        updateHistory: false,
+        panTo: false,
+        selectedXid: xid,
+      });
+    }
   } else if (archiveModal?.classList.contains("is-open")) {
     closeArchiveModal({ updateHistory: false });
   }

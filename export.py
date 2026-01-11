@@ -200,6 +200,7 @@ if EXPORT_MINIMAL_FILE:
         "datace",
         "zobrazeno",
         "xid",
+        "signatura",
         "start_date",
         "end_date",
         "geolocation_position_lon",

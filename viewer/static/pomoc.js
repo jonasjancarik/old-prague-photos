@@ -13,10 +13,15 @@ const state = {
   sessionVerified: false,
   archiveBaseUrl: "https://katalog.ahmp.cz/pragapublica",
   features: [],
+  groups: [],
+  groupByXid: new Map(),
+  groupIdByXid: new Map(),
+  resolveGroupId: (id) => id,
   remaining: [],
   history: [],
-  voted: {}, // xid -> "ok" | "wrong"
-  current: null,
+  voted: {}, // group_id -> "ok" | "wrong"
+  currentGroup: null,
+  currentFeature: null,
   proposed: null,
 };
 
@@ -165,7 +170,17 @@ function updateCounts() {
       ? state.remaining.length.toLocaleString()
       : "—";
   }
-  currentXidEl.textContent = state.current?.properties?.id || "—";
+  const groupId = state.currentGroup?.id || "";
+  if (currentXidEl) {
+    if (groupId) {
+      const shortId = `${groupId.slice(0, 6)}...${groupId.slice(-4)}`;
+      currentXidEl.textContent = shortId;
+      currentXidEl.title = groupId;
+    } else {
+      currentXidEl.textContent = "—";
+      currentXidEl.title = "";
+    }
+  }
   if (prevBtn) {
     prevBtn.disabled = state.history.length === 0;
   }
@@ -174,14 +189,15 @@ function updateCounts() {
 async function refreshRemainingCloud() {
   try {
     const corrections = await fetchJson("/api/corrections");
-    const done = new Set(
-      (corrections.items || [])
-        .filter((item) => item?.xid && (item?.has_coordinates || item?.verdict === "ok"))
-        .map((item) => item.xid)
+    const grouping = window.OldPragueGrouping;
+    const done = grouping.buildDoneGroupSet(
+      corrections.items || [],
+      state.groupIdByXid,
+      state.resolveGroupId,
     );
 
     // Update local remaining pool while keeping out things already done by others
-    state.remaining = state.features.filter((f) => !done.has(f.properties.id));
+    state.remaining = state.groups.filter((group) => !done.has(group.id));
     updateCounts();
   } catch (err) {
     console.warn("Refresh counteru selhal", err);
@@ -297,28 +313,26 @@ function initMap() {
   });
 }
 
-function showFeature(feature) {
-  state.current = feature;
-  state.proposed = null;
-  state.mode = null;
-  clearStatus();
-  closeCorrectionModal();
-  updateCounts();
-  updateSubmitState();
+function setCurrentFeature(feature) {
+  if (!feature) return;
+  state.currentFeature = feature;
 
   if (window.OldPragueMeta?.renderDetails) {
-    window.OldPragueMeta.renderDetails(detailsEl, feature, state.archiveBaseUrl);
+    window.OldPragueMeta.renderDetails(detailsEl, feature, state.archiveBaseUrl, {
+      groupItems: state.currentGroup?.items || [],
+      selectedId: feature.properties?.id || "",
+      onSelectVersion: (xid) => {
+        const nextFeature = state.currentGroup?.items?.find(
+          (item) => item?.properties?.id === xid,
+        );
+        if (nextFeature) {
+          setCurrentFeature(nextFeature);
+        }
+      },
+    });
   }
 
-  if (messageEl) messageEl.value = "";
-  if (submitCorrectionBtn) submitCorrectionBtn.classList.add("is-hidden");
-
-  // Reflect previous vote state
   const xid = feature.properties.id;
-  const prevVote = state.voted[xid];
-  voteUpBtn.classList.toggle("is-voted", prevVote === "ok");
-  voteDownBtn.classList.toggle("is-voted", prevVote === "wrong");
-
   const url = getArchiveUrl(xid);
   iframe.src = url;
   if (zoomLastXid !== xid) {
@@ -334,12 +348,41 @@ function showFeature(feature) {
     state.originalMarker.setLatLng(point);
   }
 
+  state.map.setView(point, Math.max(state.map.getZoom(), 15), { animate: true });
+}
+
+function showGroup(group, options = {}) {
+  state.currentGroup = group;
+  state.proposed = null;
+  state.mode = null;
+  clearStatus();
+  closeCorrectionModal();
+  updateCounts();
+  updateSubmitState();
+
+  if (messageEl) messageEl.value = "";
+  if (submitCorrectionBtn) submitCorrectionBtn.classList.add("is-hidden");
+
+  const groupId = group?.id || "";
+  const prevVote = state.voted[groupId];
+  voteUpBtn.classList.toggle("is-voted", prevVote === "ok");
+  voteDownBtn.classList.toggle("is-voted", prevVote === "wrong");
+
+  let feature = group?.primary;
+  const selectedXid = options.selectedXid;
+  if (selectedXid) {
+    const candidate = group?.items?.find(
+      (item) => item?.properties?.id === selectedXid,
+    );
+    if (candidate) feature = candidate;
+  }
+
+  setCurrentFeature(feature);
+
   if (state.proposedMarker) {
     state.map.removeLayer(state.proposedMarker);
     state.proposedMarker = null;
   }
-
-  state.map.setView(point, Math.max(state.map.getZoom(), 15), { animate: true });
 }
 
 function setMode(mode) {
@@ -347,9 +390,9 @@ function setMode(mode) {
   state.mode = mode;
   clearStatus();
 
-  const xid = state.current?.properties?.id;
-  if (xid) {
-    state.voted[xid] = mode;
+  const groupId = state.currentGroup?.id;
+  if (groupId) {
+    state.voted[groupId] = mode;
   }
 
   // Update button visuals
@@ -384,29 +427,29 @@ async function pickRandom() {
   refreshRemainingCloud();
 
   if (!state.remaining.length) {
-    state.remaining = [...state.features];
+    state.remaining = [...state.groups];
   }
 
   const idx = Math.floor(Math.random() * state.remaining.length);
-  const feature = state.remaining.splice(idx, 1)[0];
+  const group = state.remaining.splice(idx, 1)[0];
 
-  if (state.current) {
-    state.history.push(state.current);
+  if (state.currentGroup) {
+    state.history.push(state.currentGroup);
   }
 
-  showFeature(feature);
+  showGroup(group);
 }
 
 function pickPrev() {
   if (state.history.length === 0) return;
-  const prevFeature = state.history.pop();
+  const prevGroup = state.history.pop();
 
   // Put current back to remaining if it's not the one we just popped
-  if (state.current) {
-    state.remaining.push(state.current);
+  if (state.currentGroup) {
+    state.remaining.push(state.currentGroup);
   }
 
-  showFeature(prevFeature);
+  showGroup(prevGroup);
 }
 
 function renderVerifyTurnstile() {
@@ -518,7 +561,7 @@ window.turnstileOnload = () => {
 };
 
 async function submitCorrection() {
-  if (!state.current || state.mode !== "wrong" || !state.proposed) return;
+  if (!state.currentGroup || !state.currentFeature || state.mode !== "wrong" || !state.proposed) return;
 
   clearStatus();
 
@@ -528,7 +571,8 @@ async function submitCorrection() {
   }
 
   const payload = {
-    xid: state.current.properties.id,
+    xid: state.currentFeature.properties.id,
+    group_id: state.currentGroup.id,
     lat: state.proposed.lat,
     lon: state.proposed.lon,
     verdict: "wrong",
@@ -566,8 +610,8 @@ async function submitCorrection() {
 }
 
 async function submitOk() {
-  console.log("submitOk started, state:", { xid: state.current?.properties?.id, mode: state.mode, bypass: state.turnstileBypass });
-  if (!state.current || state.mode !== "ok") return;
+  console.log("submitOk started, state:", { group: state.currentGroup?.id, mode: state.mode, bypass: state.turnstileBypass });
+  if (!state.currentGroup || !state.currentFeature || state.mode !== "ok") return;
 
   clearStatus();
 
@@ -577,7 +621,8 @@ async function submitOk() {
   }
 
   const payload = {
-    xid: state.current.properties.id,
+    xid: state.currentFeature.properties.id,
+    group_id: state.currentGroup.id,
     verdict: "ok",
     message: "Poloha potvrzena jako OK.",
   };
@@ -630,7 +675,32 @@ async function bootstrap() {
   }
 
   const photos = await fetchJson("/data/photos.geojson");
-  state.features = photos.features || [];
+  const features = photos.features || [];
+  state.features = features;
+
+  const mergeData = await fetchJson("/api/merges").catch(() => ({
+    items: [],
+  }));
+  const mergeItems = mergeData.items || [];
+
+  const grouping = window.OldPragueGrouping;
+  const { map: groupIdByXid, groupIds } = grouping.buildGroupIdByXid(features);
+  state.groupIdByXid = groupIdByXid;
+  state.resolveGroupId = grouping.buildMergeResolver(groupIds, mergeItems);
+
+  const corrections = await fetchJson("/api/corrections").catch(() => ({
+    items: [],
+  }));
+  grouping.applyCorrections(
+    features,
+    corrections.items || [],
+    groupIdByXid,
+    state.resolveGroupId,
+  );
+
+  const groupIndex = grouping.buildGroups(features, state.resolveGroupId);
+  state.groups = groupIndex.groups;
+  state.groupByXid = groupIndex.groupByXid;
 
   await refreshRemainingCloud();
 
