@@ -12,6 +12,7 @@ const state = {
   remaining: [],
   history: [],
   currentPair: null,
+  similarityPairs: [],
   leftGroup: null,
   rightGroup: null,
   leftFeature: null,
@@ -132,6 +133,7 @@ async function loadZoomifyInto(target, xid) {
         showNavigator: true,
         maxZoomPixelRatio: 2,
       });
+      window.OldPragueZoomify?.styleControls?.(target.viewer);
     }
 
     if (!window.OldPragueZoomify?.createTileSource) {
@@ -216,6 +218,16 @@ function buildDecisionMap() {
 
 function buildCandidates() {
   const coordMap = new Map();
+  const candidates = [];
+  const candidateKeys = new Set();
+  const addCandidate = (groupA, groupB, source) => {
+    if (!groupA || !groupB) return;
+    const key = pairKey(groupA.id, groupB.id);
+    if (!key || state.decisionsByPair.has(key) || candidateKeys.has(key)) return;
+    candidateKeys.add(key);
+    candidates.push({ groupA, groupB, key, source });
+  };
+
   state.groups.forEach((group) => {
     const lat = Number(group.lat);
     const lon = Number(group.lon);
@@ -225,18 +237,27 @@ function buildCandidates() {
     coordMap.get(key).push(group);
   });
 
-  const candidates = [];
   coordMap.forEach((groups) => {
     if (groups.length < 2) return;
     for (let i = 0; i < groups.length; i += 1) {
       for (let j = i + 1; j < groups.length; j += 1) {
         const groupA = groups[i];
         const groupB = groups[j];
-        const key = pairKey(groupA.id, groupB.id);
-        if (!key || state.decisionsByPair.has(key)) continue;
-        candidates.push({ groupA, groupB, key });
+        addCandidate(groupA, groupB, "coords");
       }
     }
+  });
+
+  (state.similarityPairs || []).forEach((item) => {
+    const rawA = String(item?.group_id_a || "").trim();
+    const rawB = String(item?.group_id_b || "").trim();
+    if (!rawA || !rawB) return;
+    const resolvedA = state.resolveGroupId ? state.resolveGroupId(rawA) : rawA;
+    const resolvedB = state.resolveGroupId ? state.resolveGroupId(rawB) : rawB;
+    if (!resolvedA || !resolvedB || resolvedA === resolvedB) return;
+    const groupA = state.groupById.get(resolvedA);
+    const groupB = state.groupById.get(resolvedB);
+    addCandidate(groupA, groupB, "similarity");
   });
 
   state.candidates = candidates;
@@ -385,6 +406,11 @@ async function bootstrap() {
 
   const mergeData = await fetchJson("/api/merges").catch(() => ({ items: [] }));
   state.decisions = mergeData.items || [];
+
+  const similarityData = await fetchJson("/data/similarity_candidates.json").catch(
+    () => ({ pairs: [] }),
+  );
+  state.similarityPairs = similarityData.pairs || [];
 
   const grouping = window.OldPragueGrouping;
   const { map: groupIdByXid, groupIds } = grouping.buildGroupIdByXid(state.features);

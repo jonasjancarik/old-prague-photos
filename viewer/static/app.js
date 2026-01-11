@@ -96,6 +96,7 @@ async function loadZoomifyInto(viewerEl, wrapEl, fallbackIframe, xid) {
         showNavigator: true,
         maxZoomPixelRatio: 2,
       });
+      window.OldPragueZoomify?.styleControls?.(zoomViewer);
     }
 
     if (!window.OldPragueZoomify?.createTileSource) {

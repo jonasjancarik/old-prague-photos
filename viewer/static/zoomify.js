@@ -70,8 +70,20 @@
     });
   }
 
+  function styleControls(viewer) {
+    if (!viewer) return;
+    const groupEl = viewer?.buttonGroup?.element;
+    if (groupEl) groupEl.classList.add("osd-controls");
+    const buttons = viewer?.buttonGroup?.buttons || [];
+    buttons.forEach((button) => {
+      if (button?.element) button.element.classList.add("osd-button");
+    });
+    const navigatorEl = viewer?.navigator?.element;
+    if (navigatorEl) navigatorEl.classList.add("osd-navigator");
+  }
+
   window.OldPragueZoomify = {
     createTileSource,
+    styleControls,
   };
 })();
-

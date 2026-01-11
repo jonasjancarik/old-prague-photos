@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kontrola duplicit — Staré fotografie Prahy</title>
+  <title>Kontrola podobných záběrů — Staré fotografie Prahy</title>
   <link
     href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;600&display=swap"
     rel="stylesheet" />
@@ -17,18 +17,20 @@
   <div class="page">
     <header class="topbar">
       <div>
-        <p class="eyebrow">Kontrola duplicit</p>
-        <h1>Porovnání skupin se stejnou polohou</h1>
+        <p class="eyebrow">Kontrola podobných záběrů</p>
+        <h1>Porovnání podobných záběrů</h1>
         <p class="subtitle">
-          Dvojice skupin se shodnou polohou. Označte, zda jde o stejnou fotografii nebo různé záběry.
+          Dvojice skupin se shodnou polohou nebo vizuálně podobné snímky. Označte, zda jde o stejný záběr (jiný sken,
+          ořez, barevnost, náklon) nebo různé záběry.
         </p>
         <div class="topbar-actions">
+          <a class="action-link" href="./pomoc.html">Zpět na pomoc</a>
           <a class="action-link" href="./index.html">Zpět na mapu</a>
         </div>
       </div>
       <div class="topbar-meta">
         <div class="stat">
-          <span class="stat-label">Kandidáti</span>
+          <span class="stat-label">Kandidáti podobnosti</span>
           <span class="stat-value" id="candidate-count">—</span>
         </div>
         <div class="stat">
@@ -45,10 +47,10 @@
             Předchozí pár
           </button>
           <button class="vote vote-up" type="button" id="mark-same">
-            Stejná fotka
+            Stejný záběr
           </button>
           <button class="vote vote-down" type="button" id="mark-different">
-            Různé
+            Různé záběry
           </button>
           <button class="secondary" type="button" id="skip-pair">
             Další pár
