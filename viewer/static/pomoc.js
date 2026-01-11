@@ -8,8 +8,9 @@ const state = {
   turnstileSiteKey: "",
   turnstileBypass: false,
   turnstileReady: false,
-  turnstileWidgetId: null,
-  turnstileToken: "",
+  verifyWidgetId: null,
+  verifyToken: "",
+  sessionVerified: false,
   archiveBaseUrl: "https://katalog.ahmp.cz/pragapublica",
   features: [],
   remaining: [],
@@ -32,25 +33,130 @@ const skipBtn = document.getElementById("skip-photo");
 const voteUpBtn = document.getElementById("vote-up");
 const voteDownBtn = document.getElementById("vote-down");
 const helpForm = document.getElementById("help-form");
-const helpMapNote = document.querySelector(".help-form .helper");
+const helpCorrectionModal = document.getElementById("help-correction-modal");
+const helpMapNote = document.getElementById("help-map-note");
 const messageEl = document.getElementById("help-message");
 const emailEl = document.getElementById("help-email");
 const formStatus = document.getElementById("form-status");
+const modalStatus = document.getElementById("modal-status");
 const turnstileNote = document.getElementById("turnstile-note");
+const verifyModal = document.getElementById("verify-modal");
+const verifyStatus = document.getElementById("verify-status");
+const verifyEmailInput = document.getElementById("verify-email");
+const verifyContinueBtn = document.getElementById("verify-continue");
 
 const pragueFallback = [50.0755, 14.4378];
+const EMAIL_STORAGE_KEY = "old-prague-help-email";
+
+let dataReady = false;
+let flowStarted = false;
 
 let zoomViewer = null;
 let zoomLastXid = null;
 
 function setStatus(message, tone = "") {
-  formStatus.textContent = message;
-  formStatus.dataset.tone = tone;
+  [formStatus, modalStatus].forEach((el) => {
+    if (!el) return;
+    el.textContent = message;
+    el.dataset.tone = tone;
+  });
 }
 
 function clearStatus() {
-  formStatus.textContent = "";
-  formStatus.dataset.tone = "";
+  [formStatus, modalStatus].forEach((el) => {
+    if (!el) return;
+    el.textContent = "";
+    el.dataset.tone = "";
+  });
+}
+
+function setVerifyStatus(message, tone = "") {
+  if (!verifyStatus) return;
+  verifyStatus.textContent = message;
+  verifyStatus.dataset.tone = tone;
+}
+
+function setVerificationNote(message, tone = "") {
+  if (!turnstileNote) return;
+  turnstileNote.textContent = message;
+  turnstileNote.dataset.tone = tone;
+}
+
+function setControlsEnabled(enabled) {
+  [voteUpBtn, voteDownBtn, skipBtn, prevBtn].forEach((btn) => {
+    if (!btn) return;
+    btn.disabled = !enabled;
+  });
+  if (!enabled && submitCorrectionBtn) {
+    submitCorrectionBtn.disabled = true;
+  }
+}
+
+function openCorrectionModal() {
+  if (!helpCorrectionModal) return;
+  helpCorrectionModal.classList.add("is-open");
+  helpCorrectionModal.setAttribute("aria-hidden", "false");
+  if (helpForm) helpForm.classList.remove("is-hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeCorrectionModal() {
+  if (!helpCorrectionModal) return;
+  helpCorrectionModal.classList.remove("is-open");
+  helpCorrectionModal.setAttribute("aria-hidden", "true");
+  if (helpForm) helpForm.classList.add("is-hidden");
+  document.body.style.overflow = "";
+}
+
+function cancelCorrection() {
+  state.mode = null;
+  closeCorrectionModal();
+  clearStatus();
+  if (voteDownBtn) voteDownBtn.classList.remove("is-voted");
+  if (state.proposedMarker) {
+    state.map.removeLayer(state.proposedMarker);
+    state.proposedMarker = null;
+  }
+  state.proposed = null;
+  updateSubmitState();
+}
+
+function openVerifyModal() {
+  if (!verifyModal) return;
+  if (state.sessionVerified) return;
+  closeCorrectionModal();
+  verifyModal.classList.add("is-open");
+  verifyModal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  setControlsEnabled(false);
+  setVerifyStatus("Pro pokračování je potřeba ověření.", "");
+  if (state.verifyWidgetId !== null && window.turnstile) {
+    window.turnstile.reset(state.verifyWidgetId);
+    state.verifyToken = "";
+  }
+  if (verifyContinueBtn) verifyContinueBtn.disabled = true;
+}
+
+function closeVerifyModal() {
+  if (!verifyModal) return;
+  verifyModal.classList.remove("is-open");
+  verifyModal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+function maybeStartFlow() {
+  if (!dataReady || !state.sessionVerified || flowStarted) return;
+  flowStarted = true;
+  setControlsEnabled(true);
+  pickRandom();
+}
+
+function loadSavedEmail() {
+  const saved = localStorage.getItem(EMAIL_STORAGE_KEY);
+  if (saved) {
+    if (verifyEmailInput) verifyEmailInput.value = saved;
+    if (emailEl) emailEl.value = saved;
+  }
 }
 
 function updateCounts() {
@@ -84,11 +190,11 @@ async function refreshRemainingCloud() {
 
 function updateSubmitState() {
   const isWrong = state.mode === "wrong";
-  const hasToken = !!(state.turnstileToken || state.turnstileBypass);
+  const hasSession = state.sessionVerified || state.turnstileBypass;
   const hasProposed = !!state.proposed;
 
   if (submitCorrectionBtn) {
-    submitCorrectionBtn.disabled = !isWrong || !hasProposed || !hasToken;
+    submitCorrectionBtn.disabled = !isWrong || !hasProposed || !hasSession;
   }
 }
 
@@ -183,7 +289,11 @@ function initMap() {
     } else {
       state.proposedMarker.setLatLng([lat, lng]);
     }
+    if (helpMapNote) {
+      helpMapNote.textContent = "Poloha vybrána. Doplňte poznámku a odešlete.";
+    }
     updateSubmitState();
+    openCorrectionModal();
   });
 }
 
@@ -192,6 +302,7 @@ function showFeature(feature) {
   state.proposed = null;
   state.mode = null;
   clearStatus();
+  closeCorrectionModal();
   updateCounts();
   updateSubmitState();
 
@@ -200,8 +311,7 @@ function showFeature(feature) {
   }
 
   if (messageEl) messageEl.value = "";
-  if (emailEl) emailEl.value = "";
-  if (helpForm) helpForm.classList.add("is-hidden");
+  if (submitCorrectionBtn) submitCorrectionBtn.classList.add("is-hidden");
 
   // Reflect previous vote state
   const xid = feature.properties.id;
@@ -219,13 +329,7 @@ function showFeature(feature) {
   const point = [lat, lon];
 
   if (!state.originalMarker) {
-    state.originalMarker = L.circleMarker(point, {
-      radius: 10,
-      weight: 2,
-      color: "#2b6e78",
-      fillColor: "#2b6e78",
-      fillOpacity: 0.25,
-    }).addTo(state.map);
+    state.originalMarker = L.marker(point).addTo(state.map);
   } else {
     state.originalMarker.setLatLng(point);
   }
@@ -266,8 +370,7 @@ function setMode(mode) {
     state.map.removeLayer(state.proposedMarker);
     state.proposedMarker = null;
   }
-
-  helpForm.classList.remove("is-hidden");
+  closeCorrectionModal();
   if (submitCorrectionBtn) {
     submitCorrectionBtn.classList.remove("is-hidden");
   }
@@ -306,42 +409,112 @@ function pickPrev() {
   showFeature(prevFeature);
 }
 
-function renderTurnstile() {
+function renderVerifyTurnstile() {
   if (state.turnstileBypass) {
-    if (turnstileNote) turnstileNote.textContent = "Turnstile je vypnutý pro lokální vývoj.";
-    updateSubmitState();
+    setVerifyStatus("Turnstile je vypnutý pro lokální vývoj.", "success");
+    state.sessionVerified = true;
+    setVerificationNote("Turnstile je vypnutý pro lokální vývoj.");
+    closeVerifyModal();
+    maybeStartFlow();
     return;
   }
 
   if (!state.turnstileReady || !state.turnstileSiteKey) {
     if (!state.turnstileSiteKey) {
-      if (turnstileNote) turnstileNote.textContent = "Chybí Turnstile klíč.";
+      setVerifyStatus("Chybí Turnstile klíč.", "error");
     }
     return;
   }
 
-  if (state.turnstileWidgetId !== null) return;
+  if (state.verifyWidgetId !== null) return;
 
-  state.turnstileWidgetId = window.turnstile.render("#turnstile", {
+  state.verifyWidgetId = window.turnstile.render("#verify-turnstile", {
     sitekey: state.turnstileSiteKey,
     callback: (token) => {
-      state.turnstileToken = token;
-      updateSubmitState();
+      state.verifyToken = token;
+      if (verifyContinueBtn) verifyContinueBtn.disabled = false;
+      setVerifyStatus("Ověření připraveno. Pokračujte.", "success");
     },
     "expired-callback": () => {
-      state.turnstileToken = "";
-      updateSubmitState();
+      state.verifyToken = "";
+      if (verifyContinueBtn) verifyContinueBtn.disabled = true;
+      setVerifyStatus("Ověření vypršelo, zkuste to znovu.", "error");
     },
     "error-callback": () => {
-      state.turnstileToken = "";
-      updateSubmitState();
+      state.verifyToken = "";
+      if (verifyContinueBtn) verifyContinueBtn.disabled = true;
+      setVerifyStatus("Ověření selhalo, zkuste to znovu.", "error");
     },
   });
 }
 
+async function submitVerification() {
+  if (state.sessionVerified) {
+    closeVerifyModal();
+    return;
+  }
+  if (state.turnstileBypass) {
+    state.sessionVerified = true;
+    setVerificationNote("Turnstile je vypnutý pro lokální vývoj.");
+    closeVerifyModal();
+    maybeStartFlow();
+    return;
+  }
+
+  if (!state.verifyToken) {
+    setVerifyStatus("Dokončete Turnstile kontrolu.", "error");
+    return;
+  }
+
+  if (verifyContinueBtn) verifyContinueBtn.disabled = true;
+  setVerifyStatus("Ověřuji...", "");
+
+  try {
+    const response = await fetch("/api/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ token: state.verifyToken }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || "Ověření selhalo");
+    }
+
+    state.sessionVerified = true;
+    state.verifyToken = "";
+    if (state.verifyWidgetId !== null && window.turnstile) {
+      window.turnstile.reset(state.verifyWidgetId);
+    }
+    if (verifyContinueBtn) verifyContinueBtn.disabled = true;
+
+    const email = (verifyEmailInput?.value || "").trim();
+    if (email) {
+      localStorage.setItem(EMAIL_STORAGE_KEY, email);
+      if (emailEl) emailEl.value = email;
+    }
+
+    setVerificationNote("Ověřeno pro tuto relaci.");
+    closeVerifyModal();
+    maybeStartFlow();
+    setControlsEnabled(true);
+    updateCounts();
+    if (state.mode === "ok") {
+      submitOk();
+    } else if (state.mode === "wrong" && state.proposed) {
+      openCorrectionModal();
+      updateSubmitState();
+    }
+  } catch (error) {
+    setVerifyStatus(error.message || "Ověření selhalo", "error");
+    if (verifyContinueBtn) verifyContinueBtn.disabled = false;
+  }
+}
+
 window.turnstileOnload = () => {
   state.turnstileReady = true;
-  renderTurnstile();
+  renderVerifyTurnstile();
 };
 
 async function submitCorrection() {
@@ -349,8 +522,8 @@ async function submitCorrection() {
 
   clearStatus();
 
-  if (!state.turnstileToken && !state.turnstileBypass) {
-    setStatus("Dokončete Turnstile kontrolu.", "error");
+  if (!state.sessionVerified && !state.turnstileBypass) {
+    openVerifyModal();
     return;
   }
 
@@ -361,7 +534,6 @@ async function submitCorrection() {
     verdict: "wrong",
     message: (messageEl?.value || "").trim() || "Nahlášena špatná poloha.",
     email: (emailEl?.value || "").trim() || null,
-    token: state.turnstileToken || "",
   };
 
   submitCorrectionBtn.disabled = true;
@@ -370,6 +542,7 @@ async function submitCorrection() {
     const response = await fetch("/api/corrections", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify(payload),
     });
 
@@ -379,13 +552,15 @@ async function submitCorrection() {
     }
 
     setStatus("Díky! Uloženo. Jdeme na další.", "success");
-    state.turnstileToken = "";
-    if (state.turnstileWidgetId !== null && window.turnstile) {
-      window.turnstile.reset(state.turnstileWidgetId);
-    }
+    closeCorrectionModal();
     setTimeout(() => pickRandom(), 400);
   } catch (error) {
     setStatus(error.message || "Odeslání selhalo", "error");
+    if (String(error.message || "").toLowerCase().includes("turnstile")) {
+      state.sessionVerified = false;
+      openVerifyModal();
+      setVerificationNote("Ověření vypršelo. Dokončete prosím ověření znovu.", "error");
+    }
     updateSubmitState();
   }
 }
@@ -396,10 +571,8 @@ async function submitOk() {
 
   clearStatus();
 
-  if (!state.turnstileToken && !state.turnstileBypass) {
-    console.warn("Blocked by Turnstile: token missing and bypass is false");
-    setStatus("Dokončete Turnstile kontrolu.", "error");
-    if (helpForm) helpForm.classList.remove("is-hidden");
+  if (!state.sessionVerified && !state.turnstileBypass) {
+    openVerifyModal();
     return;
   }
 
@@ -407,16 +580,14 @@ async function submitOk() {
     xid: state.current.properties.id,
     verdict: "ok",
     message: "Poloha potvrzena jako OK.",
-    token: state.turnstileToken || "",
   };
 
   console.log("Submitting OK payload:", payload);
-  submitOkBtn.disabled = true;
-
   try {
     const response = await fetch("/api/corrections", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify(payload),
     });
 
@@ -426,13 +597,14 @@ async function submitOk() {
     }
 
     setStatus("Díky! Potvrzeno. Jdeme na další.", "success");
-    state.turnstileToken = "";
-    if (state.turnstileWidgetId !== null && window.turnstile) {
-      window.turnstile.reset(state.turnstileWidgetId);
-    }
     setTimeout(() => pickRandom(), 400);
   } catch (error) {
     setStatus(error.message || "Odeslání selhalo", "error");
+    if (String(error.message || "").toLowerCase().includes("turnstile")) {
+      state.sessionVerified = false;
+      openVerifyModal();
+      setVerificationNote("Ověření vypršelo. Dokončete prosím ověření znovu.", "error");
+    }
     updateSubmitState();
   }
 }
@@ -444,14 +616,26 @@ async function bootstrap() {
   state.archiveBaseUrl = config.archiveBaseUrl || state.archiveBaseUrl;
 
   initMap();
-  renderTurnstile();
+  loadSavedEmail();
+  setControlsEnabled(false);
+
+  if (state.turnstileBypass) {
+    state.sessionVerified = true;
+    setVerificationNote("Turnstile je vypnutý pro lokální vývoj.");
+  } else {
+    openVerifyModal();
+    if (window.turnstile) {
+      renderVerifyTurnstile();
+    }
+  }
 
   const photos = await fetchJson("/data/photos.geojson");
   state.features = photos.features || [];
 
   await refreshRemainingCloud();
 
-  pickRandom();
+  dataReady = true;
+  maybeStartFlow();
 }
 
 /* removed submitOkBtn listener */
@@ -460,17 +644,32 @@ if (submitCorrectionBtn) {
 }
 if (cancelCorrectionBtn) {
   cancelCorrectionBtn.addEventListener("click", () => {
-    state.mode = null;
-    if (helpForm) helpForm.classList.add("is-hidden");
-    voteDownBtn.classList.remove("is-voted");
-    if (state.proposedMarker) {
-      state.map.removeLayer(state.proposedMarker);
-      state.proposedMarker = null;
-    }
-    state.proposed = null;
-    updateSubmitState(); // Update button states after cancelling
+    cancelCorrection();
   });
 }
+if (verifyContinueBtn) {
+  verifyContinueBtn.addEventListener("click", submitVerification);
+}
+if (verifyEmailInput) {
+  verifyEmailInput.addEventListener("input", () => {
+    const value = verifyEmailInput.value.trim();
+    if (value) {
+      localStorage.setItem(EMAIL_STORAGE_KEY, value);
+    }
+  });
+}
+if (emailEl) {
+  emailEl.addEventListener("input", () => {
+    const value = emailEl.value.trim();
+    if (value) {
+      localStorage.setItem(EMAIL_STORAGE_KEY, value);
+    }
+  });
+}
+
+document.querySelectorAll("[data-help-close]").forEach((el) => {
+  el.addEventListener("click", cancelCorrection);
+});
 skipBtn.addEventListener("click", () => pickRandom());
 if (prevBtn) prevBtn.addEventListener("click", () => pickPrev());
 voteUpBtn.addEventListener("click", () => setMode("ok"));
