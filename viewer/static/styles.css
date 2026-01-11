@@ -431,6 +431,11 @@ input:checked+.toggle-slider:before {
   padding-bottom: 20px;
 }
 
+.modal-correction #feedback-form.is-open {
+  max-height: none;
+  overflow: visible;
+}
+
 @media (max-width: 720px) {
   .report-cta {
     flex-direction: column;
