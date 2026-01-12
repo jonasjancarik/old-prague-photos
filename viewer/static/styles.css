@@ -518,6 +518,13 @@ input:checked+.toggle-slider:before {
   margin-top: 8px;
 }
 
+.scan-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .version-pill {
   border: 1px solid rgba(31, 30, 28, 0.18);
   border-radius: 999px;
@@ -543,6 +550,35 @@ input:checked+.toggle-slider:before {
 }
 
 .version-pill:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.scan-pill {
+  border: 1px solid rgba(31, 30, 28, 0.18);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.scan-pill:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(31, 30, 28, 0.14);
+  border-color: rgba(31, 30, 28, 0.35);
+}
+
+.scan-pill.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.scan-pill:disabled {
   opacity: 0.6;
   cursor: default;
 }
@@ -590,6 +626,7 @@ textarea {
   font-weight: 600;
   font-size: 1rem;
   cursor: pointer;
+  text-decoration: none;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -788,14 +825,24 @@ textarea {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
-  align-items: center;
+  align-items: start;
   margin-bottom: 18px;
+}
+
+.help-mode > :first-child {
+  min-width: 0;
+}
+
+.help-mode .helper {
+  max-width: 56ch;
 }
 
 .help-mode-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  justify-self: end;
+  align-self: center;
 }
 
 .help-mode-actions .primary,
@@ -1020,6 +1067,11 @@ textarea {
   margin-bottom: 16px;
 }
 
+.review-source {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
 .review-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1044,6 +1096,10 @@ textarea {
   .help-mode {
     grid-template-columns: 1fr;
     align-items: flex-start;
+  }
+
+  .help-mode-actions {
+    justify-self: start;
   }
 
   .help-grid {

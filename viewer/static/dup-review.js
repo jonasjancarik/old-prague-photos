@@ -18,6 +18,7 @@ const state = {
   leftFeature: null,
   rightFeature: null,
   archiveBaseUrl: "",
+  scanIndexByXid: new Map(),
   turnstileSiteKey: "",
   turnstileBypass: false,
   turnstileReady: false,
@@ -33,6 +34,7 @@ const sameBtn = document.getElementById("mark-same");
 const differentBtn = document.getElementById("mark-different");
 const statusEl = document.getElementById("review-status");
 const turnstileNote = document.getElementById("turnstile-note");
+const pairSourceEl = document.getElementById("pair-source");
 
 const leftDetails = document.getElementById("left-details");
 const rightDetails = document.getElementById("right-details");
@@ -89,20 +91,25 @@ async function fetchJson(url) {
   return response.json();
 }
 
-async function loadZoomifyMeta(xid) {
-  const url = `/api/zoomify?xid=${encodeURIComponent(xid)}`;
+async function loadZoomifyMeta(xid, scanIndex) {
+  const url = `/api/zoomify?xid=${encodeURIComponent(xid)}&scanIndex=${encodeURIComponent(
+    String(scanIndex || 0),
+  )}`;
   return fetchJson(url);
 }
 
-function getArchiveUrl(xid) {
+function getArchiveUrl(xid, scanIndex) {
   if (!state.archiveBaseUrl || !xid) return "";
-  return `${state.archiveBaseUrl.replace(/\/$/, "")}/permalink?xid=${encodeURIComponent(xid)}&scan=1#scan1`;
+  const scanParam = Number.isFinite(scanIndex) ? scanIndex + 1 : 1;
+  return `${state.archiveBaseUrl.replace(/\/$/, "")}/permalink?xid=${encodeURIComponent(
+    xid,
+  )}&scan=${scanParam}#scan${scanParam}`;
 }
 
 function createZoomState(viewerEl, wrapEl, iframeEl) {
   return {
     viewer: null,
-    lastXid: null,
+    lastKey: null,
     viewerEl,
     wrapEl,
     iframeEl,
@@ -112,10 +119,15 @@ function createZoomState(viewerEl, wrapEl, iframeEl) {
 const leftZoom = createZoomState(leftZoomEl, leftWrap, leftIframe);
 const rightZoom = createZoomState(rightZoomEl, rightWrap, rightIframe);
 
-async function loadZoomifyInto(target, xid) {
+function buildZoomKey(xid, scanIndex) {
+  return `${xid || ""}::${scanIndex ?? 0}`;
+}
+
+async function loadZoomifyInto(target, xid, scanIndex) {
   if (!target.viewerEl || !target.wrapEl) return;
-  if (target.lastXid === xid) return;
-  target.lastXid = xid;
+  const key = buildZoomKey(xid, scanIndex);
+  if (target.lastKey === key) return;
+  target.lastKey = key;
   target.wrapEl.classList.remove("is-fallback");
 
   try {
@@ -123,7 +135,7 @@ async function loadZoomifyInto(target, xid) {
       throw new Error("OpenSeadragon chybí");
     }
 
-    const meta = await loadZoomifyMeta(xid);
+    const meta = await loadZoomifyMeta(xid, scanIndex);
 
     if (!target.viewer) {
       target.viewer = window.OpenSeadragon({
@@ -149,6 +161,8 @@ async function loadZoomifyInto(target, xid) {
 function renderSideDetails(side, group, feature) {
   const container = side === "left" ? leftDetails : rightDetails;
   if (!container || !window.OldPragueMeta?.renderDetails) return;
+  const xid = feature?.properties?.id || "";
+  const selectedScanIndex = getScanIndex(xid);
   window.OldPragueMeta.renderDetails(container, feature, state.archiveBaseUrl, {
     groupItems: group?.items || [],
     selectedId: feature?.properties?.id || "",
@@ -160,7 +174,22 @@ function renderSideDetails(side, group, feature) {
         setSideFeature(side, group, nextFeature);
       }
     },
+    selectedScanIndex,
+    onSelectScan: (nextScan) => {
+      setScanIndex(xid, nextScan);
+      setSideFeature(side, group, feature);
+    },
   });
+}
+
+function getScanIndex(xid) {
+  if (!xid) return 0;
+  return state.scanIndexByXid.get(xid) ?? 0;
+}
+
+function setScanIndex(xid, scanIndex) {
+  if (!xid || !Number.isFinite(scanIndex)) return;
+  state.scanIndexByXid.set(xid, scanIndex);
 }
 
 function setSideFeature(side, group, feature) {
@@ -174,12 +203,13 @@ function setSideFeature(side, group, feature) {
     state.rightFeature = feature;
   }
 
-  const url = getArchiveUrl(xid);
+  const scanIndex = getScanIndex(xid);
+  const url = getArchiveUrl(xid, scanIndex);
   const iframe = side === "left" ? leftIframe : rightIframe;
   if (iframe) iframe.src = url;
 
   const zoomTarget = side === "left" ? leftZoom : rightZoom;
-  loadZoomifyInto(zoomTarget, xid);
+  loadZoomifyInto(zoomTarget, xid, scanIndex);
 
   renderSideDetails(side, group, feature);
 }
@@ -189,6 +219,13 @@ function showPair(pair) {
   state.currentPair = pair;
   state.leftGroup = pair.groupA;
   state.rightGroup = pair.groupB;
+  if (pairSourceEl) {
+    const label =
+      pair.source === "similarity"
+        ? "Zdroj páru: vizuální podobnost"
+        : "Zdroj páru: shodná poloha";
+    pairSourceEl.textContent = label;
+  }
 
   const leftFeature = pair.groupA?.primary || pair.groupA?.items?.[0];
   const rightFeature = pair.groupB?.primary || pair.groupB?.items?.[0];
@@ -272,6 +309,7 @@ function pickNext() {
   if (!state.remaining.length) {
     setStatus("Žádné další páry k porovnání.", "success");
     state.currentPair = null;
+    if (pairSourceEl) pairSourceEl.textContent = "Zdroj páru: —";
     updateActionState();
     updateCounts();
     return;
@@ -394,6 +432,11 @@ window.turnstileOnload = () => {
   state.turnstileReady = true;
   renderTurnstile();
 };
+
+window.addEventListener("old-prague-mode", (event) => {
+  if (event.detail?.mode !== "dedupe") return;
+  renderTurnstile();
+});
 
 async function bootstrap() {
   const config = await fetchJson("/api/config").catch(() => ({}));

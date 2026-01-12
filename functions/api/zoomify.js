@@ -36,8 +36,11 @@ async function fetchText(url) {
   return response.text();
 }
 
-async function resolveZoomify({ archiveBaseUrl, xid }) {
-  const permalinkUrl = `${archiveBaseUrl.replace(/\/$/, "")}/permalink?xid=${encodeURIComponent(xid)}&scan=1`;
+async function resolveZoomify({ archiveBaseUrl, xid, scanIndex }) {
+  const scanParam = Number.isFinite(scanIndex) && scanIndex >= 0 ? scanIndex : 0;
+  const permalinkUrl = `${archiveBaseUrl.replace(/\/$/, "")}/permalink?xid=${encodeURIComponent(
+    xid,
+  )}&scan=${scanParam + 1}`;
   const permalinkHtml = await fetchText(permalinkUrl);
 
   const zoomifyRaw = extract(/Zoomify\\.action[^\"']+/i, permalinkHtml);
@@ -45,7 +48,9 @@ async function resolveZoomify({ archiveBaseUrl, xid }) {
     throw new Error("Zoomify link not found");
   }
 
-  const zoomifyUrl = new URL(htmlUnescape(zoomifyRaw), permalinkUrl).toString();
+  const zoomifyUrlObj = new URL(htmlUnescape(zoomifyRaw), permalinkUrl);
+  zoomifyUrlObj.searchParams.set("scanIndex", String(scanParam));
+  const zoomifyUrl = zoomifyUrlObj.toString();
   const zoomifyHtml = await fetchText(zoomifyUrl);
 
   const zoomifyImgPath = extract(/zoomifyImgPath\\s*=\\s*\"([^\"]+)\"/i, zoomifyHtml);
@@ -62,6 +67,7 @@ async function resolveZoomify({ archiveBaseUrl, xid }) {
 
   return {
     xid,
+    scanIndex: scanParam,
     zoomifyImgPath,
     imagePropertiesUrl: imagePropsUrl,
     width: width ? Number(width) : null,
@@ -73,6 +79,8 @@ async function resolveZoomify({ archiveBaseUrl, xid }) {
 export async function onRequest({ request, env }) {
   const url = new URL(request.url);
   const xid = (url.searchParams.get("xid") || "").trim();
+  const scanIndexRaw = url.searchParams.get("scanIndex");
+  const scanIndex = scanIndexRaw ? Number.parseInt(scanIndexRaw, 10) : 0;
   if (!xid) {
     return jsonResponse({ detail: "Chybí xid" }, 400);
   }
@@ -80,7 +88,7 @@ export async function onRequest({ request, env }) {
   const archiveBaseUrl = (env.ARCHIVE_BASE_URL || ARCHIVE_DEFAULT).replace(/\\/$/, "");
 
   try {
-    const payload = await resolveZoomify({ archiveBaseUrl, xid });
+    const payload = await resolveZoomify({ archiveBaseUrl, xid, scanIndex });
     return jsonResponse(payload);
   } catch (error) {
     return jsonResponse({ detail: error.message || "Nepodařilo se načíst zoom" }, 502);

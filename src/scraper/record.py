@@ -10,7 +10,7 @@ class Record:
         self.xid = record_data.get("xid")
 
     def save(self) -> None:
-        output_filename = f"output/records/{self.xid}.json"
+        output_filename = f"output/raw_records/{self.xid}.json"
         # create the directory if it doesn't exist
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         with open(output_filename, "w", encoding="utf-8") as f:

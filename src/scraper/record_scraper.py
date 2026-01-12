@@ -2,11 +2,56 @@ import asyncio
 import aiohttp
 import os
 import time
-from typing import List, Set
-from bs4 import BeautifulSoup
-from src.utils.helpers import fetch, get_full_url, log_progress, log_summary
-from src.scraper.record import Record
+import html as html_lib
 import logging
+import re
+from typing import List, Set
+from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
+
+from bs4 import BeautifulSoup
+
+from src.scraper.record import Record
+from src.utils.helpers import fetch, get_full_url, log_progress, log_summary
+
+
+SCAN_COUNT_PATTERN = re.compile(r"(\\d+)\\s+obrázk", re.IGNORECASE)
+ZOOMIFY_URL_PATTERN = re.compile(r"Zoomify\\.action[^\"']+", re.IGNORECASE)
+ZOOMIFY_PATH_PATTERN = re.compile(r'zoomifyImgPath\\s*=\\s*"([^"]+)"', re.IGNORECASE)
+
+
+def extract_scan_count(page_html: str) -> int | None:
+    match = SCAN_COUNT_PATTERN.search(page_html)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def extract_zoomify_url(page_html: str, base_url: str) -> str | None:
+    match = ZOOMIFY_URL_PATTERN.search(page_html)
+    if not match:
+        return None
+    return urljoin(base_url, html_lib.unescape(match.group(0)))
+
+
+def extract_zoomify_img_path(page_html: str) -> str | None:
+    match = ZOOMIFY_PATH_PATTERN.search(page_html)
+    return match.group(1) if match else None
+
+
+def with_scan_index(url: str, scan_index: int) -> str:
+    parts = urlsplit(url)
+    query = parse_qs(parts.query)
+    query["scanIndex"] = [str(scan_index)]
+    new_query = urlencode(query, doseq=True)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
+
+
+def build_preview_url(zoomify_img_path: str) -> str:
+    base = zoomify_img_path.replace("/zoomify/", "/image/").rstrip("/")
+    return f"{base}/nahled_maly.jpg"
 
 
 class RecordScraper:
@@ -75,6 +120,50 @@ class RecordScraper:
                         }
                         for index_block in soup.select(".indexBlockOne")
                     ]
+                    scan_count = extract_scan_count(html)
+                    scan_count_from_page = scan_count is not None
+                    if scan_count is None:
+                        scan_count = 1
+                    scan_indices = list(range(scan_count)) if scan_count > 0 else []
+                    scan_previews = []
+                    scan_zoomify_paths = []
+                    zoomify_url = extract_zoomify_url(html, record_url)
+
+                    if not zoomify_url and not scan_count_from_page:
+                        scan_count = 0
+                        scan_indices = []
+                    if zoomify_url and scan_indices:
+                        for scan_index in scan_indices:
+                            zoomify_img_path = ""
+                            preview_url = ""
+                            try:
+                                zoomify_scan_url = with_scan_index(
+                                    zoomify_url, scan_index
+                                )
+                                zoomify_html = await fetch(
+                                    isolated_session, zoomify_scan_url
+                                )
+                                zoomify_img_path = (
+                                    extract_zoomify_img_path(zoomify_html) or ""
+                                )
+                                if zoomify_img_path:
+                                    preview_url = build_preview_url(zoomify_img_path)
+                            except Exception as exc:
+                                logging.warning(
+                                    f"Failed to resolve scan {scan_index} for {xid}: {exc}"
+                                )
+                            scan_zoomify_paths.append(zoomify_img_path)
+                            scan_previews.append(preview_url)
+                    elif scan_indices:
+                        scan_zoomify_paths = ["" for _ in scan_indices]
+                        scan_previews = ["" for _ in scan_indices]
+
+                    record_data["scan_count"] = scan_count
+                    record_data["scan_indices"] = scan_indices
+                    record_data["scan_previews"] = scan_previews
+                    record_data["scan_zoomify_paths"] = scan_zoomify_paths
+                    record_data["has_scans"] = scan_count > 1
+
                     record = Record(record_data)
                     return record, time.perf_counter() - start_time
         except Exception as e:

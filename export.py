@@ -192,6 +192,34 @@ def load_and_flatten_json(directory):
 
 combined_data = load_and_flatten_json("output/geolocation/ok")
 
+for column, default in {
+    "scan_count": 0,
+    "scan_previews": [],
+    "scan_zoomify_paths": [],
+}.items():
+    if column not in combined_data.columns:
+        combined_data[column] = default
+
+
+def normalize_json_array(value):
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return "[]"
+    if isinstance(value, list):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            return stripped
+    return json.dumps([value], ensure_ascii=False)
+
+
+combined_data["scan_previews"] = combined_data["scan_previews"].apply(
+    normalize_json_array
+)
+combined_data["scan_zoomify_paths"] = combined_data["scan_zoomify_paths"].apply(
+    normalize_json_array
+)
+
 if EXPORT_MINIMAL_FILE:
     # keep only druh,obsah,datace,zobrazeno,xid,start_date,end_date,geolocation_position_lon,geolocation_position_lat,geolocation_type,geolocation_endpoint,autor,poznámka columns
     columns_to_keep = [
@@ -209,6 +237,9 @@ if EXPORT_MINIMAL_FILE:
         "geolocation_endpoint",
         "autor",
         "poznámka",
+        "scan_count",
+        "scan_previews",
+        "scan_zoomify_paths",
     ]
     combined_data = combined_data[columns_to_keep]
 

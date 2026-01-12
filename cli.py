@@ -26,7 +26,11 @@ def collect(
         bool, typer.Option("--rescrape", help="Re-scrape existing records")
     ] = False,
     fetch_ids: Annotated[
-        bool, typer.Option("--fetch-ids", help="Fetch new record IDs from the archive")
+        bool,
+        typer.Option(
+            "--fetch-ids/--no-fetch-ids",
+            help="Fetch new record IDs from the archive",
+        ),
     ] = True,
 ):
     """
