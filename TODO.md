@@ -31,3 +31,13 @@ Ahoj Peter — TODO (Cloudflare Pages + D1 + viewer)
 - CTA “Nahlásit špatnou polohu” => odeslání bez textu OK
 - Toggle “Chci upřesnit polohu” => klik do mapy => uloží lat/lon
 - Po odeslání refresh => `/api/corrections` se projeví (posunutý marker)
+
+8) Skupiny / verze (metadata + vizuál + skeny)
+- Scrape: z permalinku `N obrázky` -> `scan_count` + `scan_indices` (0..N-1)
+- Scrape: per XID+scanIndex uložit `nahled_maly`/`nahled_stredni` URL (+ zoomify base, pokud existuje)
+- Export: CSV/GeoJSON props `scan_count`, `scan_indices`, `scan_previews` (mapa scanIndex->urls)
+- API: `/api/zoomify` přijme `scanIndex` (query; default 0); validace rozsahu
+- UI labels: Skupina = Série (metadata), Verze = hash cluster, Sken = scanIndex
+- UI: scan pill switcher (Sken 1..N), badge verze `auto`/`archiv`
+- Hashing: přepnout na `nahled_maly.jpg` (bez HQ tiles), hash per scanIndex
+- Clustering: nejdřív metadata Série; uvnitř cluster dle hash; `archiv` pokud scanIndex>0, jinak `auto`

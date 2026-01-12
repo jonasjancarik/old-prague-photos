@@ -28,9 +28,9 @@
           <a class="action-link" href="./index.html">Zpět na mapu</a>
         </div>
       </div>
-      <div class="topbar-meta">
-        <div class="stat">
-          <span class="stat-label">Kandidáti podobnosti</span>
+        <div class="topbar-meta">
+          <div class="stat">
+          <span class="stat-label">Kandidáti ke kontrole</span>
           <span class="stat-value" id="candidate-count">—</span>
         </div>
         <div class="stat">
@@ -41,7 +41,23 @@
     </header>
 
     <main class="review">
-      <section class="card review-card">
+      <section class="card help-mode" data-mode-picker>
+        <div>
+          <p class="eyebrow">Vyberte režim</p>
+          <h2>Jak chcete pomoct?</h2>
+          <p class="helper">
+            Opravy polohy, kontrola podobných záběrů i revize skupin pomáhají zpřesnit mapu historických fotografií.
+          </p>
+        </div>
+        <div class="help-mode-actions">
+          <a class="secondary report-button" href="./pomoc.html?mode=location">Oprava polohy</a>
+          <a class="primary report-button" href="./dup-review.html?mode=dedupe" data-mode-select="dedupe"
+            aria-current="page">Kontrola podobných záběrů</a>
+          <a class="secondary report-button" href="./group-review.html">Kontrola skupin</a>
+        </div>
+      </section>
+
+      <section class="card review-card is-hidden" data-mode-flow="dedupe">
         <div class="review-controls">
           <button class="secondary" type="button" id="prev-pair" disabled>
             Předchozí pár
@@ -56,6 +72,7 @@
             Další pár
           </button>
         </div>
+        <p class="helper review-source" id="pair-source">Zdroj páru: —</p>
 
         <div class="review-grid">
           <div class="review-column">
@@ -102,6 +119,7 @@
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=turnstileOnload" async
     defer></script>
   <script src="./dup-review.js"></script>
+  <script src="./mode-picker.js"></script>
 </body>
 
 </html>

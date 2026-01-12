@@ -59,6 +59,18 @@ let flowStarted = false;
 let zoomViewer = null;
 let zoomLastXid = null;
 
+function handleModeActivated(mode) {
+  if (mode !== "location") return;
+  if (state.map) state.map.invalidateSize();
+  if (zoomViewer && typeof zoomViewer.updateSize === "function") {
+    zoomViewer.updateSize();
+  }
+}
+
+window.addEventListener("old-prague-mode", (event) => {
+  handleModeActivated(event.detail?.mode || "");
+});
+
 function setStatus(message, tone = "") {
   [formStatus, modalStatus].forEach((el) => {
     if (!el) return;

@@ -155,10 +155,30 @@ This writes `viewer/static/data/photos.geojson` for static hosting.
 Generate candidate pairs for similar shots using perceptual hashing:
 
 ```bash
-python viewer/build_similarity.py
+python build_similarity.py
 ```
 
 This writes `viewer/static/data/similarity_candidates.json` for the review UI and caches hashes in `output/similarity/`.
+
+How it works (short):
+
+- Resolves the Zoomify image for each `xid` and fetches **only the smallest tile** (level 0, 1 tile) to avoid HQ downloads.
+- Computes a dHash (perceptual hash) on that small preview.
+- Builds candidate pairs with a BK-tree + Hamming distance threshold.
+- The review UI reads these pairs and mixes them with same-coordinate candidates.
+
+Useful flags:
+
+- `--distance 8` (lower = stricter, fewer candidates)
+- `--hash-size 8` (grid size; 8 => 64-bit hash)
+- `--limit 200` (smoke test)
+- `--sleep 0.2` (throttle requests)
+- `--force` (recompute hash cache)
+- `--archive-base-url <url>` (override archive host)
+
+Output format (`viewer/static/data/similarity_candidates.json`):
+
+- `pairs[]` items: `group_id_a`, `group_id_b`, `xid_a`, `xid_b`, `distance`
 
 ### Run locally (FastAPI)
 
@@ -182,6 +202,7 @@ TL;DR (common ops): see `ops.sh`.
 
 ```bash
 ./ops.sh build-data
+./ops.sh build-similarity
 ./ops.sh dev-fastapi
 ./ops.sh dev-pages
 ./ops.sh migrate-local
