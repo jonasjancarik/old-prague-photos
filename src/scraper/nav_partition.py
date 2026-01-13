@@ -286,15 +286,24 @@ async def fetch_record_ids_via_nav(
         fp = None
         for attempt in range(1, retries + 1):
             await asyncio.sleep(delay)
-            results_html = await _fetch_text_with_retry(
-                session,
-                search_url,
-                method="POST",
-                data=payload,
-                delay_s=delay,
-                retries=1,
-                label=f"search {child.label}",
-            )
+            try:
+                results_html = await _fetch_text_with_retry(
+                    session,
+                    search_url,
+                    method="POST",
+                    data=payload,
+                    delay_s=delay,
+                    retries=1,
+                    label=f"search {child.label}",
+                )
+            except Exception as exc:
+                logging.warning(
+                    "search fetch failed for %s attempt %s: %s",
+                    child.label,
+                    attempt,
+                    exc,
+                )
+                continue
             source_page, fp = _parse_view_fields(results_html)
             if source_page and fp:
                 break
@@ -317,19 +326,28 @@ async def fetch_record_ids_via_nav(
         ids: List[str] = []
         for attempt in range(1, retries + 1):
             await asyncio.sleep(delay)
-            view_html = await _fetch_text_with_retry(
-                session,
-                view_url,
-                method="POST",
-                data={
-                    "pageRows": str(max_rows),
-                    "_sourcePage": source_page,
-                    "__fp": fp,
-                },
-                delay_s=delay,
-                retries=1,
-                label=f"view rows {child.label}",
-            )
+            try:
+                view_html = await _fetch_text_with_retry(
+                    session,
+                    view_url,
+                    method="POST",
+                    data={
+                        "pageRows": str(max_rows),
+                        "_sourcePage": source_page,
+                        "__fp": fp,
+                    },
+                    delay_s=delay,
+                    retries=1,
+                    label=f"view rows {child.label}",
+                )
+            except Exception as exc:
+                logging.warning(
+                    "view fetch failed for %s attempt %s: %s",
+                    child.label,
+                    attempt,
+                    exc,
+                )
+                continue
             ids = _extract_xids(view_html)
             if ids or total == 0:
                 break
