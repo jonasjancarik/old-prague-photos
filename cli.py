@@ -32,6 +32,13 @@ def collect(
             help="Fetch new record IDs from the archive",
         ),
     ] = True,
+    ids_only: Annotated[
+        bool,
+        typer.Option(
+            "--ids-only/--no-ids-only",
+            help="Only fetch record IDs and skip record scraping",
+        ),
+    ] = False,
 ):
     """
     Scrape photo records from the Prague City Archives.
@@ -45,6 +52,7 @@ def collect(
     # Set env vars based on CLI args
     os.environ["RESCRAPE_EXISTING_RECORDS"] = str(rescrape)
     os.environ["GET_RECORD_IDS"] = str(fetch_ids)
+    os.environ["FETCH_IDS_ONLY"] = str(ids_only)
 
     from collect import main_async
 

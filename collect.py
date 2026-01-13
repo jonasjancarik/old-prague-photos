@@ -12,6 +12,7 @@ logging.basicConfig(level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(
 
 
 async def main_async():
+    ids_only = os.getenv("FETCH_IDS_ONLY", "False").lower() in ["true", "1"]
     existing_ids = set()
     # Check if we want to rescrape existing records
     if os.getenv("RESCRAPE_EXISTING_RECORDS", "False").lower() not in ["true", "1"]:
@@ -55,6 +56,10 @@ async def main_async():
                 raise RuntimeError("No record IDs fetched from archive.")
             save_ids_to_file(record_ids, RECORD_IDS_FILENAME)
             logging.info(f"Saved {len(record_ids)} record URLs to file.")
+
+        if ids_only:
+            logging.info("FETCH_IDS_ONLY enabled; skipping record scrape.")
+            return
 
         # Scrape records using the scraper
         records = await scraper.scrape_records(record_ids, existing_ids)

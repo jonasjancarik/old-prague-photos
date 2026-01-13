@@ -73,6 +73,8 @@ ARCHIVE_REQUEST_DELAY_S="1.5"
 ARCHIVE_FETCH_RETRIES="4"
 # Optional: hard cap for ViewControl page rows
 ARCHIVE_MAX_ROWS="10000"
+# Optional: only fetch IDs (skip record scraping)
+FETCH_IDS_ONLY="1"
 # Optional: nav progress file for resume
 NAV_PROGRESS_FILE="output/nav_partition_progress.json"
 # Optional: resume nav progress file (default true)
@@ -100,6 +102,8 @@ uv run cli pipeline
 
 # Or run individual steps:
 uv run cli collect      # Scrape records from archive
+# Only refresh available_record_ids.json
+uv run cli collect --ids-only
 uv run cli filter       # Filter and categorize records
 uv run cli geolocate    # Geolocate using Mapy.cz + LLM
 uv run cli export       # Export to CSV
