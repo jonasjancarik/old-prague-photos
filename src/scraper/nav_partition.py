@@ -30,7 +30,10 @@ def _derive_base_url(seed_url: str) -> str:
     if "/pragapublica" in parts.path:
         idx = parts.path.index("/pragapublica")
         base_path = parts.path[: idx + len("/pragapublica")]
-    return urlunsplit((parts.scheme, parts.netloc, base_path, "", ""))
+    scheme = parts.scheme
+    if parts.netloc == "katalog.ahmp.cz" and scheme == "http":
+        scheme = "https"
+    return urlunsplit((scheme, parts.netloc, base_path, "", ""))
 
 
 def _parse_margin(style: str | None) -> int:
@@ -219,6 +222,8 @@ async def fetch_record_ids_via_nav(
     max_rows: int = 10000,
     delay_s: float | None = None,
 ) -> List[str]:
+    if seed_url.startswith("http://katalog.ahmp.cz/"):
+        seed_url = seed_url.replace("http://", "https://", 1)
     base_url = _derive_base_url(seed_url)
     delay = delay_s if delay_s is not None else float(
         os.getenv("ARCHIVE_REQUEST_DELAY_S", "1.5")

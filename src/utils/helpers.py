@@ -23,7 +23,7 @@ user_agent = ua.random
 
 
 def get_full_url(path: str) -> str:
-    return f'{os.getenv("BASE_URL", "http://katalog.ahmp.cz/pragapublica")}{path}'
+    return f'{os.getenv("BASE_URL", "https://katalog.ahmp.cz/pragapublica")}{path}'
 
 
 @backoff.on_exception(backoff.expo, aiohttp.ClientError, max_tries=10)
