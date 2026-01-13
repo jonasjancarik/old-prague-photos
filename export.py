@@ -27,6 +27,9 @@ lock = Lock()
 
 
 def parse_date(date_str):
+    if not date_str:
+        return {"start_date": None, "end_date": None}
+
     # Czech month mapping
     months_cz = {
         "leden": 1,
@@ -113,9 +116,13 @@ def parse_date(date_str):
 
     # Specific date
     elif specific_date_regex.match(date_str):
+        try:
+            parsed = datetime.strptime(date_str, "%d.%m.%Y").strftime("%Y-%m-%d")
+        except ValueError:
+            return {"start_date": None, "end_date": None}
         return {
-            "start_date": datetime.strptime(date_str, "%d.%m.%Y").strftime("%Y-%m-%d"),
-            "end_date": datetime.strptime(date_str, "%d.%m.%Y").strftime("%Y-%m-%d"),
+            "start_date": parsed,
+            "end_date": parsed,
         }
 
     # Year with question mark
@@ -194,8 +201,8 @@ combined_data = load_and_flatten_json("output/geolocation/ok")
 
 for column, default in {
     "scan_count": 0,
-    "scan_previews": [],
-    "scan_zoomify_paths": [],
+    "scan_previews": None,
+    "scan_zoomify_paths": None,
 }.items():
     if column not in combined_data.columns:
         combined_data[column] = default
