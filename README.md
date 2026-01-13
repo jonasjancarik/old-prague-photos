@@ -62,6 +62,15 @@ TURNSTILE_BYPASS="1"
 
 # Optional: override archive base URL used for links
 ARCHIVE_BASE_URL="https://katalog.ahmp.cz/pragapublica"
+
+# Optional: use nav-tree partitioning to bypass the 10k cap (default true)
+USE_NAV_PARTITION="1"
+# Optional: nav label to expand (default "Sbírka fotografií")
+NAV_PARTITION_LABEL="Sbírka fotografií"
+# Optional: throttle requests to avoid 500s
+ARCHIVE_REQUEST_DELAY_S="1.5"
+# Optional: hard cap for ViewControl page rows
+ARCHIVE_MAX_ROWS="10000"
 ```
 
 **Note:** An LLM API key is required for the LLM-based address extraction feature.
