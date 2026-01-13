@@ -1,0 +1,94 @@
+{
+    "typ záznamu": "Archiválie",
+    "signatura": "V 1/5 a",
+    "druh": "pozitiv",
+    "obsah": "Pohled na bourání domu čp. 16 na Starém Městě (Andělská kolej) při asanaci. V pozadí nad jeho zbytky domy čp. 18, čp. 17, čp. 14 a čp. 13 v Mikulášské ulici (dnes náměstí Franze Kafky).",
+    "autor": "Kříženecký, Jan (1868-1921)",
+    "datace": "3.4.1909",
+    "zobrazeno": "71x",
+    "xid": "01BEC72D808611E4AAB4406186009F3A",
+    "rejstříkové záznamy": [
+        {
+            "typ": "Dílo",
+            "obsah": "dům čp. 13 (Praha-Staré Město)"
+        },
+        {
+            "typ": "Dílo",
+            "obsah": "dům čp. 14 (Praha-Staré Město)"
+        },
+        {
+            "typ": "Dílo",
+            "obsah": "dům čp. 16 (Praha-Staré Město); Andělská kolej"
+        },
+        {
+            "typ": "Dílo",
+            "obsah": "dům čp. 17 (Praha-Staré Město)"
+        },
+        {
+            "typ": "Dílo",
+            "obsah": "dům čp. 18 (Praha-Staré Město)"
+        },
+        {
+            "typ": "Místo",
+            "obsah": "náměstí Franze Kafky"
+        },
+        {
+            "typ": "Místo",
+            "obsah": "Staré Město (Praha)"
+        },
+        {
+            "typ": "Osoba",
+            "obsah": "Kříženecký, Jan (1868-1921)"
+        },
+        {
+            "typ": "Věc. objekt",
+            "obsah": "Asanace"
+        }
+    ],
+    "geolocation": {
+        "name": "Staré náměstí 13/7",
+        "label": "Adresa",
+        "position": {
+            "lon": 14.31195,
+            "lat": 50.08129
+        },
+        "type": "regional.address",
+        "location": "Praha 6 - Ruzyně, Česko",
+        "regionalStructure": [
+            {
+                "name": "13/7",
+                "type": "regional.address"
+            },
+            {
+                "name": "Staré náměstí",
+                "type": "regional.street"
+            },
+            {
+                "name": "Ruzyně",
+                "type": "regional.municipality_part"
+            },
+            {
+                "name": "Praha 6",
+                "type": "regional.municipality_part"
+            },
+            {
+                "name": "Praha",
+                "type": "regional.municipality"
+            },
+            {
+                "name": "okres Hlavní město Praha",
+                "type": "regional.region"
+            },
+            {
+                "name": "kraj Hlavní město Praha",
+                "type": "regional.region"
+            },
+            {
+                "name": "Česko",
+                "type": "regional.country",
+                "isoCode": "CZ"
+            }
+        ],
+        "zip": "161 00"
+    }
+}

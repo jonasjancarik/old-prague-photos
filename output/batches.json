@@ -1,0 +1,57 @@
+{
+  "batches/vp2qtpgczw76wjaxfbofazhsk4jyr8woq449": {
+    "name": "batches/vp2qtpgczw76wjaxfbofazhsk4jyr8woq449",
+    "display_name": "Geolocation_20260105_140818",
+    "state": "JOB_STATE_SUCCEEDED",
+    "created_at": "2026-01-05T14:08:20.646314",
+    "input_file": "output/batch_request_1767618496.jsonl",
+    "record_count": 10,
+    "output_file": "files/batch-vp2qtpgczw76wjaxfbofazhsk4jyr8woq449",
+    "collected_at": "2026-01-07T10:06:27.371615",
+    "successful_results": 0
+  },
+  "batches/jnsacnh5lbjbdld26qwectqj18bjrwzdt1ca": {
+    "name": "batches/jnsacnh5lbjbdld26qwectqj18bjrwzdt1ca",
+    "display_name": "Geolocation_20260105_143031",
+    "state": "JOB_STATE_SUCCEEDED",
+    "created_at": "2026-01-05T14:30:33.421173",
+    "input_file": "output/batch_request_1767619827.jsonl",
+    "record_count": 3106,
+    "output_file": "files/batch-jnsacnh5lbjbdld26qwectqj18bjrwzdt1ca",
+    "collected_at": "2026-01-07T10:06:30.384674",
+    "successful_results": 0
+  },
+  "batches/l60k6up3t1r9fqgqt2hex20x5vtu9w2mfflp": {
+    "name": "batches/l60k6up3t1r9fqgqt2hex20x5vtu9w2mfflp",
+    "display_name": "Geolocation_20260106_004946",
+    "state": "JOB_STATE_SUCCEEDED",
+    "created_at": "2026-01-06T00:49:48.842226",
+    "input_file": "output/batch_request_1767656981.jsonl",
+    "record_count": 3133,
+    "output_file": "files/batch-l60k6up3t1r9fqgqt2hex20x5vtu9w2mfflp",
+    "collected_at": "2026-01-07T10:38:33.467474",
+    "successful_results": 2993
+  },
+  "batches/roqzow8wcpi0o7mbvopzsa57lo4foqlmmlal": {
+    "name": "batches/roqzow8wcpi0o7mbvopzsa57lo4foqlmmlal",
+    "display_name": "Geolocation_20260106_161812",
+    "state": "JOB_STATE_SUCCEEDED",
+    "created_at": "2026-01-06T16:18:15.150030",
+    "input_file": "output/batch_request_1767712690.jsonl",
+    "record_count": 10,
+    "output_file": "files/batch-roqzow8wcpi0o7mbvopzsa57lo4foqlmmlal",
+    "collected_at": "2026-01-07T10:38:40.218382",
+    "successful_results": 10
+  },
+  "batches/4mq1lg2jga0bwmaoo8si7c6p22pnw10sv36g": {
+    "name": "batches/4mq1lg2jga0bwmaoo8si7c6p22pnw10sv36g",
+    "display_name": "Geolocation_20260106_204458",
+    "state": "JOB_STATE_SUCCEEDED",
+    "created_at": "2026-01-06T20:45:00.705370",
+    "input_file": "output/batch_request_1767728695.jsonl",
+    "record_count": 1574,
+    "output_file": "files/batch-4mq1lg2jga0bwmaoo8si7c6p22pnw10sv36g",
+    "collected_at": "2026-01-07T11:02:21.236564",
+    "successful_results": 1564
+  }
+}
