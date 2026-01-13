@@ -161,6 +161,31 @@ def _extract_xids(html: str) -> List[str]:
     return sorted(set(XID_RE.findall(html)))
 
 
+async def _fetch_text_with_retry(
+    session,
+    url: str,
+    *,
+    method: str = "GET",
+    data: Dict[str, str] | None = None,
+    retries: int = 4,
+    delay_s: float = 1.5,
+    label: str = "",
+) -> str:
+    target = label or url
+    for attempt in range(1, retries + 1):
+        try:
+            text = await fetch(session, url, method=method, data=data)
+        except Exception as exc:
+            logging.warning("nav fetch failed %s attempt %s: %s", target, attempt, exc)
+            await asyncio.sleep(delay_s * attempt)
+            continue
+        if text and text.strip():
+            return text
+        logging.warning("nav fetch empty %s attempt %s", target, attempt)
+        await asyncio.sleep(delay_s * attempt)
+    raise RuntimeError(f"empty response for {target}")
+
+
 async def _set_nav_page_rows(
     session, base_url: str, html: str, page_rows: int
 ) -> str:
@@ -173,7 +198,7 @@ async def _set_nav_page_rows(
     if not source or not fp:
         return html
     post_url = urljoin(base_url + "/", "NavigBean.action?_eventName=myPageRows")
-    return await fetch(
+    return await _fetch_text_with_retry(
         session,
         post_url,
         method="POST",
@@ -182,6 +207,7 @@ async def _set_nav_page_rows(
             "_sourcePage": source.get("value"),
             "__fp": fp.get("value"),
         },
+        label="nav page rows",
     )
 
 
@@ -194,16 +220,23 @@ async def fetch_record_ids_via_nav(
     delay_s: float | None = None,
 ) -> List[str]:
     base_url = _derive_base_url(seed_url)
-    delay = delay_s if delay_s is not None else float(os.getenv("ARCHIVE_REQUEST_DELAY_S", "1.5"))
+    delay = delay_s if delay_s is not None else float(
+        os.getenv("ARCHIVE_REQUEST_DELAY_S", "1.5")
+    )
+    retries = int(os.getenv("ARCHIVE_FETCH_RETRIES", "4"))
 
-    seed_html = await fetch(session, seed_url)
+    seed_html = await _fetch_text_with_retry(
+        session, seed_url, delay_s=delay, retries=retries, label="seed"
+    )
     nodes = _parse_nav_nodes(seed_html)
     parent = _find_deepest_label(nodes, label)
     if not parent:
         raise RuntimeError(f"navigation label not found: {label}")
 
     parent_url = urljoin(base_url + "/", parent.href)
-    parent_html = await fetch(session, parent_url)
+    parent_html = await _fetch_text_with_retry(
+        session, parent_url, delay_s=delay, retries=retries, label=f"nav {label}"
+    )
     parent_html = await _set_nav_page_rows(session, base_url, parent_html, page_rows=51)
 
     children: List[NavNode] = []
@@ -228,7 +261,9 @@ async def fetch_record_ids_via_nav(
         seen_pages.add(next_href)
         next_url = urljoin(base_url + "/", next_href)
         await asyncio.sleep(delay)
-        page_html = await fetch(session, next_url)
+        page_html = await _fetch_text_with_retry(
+            session, next_url, delay_s=delay, retries=retries, label="nav page"
+        )
 
     if not children:
         raise RuntimeError("no navigation children found")
@@ -237,33 +272,75 @@ async def fetch_record_ids_via_nav(
     for child in children:
         child_url = urljoin(base_url + "/", child.href)
         await asyncio.sleep(delay)
-        nav_html = await fetch(session, child_url)
+        nav_html = await _fetch_text_with_retry(
+            session,
+            child_url,
+            delay_s=delay,
+            retries=retries,
+            label=f"nav child {child.label}",
+        )
         action, payload = _parse_search_form(nav_html)
         search_url = urljoin(base_url + "/", action)
-        await asyncio.sleep(delay)
-        results_html = await fetch(session, search_url, method="POST", data=payload)
+        results_html = ""
+        source_page = None
+        fp = None
+        for attempt in range(1, retries + 1):
+            await asyncio.sleep(delay)
+            results_html = await _fetch_text_with_retry(
+                session,
+                search_url,
+                method="POST",
+                data=payload,
+                delay_s=delay,
+                retries=1,
+                label=f"search {child.label}",
+            )
+            source_page, fp = _parse_view_fields(results_html)
+            if source_page and fp:
+                break
+            logging.warning(
+                "missing view fields for %s attempt %s (len=%s)",
+                child.label,
+                attempt,
+                len(results_html),
+            )
+            await asyncio.sleep(delay * attempt)
 
         total = _parse_total(results_html)
         if total is not None and total > max_rows:
             raise RuntimeError(f"node {child.label} exceeds max rows: {total}")
 
-        source_page, fp = _parse_view_fields(results_html)
         if not source_page or not fp:
             raise RuntimeError(f"missing view fields for {child.label}")
 
         view_url = urljoin(base_url + "/", "ViewControlImpl.action?_eventName=myPageRows")
-        await asyncio.sleep(delay)
-        view_html = await fetch(
-            session,
-            view_url,
-            method="POST",
-            data={
-                "pageRows": str(max_rows),
-                "_sourcePage": source_page,
-                "__fp": fp,
-            },
-        )
-        ids = _extract_xids(view_html)
+        ids: List[str] = []
+        for attempt in range(1, retries + 1):
+            await asyncio.sleep(delay)
+            view_html = await _fetch_text_with_retry(
+                session,
+                view_url,
+                method="POST",
+                data={
+                    "pageRows": str(max_rows),
+                    "_sourcePage": source_page,
+                    "__fp": fp,
+                },
+                delay_s=delay,
+                retries=1,
+                label=f"view rows {child.label}",
+            )
+            ids = _extract_xids(view_html)
+            if ids or total == 0:
+                break
+            logging.warning(
+                "empty id list for %s attempt %s (len=%s)",
+                child.label,
+                attempt,
+                len(view_html),
+            )
+        if total is None and ids:
+            total = len(ids)
         all_ids.extend(ids)
         logging.info(
             "nav node %s -> %s ids (reported %s)",
