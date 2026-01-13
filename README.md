@@ -69,8 +69,20 @@ USE_NAV_PARTITION="1"
 NAV_PARTITION_LABEL="Sbírka fotografií"
 # Optional: throttle requests to avoid 500s
 ARCHIVE_REQUEST_DELAY_S="1.5"
+# Optional: retries per archive request
+ARCHIVE_FETCH_RETRIES="4"
 # Optional: hard cap for ViewControl page rows
 ARCHIVE_MAX_ROWS="10000"
+# Optional: nav progress file for resume
+NAV_PROGRESS_FILE="output/nav_partition_progress.json"
+# Optional: resume nav progress file (default true)
+NAV_RESUME="1"
+# Optional: limit nav child nodes per run
+NAV_MAX_NODES="5"
+# Optional: restrict nav labels (comma-separated)
+NAV_ONLY_LABELS="I,II,XIV"
+# Optional: allow partial nav results without error
+NAV_ALLOW_PARTIAL="1"
 ```
 
 **Note:** An LLM API key is required for the LLM-based address extraction feature.
