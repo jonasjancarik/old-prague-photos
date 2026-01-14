@@ -69,6 +69,8 @@ USE_NAV_PARTITION="1"
 NAV_PARTITION_LABEL="Sbírka fotografií"
 # Optional: throttle requests to avoid 500s
 ARCHIVE_REQUEST_DELAY_S="1.5"
+# Optional: throttle record scraping requests
+ARCHIVE_RECORD_DELAY_S="0.0"
 # Optional: retries per archive request
 ARCHIVE_FETCH_RETRIES="4"
 # Optional: hard cap for ViewControl page rows
@@ -164,6 +166,7 @@ Resume tips:
 - Full ID refresh: `NAV_RESUME=0 uv run cli collect --ids-only`
 - Use cached IDs: `uv run cli collect --no-fetch-ids`
 - Re-scrape all current IDs: `uv run cli collect --no-fetch-ids --rescrape`
+- For resumable full refresh, move `output/raw_records` out of the way and run without `--rescrape`.
 
 ## 🗺️ Viewer App
 

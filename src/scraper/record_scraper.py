@@ -58,6 +58,21 @@ class RecordScraper:
     def __init__(self, session: aiohttp.ClientSession):
         self.session = session
         self.semaphore = asyncio.Semaphore(int(os.getenv("CONCURRENT_REQUESTS", 10)))
+        self.record_delay_s = float(os.getenv("ARCHIVE_RECORD_DELAY_S", "0"))
+        self._request_lock = asyncio.Lock()
+        self._last_request_ts = 0.0
+
+    async def _throttled_fetch(
+        self, session: aiohttp.ClientSession, url: str, *, method="GET", data=None
+    ) -> str:
+        if self.record_delay_s > 0:
+            async with self._request_lock:
+                elapsed = time.perf_counter() - self._last_request_ts
+                wait_s = self.record_delay_s - elapsed
+                if wait_s > 0:
+                    await asyncio.sleep(wait_s)
+                self._last_request_ts = time.perf_counter()
+        return await fetch(session, url, method=method, data=data)
 
     async def process_results_page(self, url: str) -> List[str]:
         html = await fetch(
@@ -87,7 +102,7 @@ class RecordScraper:
             async with self.semaphore:
                 async with aiohttp.ClientSession() as isolated_session:  # the website seems to send mixed up responses when using the same session (i.e. cookies)
                     start_time = time.perf_counter()
-                    html = await fetch(isolated_session, record_url)
+                    html = await self._throttled_fetch(isolated_session, record_url)
                     soup = BeautifulSoup(html, "lxml")
                     record_data = {
                         item_row.select_one(".tabularLabel")
@@ -140,7 +155,7 @@ class RecordScraper:
                                 zoomify_scan_url = with_scan_index(
                                     zoomify_url, scan_index
                                 )
-                                zoomify_html = await fetch(
+                                zoomify_html = await self._throttled_fetch(
                                     isolated_session, zoomify_scan_url
                                 )
                                 zoomify_img_path = (
