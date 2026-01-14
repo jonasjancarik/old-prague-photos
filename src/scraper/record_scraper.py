@@ -180,7 +180,17 @@ class RecordScraper:
             if os.getenv("RESCRAPE_EXISTING_RECORDS", "False").lower() in ["true", "1"]
             or record_id not in existing_ids
         ]
-        logging.info(f"Scraping {len(tasks)} records...")
+        total = len(record_ids)
+        skipped = total - len(tasks)
+        if skipped:
+            logging.info(
+                "Scraping %s records (total %s, skipping %s existing)",
+                len(tasks),
+                total,
+                skipped,
+            )
+        else:
+            logging.info("Scraping %s records (total %s)", len(tasks), total)
         completed, errors, times = 0, 0, []
         records = []
         for task in asyncio.as_completed(tasks):
