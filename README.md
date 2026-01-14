@@ -6,7 +6,7 @@ This project scrapes, processes, and geolocates historical photos of Prague from
 
 The data processing is handled by a series of scripts that form a sequential pipeline. Each step uses the output of the previous one.
 
-1.  **`collect.py`**: Scrapes the archive website to get a list of all photo record IDs. It then scrapes the detailed metadata for each record and saves them as individual JSON files in `output/raw_records/`.
+1.  **`collect.py`**: Fetches record IDs into `output/available_record_ids.json`, then scrapes metadata for those IDs into `output/raw_records/`. Use `--ids-only` to stop after IDs, `--no-fetch-ids` to reuse the existing ID list, and `--rescrape` to overwrite existing raw records.
 
 2.  **`filter.py`**: Reads the raw records and filters them into categories. It primarily separates records that contain a structured house number (`čp.`) from those that don't. The categorized lists are saved as JSON files in `output/filtered/`.
 
@@ -101,9 +101,10 @@ uv run cli --help
 uv run cli pipeline
 
 # Or run individual steps:
-uv run cli collect      # Scrape records from archive
-# Only refresh available_record_ids.json
-uv run cli collect --ids-only
+uv run cli collect                   # Fetch IDs + scrape missing raw records
+uv run cli collect --ids-only         # Only refresh available_record_ids.json
+uv run cli collect --no-fetch-ids     # Scrape using existing available_record_ids.json
+uv run cli collect --rescrape         # Re-scrape all IDs (overwrite raw_records)
 uv run cli filter       # Filter and categorize records
 uv run cli geolocate    # Geolocate using Mapy.cz + LLM
 uv run cli export       # Export to CSV
@@ -152,6 +153,17 @@ uv run cli geolocate --help
 After running all the steps, the final dataset will be available at `output/old_prague_photos.csv`.
 
 ---
+
+## Collect Outputs and Resume Behavior
+
+- `output/available_record_ids.json`: current ID set (what collect considers the source of truth).
+- `output/raw_records/*.json`: per-record metadata; may include older IDs not in the current ID set.
+- `output/nav_partition_progress.json`: per-label ID cache for nav partitioning; used to resume ID fetches.
+
+Resume tips:
+- Full ID refresh: `NAV_RESUME=0 uv run cli collect --ids-only`
+- Use cached IDs: `uv run cli collect --no-fetch-ids`
+- Re-scrape all current IDs: `uv run cli collect --no-fetch-ids --rescrape`
 
 ## 🗺️ Viewer App
 
