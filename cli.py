@@ -16,8 +16,19 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-batch_app = typer.Typer(help="Manage Gemini Batch Geolocation jobs.")
-app.add_typer(batch_app, name="geolocate-batch")
+geolocate_app = typer.Typer(help="Geolocation commands.")
+geolocate_llm_app = typer.Typer(help="Gemini Batch LLM geolocation jobs.")
+app.add_typer(geolocate_app, name="geolocate")
+geolocate_app.add_typer(geolocate_llm_app, name="llm")
+
+
+@geolocate_app.callback(invoke_without_command=True)
+def geolocate_root(ctx: typer.Context):
+    if ctx.invoked_subcommand is None:
+        typer.echo(
+            "Choose a geolocation mode: `uv run cli geolocate mapy` or `uv run cli geolocate llm ...`"
+        )
+        raise typer.Exit(code=0)
 
 
 @app.command()
@@ -73,12 +84,12 @@ def filter():
     # This is a known issue - ideally we'd refactor filter.py
 
 
-@app.command()
-def geolocate(
-    llm_limit: Annotated[
+@geolocate_app.command("mapy")
+def geolocate_mapy(
+    limit: Annotated[
         Optional[int],
         typer.Option(
-            "--llm-limit", help="Limit LLM processing to N records (for testing)"
+            "--limit", help="Limit geolocation to N records (for testing)"
         ),
     ] = None,
     force: Annotated[
@@ -87,22 +98,14 @@ def geolocate(
     ] = False,
 ):
     """
-    Geolocate photo records using Mapy.cz API and LLM.
+    Geolocate photo records using Mapy.cz API.
 
-    First processes records with structured addresses using Mapy.cz API,
-    then uses LLM to extract addresses from unstructured descriptions.
-    Results saved to output/geolocation/.
+    Processes records with structured addresses (čp.) and saves results
+    to output/geolocation/.
     """
-    import sys
+    from geolocate import main as geolocate_main
 
-    # Build argv for the geolocate script's argparse
-    sys.argv = ["geolocate"]
-    if llm_limit is not None:
-        sys.argv.extend(["--llm-limit", str(llm_limit)])
-    if force:
-        sys.argv.append("--force")
-
-    import geolocate  # noqa: F401 - runs at module level with argparse
+    geolocate_main(limit=limit, force=force)
 
 
 @app.command()
@@ -124,9 +127,9 @@ def export(
 
 @app.command()
 def pipeline(
-    llm_limit: Annotated[
+    geolocate_limit: Annotated[
         Optional[int],
-        typer.Option("--llm-limit", help="Limit LLM processing to N records"),
+        typer.Option("--geolocate-limit", help="Limit geolocation to N records"),
     ] = None,
     skip_collect: Annotated[
         bool, typer.Option("--skip-collect", help="Skip the collect step")
@@ -147,7 +150,7 @@ def pipeline(
     filter()
 
     typer.echo("\n📍 Step 3/4: Geolocating records...")
-    geolocate(llm_limit=llm_limit)
+    geolocate_mapy(limit=geolocate_limit)
 
     typer.echo("\n💾 Step 4/4: Exporting to CSV...")
     export(minimal=True)
@@ -155,8 +158,8 @@ def pipeline(
     typer.echo("\n✅ Pipeline complete! Output: output/old_prague_photos.csv")
 
 
-@batch_app.command("submit")
-def batch_submit(
+@geolocate_llm_app.command("submit")
+def llm_submit(
     limit: Annotated[
         Optional[int],
         typer.Option("--limit", help="Limit number of records to process"),
@@ -182,8 +185,8 @@ def batch_submit(
     manager.submit(limit=limit, redo_llm=redo_llm, include_failed_cp=include_failed_cp)
 
 
-@batch_app.command("collect")
-def batch_collect(
+@geolocate_llm_app.command("collect")
+def llm_collect(
     recollect: Annotated[
         bool,
         typer.Option(
@@ -197,6 +200,15 @@ def batch_collect(
 
     manager = BatchManager()
     manager.collect_results(recollect=recollect)
+
+
+@geolocate_llm_app.command("status")
+def llm_status():
+    """Check status of Gemini Batch API jobs."""
+    from batch_geolocate import BatchManager
+
+    manager = BatchManager()
+    manager.check_status()
 
 
 if __name__ == "__main__":

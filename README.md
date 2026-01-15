@@ -10,7 +10,7 @@ The data processing is handled by a series of scripts that form a sequential pip
 
 2.  **`filter.py`**: Reads the raw records and filters them into categories. It primarily separates records that contain a structured house number (`čp.`) from those that don't. The categorized lists are saved as JSON files in `output/filtered/`.
 
-3.  **`geolocate.py`**: Processes the records that have a house number. It uses the [Mapy.cz API](https://api.mapy.cz/) to find the geographical coordinates for each address. Successfully geolocated records are saved in `output/geolocation/ok/`, while failures are moved to `output/geolocation/failed/`.
+3.  **`geolocate.py`**: Processes records with structured house numbers (čp.) and those mentioning čp. in the description. It uses the [Mapy.cz API](https://api.mapy.cz/) to find coordinates. Successfully geolocated records are saved in `output/geolocation/ok/`, while failures are moved to `output/geolocation/failed/`.
 
 4.  **`export.py`**: Reads all successfully geolocated JSON files. It parses date information, flattens the data structure, and exports the final, clean dataset to `output/old_prague_photos.csv`.
 
@@ -43,15 +43,16 @@ Create a `.env` file in the project's root directory to store your API keys:
 
 ```env
 MAPY_CZ_API_KEY="your_mapy_cz_api_key_here"
+# Optional: throttle Mapy.cz requests
+# MAPY_REQUEST_DELAY_S="0.2"
+# MAPY_REQUEST_RETRIES="3"
+# MAPY_REQUEST_TIMEOUT_S="20"
+# MAPY_ALLOW_FALLBACK="1"
 
-# Choose ONE of the following LLM providers (LiteLLM auto-detects):
-GEMINI_API_KEY="your_gemini_api_key_here"      # Recommended (cheap + fast)
-# OPENAI_API_KEY="your_openai_api_key_here"    # Alternative
-# ANTHROPIC_API_KEY="your_anthropic_key_here"  # Alternative
-
-# Optional: Override the default model (defaults to gemini/gemini-2.0-flash)
-# LLM_MODEL="gpt-4o"                           # For OpenAI
-# LLM_MODEL="claude-3-haiku-20240307"          # For Anthropic
+# Optional: Gemini Batch LLM for unstructured addresses
+GEMINI_API_KEY="your_gemini_api_key_here"
+# Optional: Override the default model (defaults to gemini/gemini-3-flash-preview)
+# LLM_MODEL="gemini/gemini-3-flash-preview"
 
 # Viewer app (Cloudflare Turnstile)
 TURNSTILE_SITE_KEY="your_turnstile_site_key_here"
@@ -89,7 +90,7 @@ NAV_ONLY_LABELS="I,II,XIV"
 NAV_ALLOW_PARTIAL="1"
 ```
 
-**Note:** An LLM API key is required for the LLM-based address extraction feature.
+**Note:** An LLM API key is only required for `geolocate llm` (optional).
 
 ### 3. Running the Pipeline
 
@@ -108,49 +109,39 @@ uv run cli collect --ids-only         # Only refresh available_record_ids.json
 uv run cli collect --no-fetch-ids     # Scrape using existing available_record_ids.json
 uv run cli collect --rescrape         # Re-scrape all IDs (overwrite raw_records)
 uv run cli filter       # Filter and categorize records
-uv run cli geolocate    # Geolocate using Mapy.cz + LLM
+uv run cli geolocate    # Prints subcommand options
+uv run cli geolocate mapy    # Geolocate using Mapy.cz
 uv run cli export       # Export to CSV
 
-# Test LLM with limited records:
-uv run cli geolocate --llm-limit 5
+# Limit geolocation for testing:
+uv run cli geolocate mapy --limit 5
 
 # Force re-run (re-process already geolocated records):
-uv run cli geolocate --force
+uv run cli geolocate mapy --force
+
+# Optional: LLM batch (unstructured records)
+uv run cli geolocate llm submit
+uv run cli geolocate llm status
+uv run cli geolocate llm collect
 ```
 
-### LLM-Based Address Extraction
+### LLM Batch Geolocation (Optional)
 
-The `geolocate.py` script now includes integrated LLM processing for photos that don't contain structured addresses (čp.). When you run `python geolocate.py`, it will automatically:
+Unstructured records (no structured čp.) can be processed via the Gemini Batch API:
 
-1. **First**: Process records with structured house numbers using the Mapy.cz API
-2. **Then**: Process records without structured addresses using OpenAI's GPT-4o to:
-   - Analyze Czech photo descriptions and metadata
-   - Extract streets, neighborhoods, landmarks, and building names
-   - Generate multiple candidate addresses for geocoding
-   - Assess confidence levels for each extraction
-   - Consider historical context and name changes
+1. **Submit**: `uv run cli geolocate llm submit`
+2. **Check status**: `uv run cli geolocate llm status`
+3. **Collect results**: `uv run cli geolocate llm collect`
 
-The LLM processing is automatic if you have an OpenAI API key set. If not, it will skip the LLM processing and only handle structured addresses.
+This reads from `output/filtered/records_without_cp.json` (and `output/filtered/records_with_cp_in_record_obsah.json` if not already geolocated) and writes successes to `output/geolocation/ok/` with LLM metadata attached.
 
-**LLM Processing Features:**
-- Rate-limited to respect OpenAI API limits (2.5 requests/second)
-- Confidence-based filtering (only tries medium+ confidence extractions)
-- Comprehensive logging and progress reporting
-- Failed attempts are categorized separately for analysis
-
-**Testing LLM Functionality:**
+**Testing Batch LLM:**
 ```bash
-# Test with a limited number of records first
-uv run cli geolocate --llm-limit 10
+# Limit batch size for testing
+uv run cli geolocate llm submit --limit 10
 
-# Process normally (all records)
-uv run cli geolocate
-
-# Force re-run with a different model
-LLM_MODEL=gpt-4o uv run cli geolocate --force
-
-# Show help and options
-uv run cli geolocate --help
+# Re-process already collected batches
+uv run cli geolocate llm collect --recollect
 ```
 After running all the steps, the final dataset will be available at `output/old_prague_photos.csv`.
 
