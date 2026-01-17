@@ -336,6 +336,16 @@ class BatchManager:
 
             processed_ids = geolocated_ids.union(failed_ids)
 
+            def mark_failed(xid, reason):
+                record = record_map.get(xid)
+                if not record:
+                    logging.warning(
+                        "Could not find original record for %s in memory map", xid
+                    )
+                    return
+                record["llm_error"] = reason
+                save_to_file(FAILED_DIR, record["xid"], record)
+
             results_count = 0
             lines = content.decode("utf-8").splitlines()
             total_lines = len(lines)
@@ -357,15 +367,35 @@ class BatchManager:
                 # Check for errors in the individual request
                 if "error" in result_entry:
                     logging.error(f"Error for record {xid}: {result_entry['error']}")
+                    mark_failed(xid, f"batch_error: {result_entry['error']}")
                     continue
 
                 response = result_entry["response"]
                 try:
-                    text = response["candidates"][0]["content"]["parts"][0]["text"]
+                    candidates = response.get("candidates") or []
+                    if not candidates:
+                        logging.error(f"Missing candidates for record {xid}")
+                        mark_failed(xid, "missing candidates")
+                        continue
+                    content = candidates[0].get("content") or {}
+                    parts = content.get("parts") or []
+                    if not parts:
+                        logging.error(f"Missing content parts for record {xid}")
+                        mark_failed(xid, "missing content parts")
+                        continue
+                    text_parts = [
+                        part.get("text") for part in parts if isinstance(part, dict)
+                    ]
+                    text = "\n".join([part for part in text_parts if part])
+                    if not text:
+                        logging.error(f"Missing text parts for record {xid}")
+                        mark_failed(xid, "missing text parts")
+                        continue
                     start_idx = text.find("{")
                     end_idx = text.rfind("}") + 1
                     if start_idx == -1 or end_idx == -1:
                         logging.warning(f"No JSON found in response for {xid}")
+                        mark_failed(xid, "no JSON in response")
                         continue
 
                     data = json.loads(text[start_idx:end_idx])
@@ -403,6 +433,7 @@ class BatchManager:
                             logging.warning(
                                 f"Record {xid} has no suggested_addresses (old batch format). Skipping."
                             )
+                            record["llm_error"] = "missing suggested addresses"
                             save_to_file(FAILED_DIR, record["xid"], record)
                             continue
 
@@ -427,12 +458,15 @@ class BatchManager:
                                 break
 
                         if not success:
+                            record["llm_error"] = "no geocode match"
                             save_to_file(FAILED_DIR, record["xid"], record)
                     else:
+                        record["llm_error"] = "low confidence"
                         save_to_file(FAILED_DIR, record["xid"], record)
 
                 except Exception as e:
                     logging.error(f"Failed to process result for {xid}: {e}")
+                    mark_failed(xid, f"exception: {e}")
 
             job_data["collected_at"] = datetime.now().isoformat()
             job_data["successful_results"] = results_count
