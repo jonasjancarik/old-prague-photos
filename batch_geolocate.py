@@ -72,6 +72,7 @@ class BatchManager:
             include_failed_cp: If True, include records that failed direct geocoding
         """
         records_to_process = []
+        record_ids_to_process = set()
 
         # Get already processed IDs
         geolocated_files = list_directory(OUTPUT_DIR)
@@ -120,25 +121,41 @@ class BatchManager:
                 ) as file:
                     all_records = json.load(file)
                     for record in all_records:
-                        if record["xid"] not in processed_ids:
-                            records_to_process.append(record)
+                        xid = record["xid"]
+                        if xid in processed_ids or xid in record_ids_to_process:
+                            continue
+                        records_to_process.append(record)
+                        record_ids_to_process.add(xid)
 
         # Optionally include failed structured records for LLM processing
         if include_failed_cp:
-            failed_cp_dir = "output/geolocation/failed/records_with_cp"
-            if os.path.exists(failed_cp_dir):
-                failed_cp_files = [
-                    f for f in list_directory(failed_cp_dir) if f.endswith(".json")
-                ]
+            failed_dirs = [
+                "output/geolocation/failed/records_with_cp",
+                "output/geolocation/failed/records_with_cp_in_record_obsah",
+            ]
+            failed_files = []
+            for failed_dir in failed_dirs:
+                if os.path.exists(failed_dir):
+                    failed_files.extend(
+                        [
+                            os.path.join(failed_dir, f)
+                            for f in list_directory(failed_dir)
+                            if f.endswith(".json")
+                        ]
+                    )
+            if failed_files:
                 logging.info(
-                    f"--include-failed-cp: Adding {len(failed_cp_files)} failed structured records"
+                    "--include-failed-cp: Adding %s failed Mapy.cz records",
+                    len(failed_files),
                 )
-                for f in failed_cp_files:
-                    with open(
-                        os.path.join(failed_cp_dir, f), "r", encoding="utf-8"
-                    ) as file:
+                for filepath in failed_files:
+                    with open(filepath, "r", encoding="utf-8") as file:
                         record = json.load(file)
-                        records_to_process.append(record)
+                    xid = record["xid"]
+                    if xid in record_ids_to_process:
+                        continue
+                    records_to_process.append(record)
+                    record_ids_to_process.add(xid)
 
         if limit:
             records_to_process = records_to_process[:limit]

@@ -174,7 +174,7 @@ def llm_submit(
         bool,
         typer.Option(
             "--include-failed-cp",
-            help="Include failed structured address records for LLM processing",
+            help="Include failed Mapy.cz records (čp.) for LLM processing",
         ),
     ] = False,
 ):
