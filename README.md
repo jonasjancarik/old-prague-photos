@@ -133,12 +133,15 @@ Unstructured records (no structured čp.) can be processed via the Gemini Batch 
 2. **Check status**: `uv run cli geolocate llm status`
 3. **Collect results**: `uv run cli geolocate llm collect`
 
-This reads from `output/filtered/records_without_cp.json` (and `output/filtered/records_with_cp_in_record_obsah.json` if not already geolocated) and writes successes to `output/geolocation/ok/` with LLM metadata attached. To include Mapy.cz failures from previous runs, pass `--include-failed-cp`.
+This reads from `output/filtered/records_without_cp.json` (and `output/filtered/records_with_cp_in_record_obsah.json` if not already geolocated) and writes successes to `output/geolocation/ok/` with LLM metadata attached. To include Mapy.cz failures from previous runs, pass `--include-failed-cp`. Raw batch outputs are saved to `output/batch_results/` for debugging (gitignored).
 
 **Testing Batch LLM:**
 ```bash
 # Limit batch size for testing
 uv run cli geolocate llm submit --limit 10
+
+# Retry LLM records that returned empty content
+uv run cli geolocate llm submit --retry-missing-content
 
 # Re-process already collected batches
 uv run cli geolocate llm collect --recollect

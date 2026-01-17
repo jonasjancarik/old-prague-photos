@@ -23,6 +23,7 @@ from geolocate import (
 load_dotenv()
 
 BATCHES_FILE = "output/batches.json"
+BATCH_RESULTS_DIR = "output/batch_results"
 INPUT_RECORDS_DIR = "output/filtered"
 OUTPUT_DIR = "output/geolocation/ok"
 FAILED_DIR = "output/geolocation/failed/records_without_cp_llm"
@@ -63,6 +64,7 @@ class BatchManager:
         limit: Optional[int] = None,
         redo_llm: bool = False,
         include_failed_cp: bool = False,
+        retry_missing_content: bool = False,
     ):
         """Prepare and submit batch job.
 
@@ -70,6 +72,7 @@ class BatchManager:
             limit: Max records to process (for testing)
             redo_llm: If True, also re-process records that were previously LLM-geolocated
             include_failed_cp: If True, include records that failed direct geocoding
+            retry_missing_content: If True, include LLM failures missing content parts
         """
         records_to_process = []
         record_ids_to_process = set()
@@ -156,6 +159,33 @@ class BatchManager:
                         continue
                     records_to_process.append(record)
                     record_ids_to_process.add(xid)
+
+        if retry_missing_content and os.path.exists(FAILED_DIR):
+            retry_errors = {
+                "missing candidates",
+                "missing content parts",
+                "missing text parts",
+                "no JSON in response",
+            }
+            retry_files = [
+                f for f in list_directory(FAILED_DIR) if f.endswith(".json")
+            ]
+            retry_count = 0
+            for filename in retry_files:
+                with open(os.path.join(FAILED_DIR, filename), "r", encoding="utf-8") as file:
+                    record = json.load(file)
+                if record.get("llm_error") not in retry_errors:
+                    continue
+                xid = record["xid"]
+                if xid in record_ids_to_process:
+                    continue
+                records_to_process.append(record)
+                record_ids_to_process.add(xid)
+                retry_count += 1
+            if retry_count:
+                logging.info(
+                    "--retry-missing-content: Adding %s LLM failures", retry_count
+                )
 
         if limit:
             records_to_process = records_to_process[:limit]
@@ -302,6 +332,13 @@ class BatchManager:
 
             logging.info(f"Downloading results for {job_name}...")
             content = self.client.files.download(file=output_file_name)
+            os.makedirs(BATCH_RESULTS_DIR, exist_ok=True)
+            results_path = os.path.join(
+                BATCH_RESULTS_DIR, f"{job_name.replace('/', '_')}.jsonl"
+            )
+            with open(results_path, "wb") as results_file:
+                results_file.write(content)
+            logging.info("Saved batch results to %s", results_path)
 
             # Load all filtered records into a map for fast lookup
             record_map = {}

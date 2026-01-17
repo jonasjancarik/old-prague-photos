@@ -177,12 +177,24 @@ def llm_submit(
             help="Include failed Mapy.cz records (čp.) for LLM processing",
         ),
     ] = False,
+    retry_missing_content: Annotated[
+        bool,
+        typer.Option(
+            "--retry-missing-content",
+            help="Include LLM failures with missing content parts",
+        ),
+    ] = False,
 ):
     """Submit a new Gemini Batch API job."""
     from batch_geolocate import BatchManager
 
     manager = BatchManager()
-    manager.submit(limit=limit, redo_llm=redo_llm, include_failed_cp=include_failed_cp)
+    manager.submit(
+        limit=limit,
+        redo_llm=redo_llm,
+        include_failed_cp=include_failed_cp,
+        retry_missing_content=retry_missing_content,
+    )
 
 
 @geolocate_llm_app.command("collect")
