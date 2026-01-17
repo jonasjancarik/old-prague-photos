@@ -199,19 +199,36 @@ def llm_submit(
 
 @geolocate_llm_app.command("collect")
 def llm_collect(
-    recollect: Annotated[
+    redownload: Annotated[
         bool,
         typer.Option(
-            "--recollect",
-            help="Re-geocode already collected batches (for geocoding fixes)",
+            "--redownload",
+            help="Re-download batch results even if present",
         ),
     ] = False,
 ):
-    """Check status and collect results from Gemini Batch API jobs."""
+    """Download batch results from Gemini Batch API jobs."""
     from batch_geolocate import BatchManager
 
     manager = BatchManager()
-    manager.collect_results(recollect=recollect)
+    manager.download_results(redownload=redownload)
+
+
+@geolocate_llm_app.command("process")
+def llm_process(
+    reprocess: Annotated[
+        bool,
+        typer.Option(
+            "--reprocess",
+            help="Re-process downloaded batches (for geocoding fixes)",
+        ),
+    ] = False,
+):
+    """Process downloaded batch results and geocode via Mapy.cz."""
+    from batch_geolocate import BatchManager
+
+    manager = BatchManager()
+    manager.process_results(reprocess=reprocess)
 
 
 @geolocate_llm_app.command("status")

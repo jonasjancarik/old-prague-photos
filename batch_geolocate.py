@@ -294,33 +294,30 @@ class BatchManager:
 
         self._save_batches()
 
-    def collect_results(self, recollect: bool = False):
-        """Check status first, then download results and geocode.
+    def _results_path(self, job_name: str) -> str:
+        safe_name = job_name.replace("/", "_")
+        return os.path.join(BATCH_RESULTS_DIR, f"{safe_name}.jsonl")
 
-        Args:
-            recollect: If True, re-process already collected batches (for geocoding fixes)
-        """
+    def download_results(self, redownload: bool = False):
+        """Check status first, then download batch results."""
         self.check_status()
 
-        if recollect:
-            # Re-process all succeeded jobs, not just uncollected ones
-            completed_jobs = [
-                j
-                for j, data in self.batches.items()
-                if data["state"] == "JOB_STATE_SUCCEEDED"
-            ]
+        completed_jobs = [
+            j
+            for j, data in self.batches.items()
+            if data["state"] == "JOB_STATE_SUCCEEDED"
+        ]
+        if redownload:
             logging.info(
-                f"--recollect: Will re-process {len(completed_jobs)} batch jobs"
+                "--redownload: Will download %s batch jobs", len(completed_jobs)
             )
         else:
             completed_jobs = [
-                j
-                for j, data in self.batches.items()
-                if data["state"] == "JOB_STATE_SUCCEEDED" and "collected_at" not in data
+                j for j in completed_jobs if not os.path.exists(self._results_path(j))
             ]
 
         if not completed_jobs:
-            logging.info("No completed jobs to collect.")
+            logging.info("No completed jobs to download.")
             return
 
         for job_name in completed_jobs:
@@ -333,12 +330,51 @@ class BatchManager:
             logging.info(f"Downloading results for {job_name}...")
             content = self.client.files.download(file=output_file_name)
             os.makedirs(BATCH_RESULTS_DIR, exist_ok=True)
-            results_path = os.path.join(
-                BATCH_RESULTS_DIR, f"{job_name.replace('/', '_')}.jsonl"
-            )
+            results_path = self._results_path(job_name)
             with open(results_path, "wb") as results_file:
                 results_file.write(content)
+            job_data["downloaded_at"] = datetime.now().isoformat()
+            job_data["results_file"] = results_path
             logging.info("Saved batch results to %s", results_path)
+
+        self._save_batches()
+
+    def process_results(self, reprocess: bool = False):
+        """Process downloaded batch results and geocode."""
+        self.check_status()
+
+        completed_jobs = [
+            j
+            for j, data in self.batches.items()
+            if data["state"] == "JOB_STATE_SUCCEEDED"
+        ]
+        if reprocess:
+            logging.info(
+                "--reprocess: Will process %s batch jobs", len(completed_jobs)
+            )
+        else:
+            completed_jobs = [
+                j
+                for j, data in self.batches.items()
+                if data["state"] == "JOB_STATE_SUCCEEDED"
+                and "processed_at" not in data
+            ]
+
+        if not completed_jobs:
+            logging.info("No completed jobs to process.")
+            return
+
+        for job_name in completed_jobs:
+            job_data = self.batches[job_name]
+            results_path = self._results_path(job_name)
+            if not os.path.exists(results_path):
+                logging.warning(
+                    "No downloaded results for %s. Run `collect` first.", job_name
+                )
+                continue
+
+            with open(results_path, "rb") as results_file:
+                content = results_file.read()
 
             # Load all filtered records into a map for fast lookup
             record_map = {}
@@ -371,7 +407,9 @@ class BatchManager:
                 for filename in files:
                     failed_ids.add(filename.replace(".json", ""))
 
-            processed_ids = geolocated_ids.union(failed_ids)
+            processed_ids = set()
+            if not reprocess:
+                processed_ids = geolocated_ids.union(failed_ids)
 
             def mark_failed(xid, reason):
                 record = record_map.get(xid)
@@ -394,14 +432,12 @@ class BatchManager:
                 result_entry = json.loads(line)
                 xid = result_entry["key"]
 
-                if xid in processed_ids and not recollect:
-                    # Skip already processed (unless recollecting)
+                if xid in processed_ids and not reprocess:
                     continue
 
                 if i % 100 == 0:
                     logging.info(f"Progress: {i}/{total_lines}...")
 
-                # Check for errors in the individual request
                 if "error" in result_entry:
                     logging.error(f"Error for record {xid}: {result_entry['error']}")
                     mark_failed(xid, f"batch_error: {result_entry['error']}")
@@ -465,7 +501,6 @@ class BatchManager:
                         continue
 
                     if location_info.confidence != "low":
-                        # If no addresses in the batch response (old format), skip
                         if not addresses:
                             logging.warning(
                                 f"Record {xid} has no suggested_addresses (old batch format). Skipping."
@@ -505,9 +540,9 @@ class BatchManager:
                     logging.error(f"Failed to process result for {xid}: {e}")
                     mark_failed(xid, f"exception: {e}")
 
-            job_data["collected_at"] = datetime.now().isoformat()
+            job_data["processed_at"] = datetime.now().isoformat()
             job_data["successful_results"] = results_count
-            logging.info(f"Collected {results_count} results for job {job_name}")
+            logging.info(f"Processed {results_count} results for job {job_name}")
 
         self._save_batches()
 
@@ -517,9 +552,21 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Manage Gemini Batch Geolocation jobs")
     parser.add_argument(
-        "action", choices=["submit", "status", "collect"], help="Action to perform"
+        "action",
+        choices=["submit", "status", "collect", "process"],
+        help="Action to perform",
     )
     parser.add_argument("--limit", type=int, help="Limit number of records for submit")
+    parser.add_argument(
+        "--redownload",
+        action="store_true",
+        help="Re-download batch results even if present",
+    )
+    parser.add_argument(
+        "--reprocess",
+        action="store_true",
+        help="Re-process downloaded batches (for geocoding fixes)",
+    )
     args = parser.parse_args()
 
     manager = BatchManager()
@@ -528,4 +575,6 @@ if __name__ == "__main__":
     elif args.action == "status":
         manager.check_status()
     elif args.action == "collect":
-        manager.collect_results()
+        manager.download_results(redownload=args.redownload)
+    elif args.action == "process":
+        manager.process_results(reprocess=args.reprocess)
