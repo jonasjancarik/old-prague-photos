@@ -1288,7 +1288,11 @@ textarea {
   width: 18px;
   height: 18px;
   filter: brightness(0.35);
-  opacity: 0.9;
+}
+
+.openseadragon-container .openseadragon-button img + img,
+.osd-button img + img {
+  display: none;
 }
 
 .openseadragon-container .navigator,
