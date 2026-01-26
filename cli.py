@@ -206,12 +206,19 @@ def llm_collect(
             help="Re-download batch results even if present",
         ),
     ] = False,
+    job: Annotated[
+        Optional[list[str]],
+        typer.Option(
+            "--job",
+            help="Only run against specific batch jobs (full name or suffix)",
+        ),
+    ] = None,
 ):
     """Download batch results from Gemini Batch API jobs."""
     from batch_geolocate import BatchManager
 
     manager = BatchManager()
-    manager.download_results(redownload=redownload)
+    manager.download_results(redownload=redownload, job_filter=job)
 
 
 @geolocate_llm_app.command("process")
@@ -223,12 +230,19 @@ def llm_process(
             help="Re-process downloaded batches (for geocoding fixes)",
         ),
     ] = False,
+    job: Annotated[
+        Optional[list[str]],
+        typer.Option(
+            "--job",
+            help="Only run against specific batch jobs (full name or suffix)",
+        ),
+    ] = None,
 ):
     """Process downloaded batch results and geocode via Mapy.cz."""
     from batch_geolocate import BatchManager
 
     manager = BatchManager()
-    manager.process_results(reprocess=reprocess)
+    manager.process_results(reprocess=reprocess, job_filter=job)
 
 
 @geolocate_llm_app.command("status")

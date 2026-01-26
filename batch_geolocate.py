@@ -298,7 +298,15 @@ class BatchManager:
         safe_name = job_name.replace("/", "_")
         return os.path.join(BATCH_RESULTS_DIR, f"{safe_name}.jsonl")
 
-    def download_results(self, redownload: bool = False):
+    def _matches_job_filter(self, job_name: str, job_filter):
+        if not job_filter:
+            return True
+        for item in job_filter:
+            if job_name == item or job_name.endswith(f"/{item}"):
+                return True
+        return False
+
+    def download_results(self, redownload: bool = False, job_filter=None):
         """Check status first, then download batch results."""
         self.check_status()
 
@@ -306,6 +314,9 @@ class BatchManager:
             j
             for j, data in self.batches.items()
             if data["state"] == "JOB_STATE_SUCCEEDED"
+        ]
+        completed_jobs = [
+            j for j in completed_jobs if self._matches_job_filter(j, job_filter)
         ]
         if redownload:
             logging.info(
@@ -339,7 +350,7 @@ class BatchManager:
 
         self._save_batches()
 
-    def process_results(self, reprocess: bool = False):
+    def process_results(self, reprocess: bool = False, job_filter=None):
         """Process downloaded batch results and geocode."""
         self.check_status()
 
@@ -348,17 +359,17 @@ class BatchManager:
             for j, data in self.batches.items()
             if data["state"] == "JOB_STATE_SUCCEEDED"
         ]
+        if not reprocess:
+            completed_jobs = [
+                j for j in completed_jobs if "processed_at" not in self.batches[j]
+            ]
+        completed_jobs = [
+            j for j in completed_jobs if self._matches_job_filter(j, job_filter)
+        ]
         if reprocess:
             logging.info(
                 "--reprocess: Will process %s batch jobs", len(completed_jobs)
             )
-        else:
-            completed_jobs = [
-                j
-                for j, data in self.batches.items()
-                if data["state"] == "JOB_STATE_SUCCEEDED"
-                and "processed_at" not in data
-            ]
 
         if not completed_jobs:
             logging.info("No completed jobs to process.")
@@ -567,6 +578,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Re-process downloaded batches (for geocoding fixes)",
     )
+    parser.add_argument(
+        "--job",
+        action="append",
+        help="Only run against specific batch jobs (full name or suffix)",
+    )
     args = parser.parse_args()
 
     manager = BatchManager()
@@ -575,6 +591,6 @@ if __name__ == "__main__":
     elif args.action == "status":
         manager.check_status()
     elif args.action == "collect":
-        manager.download_results(redownload=args.redownload)
+        manager.download_results(redownload=args.redownload, job_filter=args.job)
     elif args.action == "process":
-        manager.process_results(reprocess=args.reprocess)
+        manager.process_results(reprocess=args.reprocess, job_filter=args.job)

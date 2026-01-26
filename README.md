@@ -136,6 +136,7 @@ Unstructured records (no structured čp.) can be processed via the Gemini Batch 
 4. **Process results** (Mapy.cz geocoding): `uv run cli geolocate llm process`
 
 This reads from `output/filtered/records_without_cp.json` (and `output/filtered/records_with_cp_in_record_obsah.json` if not already geolocated) and writes successes to `output/geolocation/ok/` with LLM metadata attached. To include Mapy.cz failures from previous runs, pass `--include-failed-cp`. Raw batch outputs are saved to `output/batch_results/` for debugging (gitignored).
+Use `--job <id>` to target a specific batch job (repeat `--job` for multiple).
 
 **Testing Batch LLM:**
 ```bash
@@ -148,8 +149,14 @@ uv run cli geolocate llm submit --retry-missing-content
 # Re-download results even if present
 uv run cli geolocate llm collect --redownload
 
+# Collect only a specific job (full name or suffix)
+uv run cli geolocate llm collect --job 08bcgysg6k0ucjq3yn7b8chvknvs929yn5l2
+
 # Re-process already downloaded results
 uv run cli geolocate llm process --reprocess
+
+# Process only a specific job (repeat --job for multiple)
+uv run cli geolocate llm process --job batches/08bcgysg6k0ucjq3yn7b8chvknvs929yn5l2
 ```
 After running all the steps, the final dataset will be available at `output/old_prague_photos.csv`.
 

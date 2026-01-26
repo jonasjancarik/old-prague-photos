@@ -444,8 +444,22 @@ def main(limit=None, force=False):
     records_with_cp = load_records(RECORDS_WITH_CP)
     records_with_cp_in_obsah = load_records(RECORDS_WITH_CP_IN_OBSAH)
 
+    processed_count = len(processed_ids)
+    if force:
+        logging.info(
+            "Force enabled: reprocessing all records (ignoring %s previously processed).",
+            processed_count,
+        )
+    elif processed_count:
+        logging.info(
+            "Skipping %s already processed records (ok + failed). Use --force to reprocess.",
+            processed_count,
+        )
+    if limit is not None:
+        logging.info("Limit enabled: processing up to %s new records.", limit)
+
     logging.info(
-        "Geolocating %s records with čp. and %s records with čp. in popis.",
+        "Target records: %s with čp., %s with čp. in popis.",
         len(records_with_cp),
         len(records_with_cp_in_obsah),
     )
