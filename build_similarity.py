@@ -422,6 +422,20 @@ def main() -> None:
 
     features = load_features(input_path, args.limit)
     cache = load_hash_cache(hash_cache_path, args.force, args.hash_size)
+    total_scans = 0
+    for item in features:
+        previews = item.get("scan_previews") or []
+        if not isinstance(previews, list) or not previews:
+            total_scans += 1
+        else:
+            total_scans += len(previews)
+    if total_scans:
+        print(f"Processing {total_scans} scans across {len(features)} photos")
+    processed = 0
+    hashed = 0
+    cached_count = 0
+    error_count = 0
+    report_every = max(1, total_scans // 50) if total_scans else 0
 
     session = requests.Session()
     session.headers.update({"User-Agent": "old-prague-photos/similarity"})
@@ -454,6 +468,14 @@ def main() -> None:
                             group_id=group_id,
                             hash_value=cached.hash_value,
                             scan_index=scan_index,
+                        )
+                    cached_count += 1
+                    processed += 1
+                    if report_every and processed % report_every == 0:
+                        percent = (processed / total_scans) * 100
+                        print(
+                            f"Progress {processed}/{total_scans} ({percent:.1f}%) "
+                            f"hashed {hashed} cached {cached_count} errors {error_count}"
                         )
                     continue
                 try:
@@ -493,6 +515,14 @@ def main() -> None:
                         + "\n"
                     )
                     print(f"Failed {xid} scan {scan_index}: {exc}")
+                    error_count += 1
+                    processed += 1
+                    if report_every and processed % report_every == 0:
+                        percent = (processed / total_scans) * 100
+                        print(
+                            f"Progress {processed}/{total_scans} ({percent:.1f}%) "
+                            f"hashed {hashed} cached {cached_count} errors {error_count}"
+                        )
                     continue
 
                 record = PhotoHash(
@@ -503,6 +533,14 @@ def main() -> None:
                 )
                 records_by_key[key] = record
                 append_hash_record(cache_handle, record, args.hash_size)
+                hashed += 1
+                processed += 1
+                if report_every and processed % report_every == 0:
+                    percent = (processed / total_scans) * 100
+                    print(
+                        f"Progress {processed}/{total_scans} ({percent:.1f}%) "
+                        f"hashed {hashed} cached {cached_count} errors {error_count}"
+                    )
                 if args.sleep:
                     time.sleep(args.sleep)
 
@@ -522,6 +560,12 @@ def main() -> None:
             continue
         primary = next((item for item in per_xid if item.scan_index == 0), per_xid[0])
         records.append(primary)
+    if total_scans:
+        percent = (processed / total_scans) * 100
+        print(
+            f"Progress {processed}/{total_scans} ({percent:.1f}%) "
+            f"hashed {hashed} cached {cached_count} errors {error_count}"
+        )
 
     candidates = build_candidates(records, args.distance)
     clusters = build_series_clusters(hashes_by_group, hashes_by_xid, args.distance)
