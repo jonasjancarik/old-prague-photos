@@ -8,7 +8,10 @@
     "record_count": 10,
     "output_file": "files/batch-vp2qtpgczw76wjaxfbofazhsk4jyr8woq449",
     "collected_at": "2026-01-07T10:06:27.371615",
-    "successful_results": 0
+    "successful_results": 0,
+    "downloaded_at": "2026-01-17T22:59:54.691937",
+    "results_file": "output/batch_results/batches_vp2qtpgczw76wjaxfbofazhsk4jyr8woq449.jsonl",
+    "processed_at": "2026-01-07T10:06:27.371615"
   },
   "batches/jnsacnh5lbjbdld26qwectqj18bjrwzdt1ca": {
     "name": "batches/jnsacnh5lbjbdld26qwectqj18bjrwzdt1ca",
@@ -19,7 +22,10 @@
     "record_count": 3106,
     "output_file": "files/batch-jnsacnh5lbjbdld26qwectqj18bjrwzdt1ca",
     "collected_at": "2026-01-07T10:06:30.384674",
-    "successful_results": 0
+    "successful_results": 0,
+    "downloaded_at": "2026-01-17T23:00:06.207333",
+    "results_file": "output/batch_results/batches_jnsacnh5lbjbdld26qwectqj18bjrwzdt1ca.jsonl",
+    "processed_at": "2026-01-07T10:06:30.384674"
   },
   "batches/l60k6up3t1r9fqgqt2hex20x5vtu9w2mfflp": {
     "name": "batches/l60k6up3t1r9fqgqt2hex20x5vtu9w2mfflp",
@@ -30,7 +36,10 @@
     "record_count": 3133,
     "output_file": "files/batch-l60k6up3t1r9fqgqt2hex20x5vtu9w2mfflp",
     "collected_at": "2026-01-07T10:38:33.467474",
-    "successful_results": 2993
+    "successful_results": 2993,
+    "downloaded_at": "2026-01-17T23:00:11.349690",
+    "results_file": "output/batch_results/batches_l60k6up3t1r9fqgqt2hex20x5vtu9w2mfflp.jsonl",
+    "processed_at": "2026-01-07T10:38:33.467474"
   },
   "batches/roqzow8wcpi0o7mbvopzsa57lo4foqlmmlal": {
     "name": "batches/roqzow8wcpi0o7mbvopzsa57lo4foqlmmlal",
@@ -41,7 +50,10 @@
     "record_count": 10,
     "output_file": "files/batch-roqzow8wcpi0o7mbvopzsa57lo4foqlmmlal",
     "collected_at": "2026-01-07T10:38:40.218382",
-    "successful_results": 10
+    "successful_results": 10,
+    "downloaded_at": "2026-01-17T23:00:11.873170",
+    "results_file": "output/batch_results/batches_roqzow8wcpi0o7mbvopzsa57lo4foqlmmlal.jsonl",
+    "processed_at": "2026-01-07T10:38:40.218382"
   },
   "batches/4mq1lg2jga0bwmaoo8si7c6p22pnw10sv36g": {
     "name": "batches/4mq1lg2jga0bwmaoo8si7c6p22pnw10sv36g",
@@ -52,6 +64,34 @@
     "record_count": 1574,
     "output_file": "files/batch-4mq1lg2jga0bwmaoo8si7c6p22pnw10sv36g",
     "collected_at": "2026-01-07T11:02:21.236564",
-    "successful_results": 1564
+    "successful_results": 1564,
+    "downloaded_at": "2026-01-17T23:00:14.670938",
+    "results_file": "output/batch_results/batches_4mq1lg2jga0bwmaoo8si7c6p22pnw10sv36g.jsonl",
+    "processed_at": "2026-01-07T11:02:21.236564"
+  },
+  "batches/neoyjf5oruyjihvq8mpgwmgi9dfuxyorvj6i": {
+    "name": "batches/neoyjf5oruyjihvq8mpgwmgi9dfuxyorvj6i",
+    "display_name": "Geolocation_20260117_214103",
+    "state": "JOB_STATE_SUCCEEDED",
+    "created_at": "2026-01-17T21:41:05.500611",
+    "input_file": "output/batch_request_1768682459.jsonl",
+    "record_count": 3280,
+    "output_file": "files/batch-neoyjf5oruyjihvq8mpgwmgi9dfuxyorvj6i",
+    "collected_at": "2026-01-17T22:50:51.975693",
+    "successful_results": 666,
+    "processed_at": "2026-01-17T22:50:51.975693"
+  },
+  "batches/08bcgysg6k0ucjq3yn7b8chvknvs929yn5l2": {
+    "name": "batches/08bcgysg6k0ucjq3yn7b8chvknvs929yn5l2",
+    "display_name": "Geolocation_20260117_225424",
+    "state": "JOB_STATE_SUCCEEDED",
+    "created_at": "2026-01-17T22:54:26.714840",
+    "input_file": "output/batch_request_1768686861.jsonl",
+    "record_count": 320,
+    "output_file": "files/batch-08bcgysg6k0ucjq3yn7b8chvknvs929yn5l2",
+    "downloaded_at": "2026-01-17T23:19:31.425568",
+    "results_file": "output/batch_results/batches_08bcgysg6k0ucjq3yn7b8chvknvs929yn5l2.jsonl",
+    "processed_at": "2026-01-17T23:44:43.988838",
+    "successful_results": 291
   }
 }
