@@ -1,5 +1,6 @@
 import argparse
 import json
+import re
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -100,6 +101,52 @@ def url_extension(url: str, fallback: str = ".jpg") -> str:
     return suffix if suffix else fallback
 
 
+def parse_image_properties_xml(text: str) -> dict[str, int]:
+    def find_int(attr: str) -> int:
+        match = re.search(rf'{attr}="(\d+)"', text)
+        if not match:
+            raise ValueError(f"Missing {attr} in ImageProperties.xml")
+        return int(match.group(1))
+
+    return {
+        "width": find_int("WIDTH"),
+        "height": find_int("HEIGHT"),
+        "tile_size": find_int("TILESIZE"),
+    }
+
+
+def load_local_image_properties(path: Path) -> dict[str, int] | None:
+    if not path.exists():
+        return None
+    return parse_image_properties_xml(path.read_text(encoding="utf-8"))
+
+
+def find_existing_preview(previews_dir: Path, xid: str, scan_index: int) -> Path | None:
+    scan_dir = previews_dir / xid
+    if not scan_dir.exists():
+        return None
+    candidates = sorted(scan_dir.glob(f"scan_{scan_index}.*"))
+    return candidates[0] if candidates else None
+
+
+def is_tiles_complete(tiles_dir: Path, props: dict[str, int]) -> bool:
+    tiers = dezoomify.build_tiers(
+        props["width"],
+        props["height"],
+        props["tile_size"],
+    )
+    expected = 0
+    for size in tiers:
+        tiles_x, tiles_y = dezoomify.tiles_for(size, props["tile_size"])
+        expected += tiles_x * tiles_y
+    existing = sum(1 for _ in tiles_dir.glob("TileGroup*/*.jpg"))
+    return existing >= expected
+
+
+def scan_complete_marker(tiles_dir: Path) -> Path:
+    return tiles_dir / "scan_complete.json"
+
+
 def fetch_bytes(
     session: requests.Session,
     url: str,
@@ -133,9 +180,10 @@ def download_preview(
     session: requests.Session,
     preview_url: str,
     target_path: Path,
+    already_exists: bool,
     args: argparse.Namespace,
 ) -> bool:
-    if target_path.exists() and not args.force:
+    if already_exists and not args.force:
         return False
     content = fetch_bytes(
         session,
@@ -155,6 +203,9 @@ def download_zoomify_tiles(
     tiles_dir: Path,
     args: argparse.Namespace,
 ) -> int:
+    marker_path = scan_complete_marker(tiles_dir)
+    if marker_path.exists() and not args.force:
+        return 0
     scan_param = scan_index + 1 if scan_index >= 0 else 1
     permalink = f"{args.archive_base_url.rstrip('/')}/permalink?xid={xid}&scan={scan_param}"
     zoomify_html = dezoomify.resolve_zoomify(session, permalink)
@@ -162,9 +213,10 @@ def download_zoomify_tiles(
     if not zoomify_img_path:
         raise ValueError("zoomifyImgPath not found")
 
-    props = dezoomify.fetch_image_properties(session, zoomify_img_path)
     props_path = tiles_dir / "ImageProperties.xml"
-    if not props_path.exists() or args.force:
+    props = load_local_image_properties(props_path)
+    if props is None or args.force:
+        props = dezoomify.fetch_image_properties(session, zoomify_img_path)
         props_xml = fetch_bytes(
             session,
             f"{zoomify_img_path}/ImageProperties.xml",
@@ -173,6 +225,13 @@ def download_zoomify_tiles(
             args.retry_sleep,
         )
         write_bytes(props_path, props_xml)
+    if props and not args.force:
+        if is_tiles_complete(tiles_dir, props):
+            marker_path.write_text(
+                json.dumps({"xid": xid, "scan_index": scan_index}, ensure_ascii=True),
+                encoding="utf-8",
+            )
+            return 0
 
     tiers = dezoomify.build_tiers(
         props["width"],
@@ -203,6 +262,10 @@ def download_zoomify_tiles(
                 downloaded += 1
                 if args.tile_sleep:
                     time.sleep(args.tile_sleep)
+    marker_path.write_text(
+        json.dumps({"xid": xid, "scan_index": scan_index}, ensure_ascii=True),
+        encoding="utf-8",
+    )
     return downloaded
 
 
@@ -224,6 +287,9 @@ def main() -> None:
 
     total = len(items)
     processed = 0
+    skipped = 0
+    downloaded = 0
+    errors = 0
 
     output_dir.mkdir(parents=True, exist_ok=True)
     with error_path.open("a", encoding="utf-8") as error_handle:
@@ -233,14 +299,29 @@ def main() -> None:
             if not isinstance(previews, list) or not previews:
                 previews = [""]
 
+            photo_downloaded = False
+            photo_error = False
+            photo_cached = True
+
             for scan_index, preview_url in enumerate(previews):
                 preview_url = str(preview_url or "").strip()
+                existing_preview = find_existing_preview(previews_dir, xid, scan_index)
+                preview_cached = existing_preview is not None and not args.force
                 if preview_url:
                     preview_ext = url_extension(preview_url)
                     preview_path = previews_dir / xid / f"scan_{scan_index}{preview_ext}"
                     try:
-                        download_preview(session, preview_url, preview_path, args)
+                        did_download = download_preview(
+                            session,
+                            preview_url,
+                            preview_path,
+                            preview_cached,
+                            args,
+                        )
+                        if did_download:
+                            photo_downloaded = True
                     except Exception as exc:
+                        photo_error = True
                         log_error(
                             error_handle,
                             {
@@ -250,11 +331,18 @@ def main() -> None:
                                 "error": str(exc),
                             },
                         )
+                elif preview_cached:
+                    preview_cached = True
 
                 tiles_dir = tiles_root / xid / f"scan_{scan_index}"
                 try:
-                    download_zoomify_tiles(session, xid, scan_index, tiles_dir, args)
+                    downloaded_tiles = download_zoomify_tiles(
+                        session, xid, scan_index, tiles_dir, args
+                    )
+                    if downloaded_tiles:
+                        photo_downloaded = True
                 except Exception as exc:
+                    photo_error = True
                     log_error(
                         error_handle,
                         {
@@ -265,11 +353,27 @@ def main() -> None:
                         },
                     )
 
+                if args.force:
+                    photo_cached = False
+                else:
+                    tiles_cached = scan_complete_marker(tiles_dir).exists()
+                    photo_cached = photo_cached and tiles_cached and (preview_cached or not preview_url)
+
             processed += 1
             if total:
                 percent = (processed / total) * 100
-                print(f"Progress {processed}/{total} ({percent:.1f}%) xid={xid}")
-            if args.sleep:
+                status = "downloaded" if photo_downloaded else "cached" if photo_cached else "partial"
+                print(
+                    f"Progress {processed}/{total} ({percent:.1f}%) xid={xid} [{status}] "
+                    f"downloaded={downloaded} cached={skipped} errors={errors}"
+                )
+            if photo_error:
+                errors += 1
+            if photo_downloaded:
+                downloaded += 1
+            elif photo_cached:
+                skipped += 1
+            if args.sleep and photo_downloaded:
                 time.sleep(args.sleep)
 
 
