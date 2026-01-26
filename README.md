@@ -1,45 +1,30 @@
-# Old Prague Photos Geolocation 📸
+# Old Prague Photos Geolocation
 
-This project scrapes, processes, and geolocates historical photos of Prague from the [Prague City Archives](http://katalog.ahmp.cz/pragapublica) public catalog. The final output is a structured CSV file containing photo metadata and geographical coordinates, suitable for mapping applications.
+This project scrapes, processes, and geolocates historical photos of Prague from the Prague City Archives catalog, then powers a small web viewer for manual review and corrections.
 
-## ⚙️ Project Workflow
+## What is in this repo
 
-The data processing is handled by a series of scripts that form a sequential pipeline. Each step uses the output of the previous one.
+- Data pipeline (scrape -> filter -> geolocate -> export)
+- Optional LLM-assisted geolocation for unstructured addresses
+- Similarity tooling for visually matching scans
+- Web viewer (static frontend + optional Cloudflare Pages + D1 backend)
 
-1.  **`collect.py`**: Fetches record IDs into `output/available_record_ids.json`, then scrapes metadata for those IDs into `output/raw_records/`. Use `--ids-only` to stop after IDs, `--no-fetch-ids` to reuse the existing ID list, and `--rescrape` to overwrite existing raw records.
+## Requirements
 
-2.  **`filter.py`**: Reads the raw records and filters them into categories. It primarily separates records that contain a structured house number (`čp.`) from those that don't. The categorized lists are saved as JSON files in `output/filtered/`.
+- Python 3.13+
+- [uv](https://docs.astral.sh/uv/) package manager
+- Mapy.cz API key for geolocation
+- (Optional) Gemini API key for LLM batch geolocation
 
-3.  **`geolocate.py`**: Processes records with structured house numbers (čp.) and those mentioning čp. in the description. It uses the [Mapy.cz API](https://api.mapy.cz/) to find coordinates. Successfully geolocated records are saved in `output/geolocation/ok/`, while failures are moved to `output/geolocation/failed/`.
+## Setup
 
-4.  **`export.py`**: Reads all successfully geolocated JSON files. It parses date information, flattens the data structure, and exports the final, clean dataset to `output/old_prague_photos.csv`.
-
----
-
-## 🚀 Getting Started
-
-Follow these steps to set up and run the project locally.
-
-### 1. Prerequisites
-
--   Python 3.13 or newer
--   [uv](https://docs.astral.sh/uv/) - fast Python package manager
--   A Mapy.cz API key for the geolocation step. You can get one from the [Mapy.cz API developer page](https://api.mapy.cz/).
-
-### 2. Setup
-
-First, clone the repository to your local machine:
 ```bash
-git clone <your-repository-url>
-cd <your-repository-directory>
-```
-
-Install dependencies using uv (this also creates a virtual environment automatically):
-```bash
+git clone <repo>
+cd old-prague-photos
 uv sync
 ```
 
-Create a `.env` file in the project's root directory to store your API keys:
+Create `.env` in the repo root:
 
 ```env
 MAPY_CZ_API_KEY="your_mapy_cz_api_key_here"
@@ -51,13 +36,14 @@ MAPY_CZ_API_KEY="your_mapy_cz_api_key_here"
 
 # Optional: Gemini Batch LLM for unstructured addresses
 GEMINI_API_KEY="your_gemini_api_key_here"
-# Optional: Override the default model (defaults to gemini/gemini-3-flash-preview)
+# Optional: override the default model (defaults to gemini/gemini-3-flash-preview)
 # LLM_MODEL="gemini/gemini-3-flash-preview"
 
 # Viewer app (Cloudflare Turnstile)
 TURNSTILE_SITE_KEY="your_turnstile_site_key_here"
 TURNSTILE_SECRET_KEY="your_turnstile_secret_key_here"
-
+# Optional: override session signing key
+# TURNSTILE_SESSION_SECRET="your_session_secret"
 # Optional: disable Turnstile for local dev
 TURNSTILE_BYPASS="1"
 
@@ -90,203 +76,149 @@ NAV_ONLY_LABELS="I,II,XIV"
 NAV_ALLOW_PARTIAL="1"
 ```
 
-**Note:** An LLM API key is only required for `geolocate llm` (optional).
+## Pipeline overview (detailed)
 
-### 3. Running the Pipeline
+The pipeline is a sequence of scripts. Each step reads from `output/` and writes new artifacts there. Note: `output/` is tracked in git, so do not store large image downloads there.
 
-Use the CLI to run individual steps or the full pipeline:
+### 1) Collect (`collect.py`)
 
-```bash
-# Show all available commands
-uv run cli --help
+- Fetches record IDs and scrapes per-record metadata.
+- Outputs:
+  - `output/available_record_ids.json` (current ID set)
+  - `output/raw_records/*.json` (scraped records)
+  - `output/nav_partition_progress.json` (resume cache when using nav partition)
 
-# Run the full pipeline
-uv run cli pipeline
+Useful flags:
+- `--ids-only` (stop after ID list)
+- `--no-fetch-ids` (reuse cached IDs)
+- `--rescrape` (overwrite existing raw records)
 
-# Or run individual steps:
-uv run cli collect                   # Fetch IDs + scrape missing raw records
-uv run cli collect --ids-only         # Only refresh available_record_ids.json
-uv run cli collect --no-fetch-ids     # Scrape using existing available_record_ids.json
-uv run cli collect --rescrape         # Re-scrape all IDs (overwrite raw_records)
-uv run cli filter       # Filter and categorize records
-uv run cli geolocate    # Prints subcommand options
-uv run cli geolocate mapy    # Geolocate using Mapy.cz
-uv run cli export       # Export to CSV
+### 2) Filter (`filter.py`)
 
-# Limit geolocation for testing:
-uv run cli geolocate mapy --limit 5
+Splits raw records into categories based on structured house numbers (čp.).
 
-# Force re-run (re-process already geolocated records):
-uv run cli geolocate mapy --force
+Outputs (JSON):
+- `output/filtered/records_with_cp.json`
+- `output/filtered/records_with_cp_in_record_obsah.json`
+- `output/filtered/records_without_cp.json`
 
-# Optional: LLM batch (unstructured records)
-uv run cli geolocate llm submit
-uv run cli geolocate llm status
-uv run cli geolocate llm collect
-uv run cli geolocate llm process
-```
+### 3) Geolocate (Mapy.cz)
 
-### LLM Batch Geolocation (Optional)
+Geocodes records with structured house numbers via Mapy.cz.
 
-Unstructured records (no structured čp.) can be processed via the Gemini Batch API:
+Outputs:
+- `output/geolocation/ok/*.json` (successful)
+- `output/geolocation/failed/*.json` (failed)
 
-1. **Submit**: `uv run cli geolocate llm submit`
-2. **Check status**: `uv run cli geolocate llm status`
-3. **Collect results** (download only): `uv run cli geolocate llm collect`
-4. **Process results** (Mapy.cz geocoding): `uv run cli geolocate llm process`
+### 4) Geolocate (LLM batch, optional)
 
-This reads from `output/filtered/records_without_cp.json` (and `output/filtered/records_with_cp_in_record_obsah.json` if not already geolocated) and writes successes to `output/geolocation/ok/` with LLM metadata attached. To include Mapy.cz failures from previous runs, pass `--include-failed-cp`. Raw batch outputs are saved to `output/batch_results/` for debugging (gitignored).
-Use `--job <id>` to target a specific batch job (repeat `--job` for multiple).
+For unstructured addresses, use the Gemini batch API to extract addresses, then geocode.
 
-**Testing Batch LLM:**
-```bash
-# Limit batch size for testing
-uv run cli geolocate llm submit --limit 10
+Commands:
+- `uv run cli geolocate llm submit`
+- `uv run cli geolocate llm status`
+- `uv run cli geolocate llm collect`
+- `uv run cli geolocate llm process`
 
-# Retry LLM records that returned empty content
-uv run cli geolocate llm submit --retry-missing-content
+Outputs:
+- `output/batch_results/*` (raw batch responses)
+- `output/geolocation/ok/*.json` (successes, includes LLM metadata)
 
-# Re-download results even if present
-uv run cli geolocate llm collect --redownload
+### 5) Export (`export.py`)
 
-# Collect only a specific job (full name or suffix)
-uv run cli geolocate llm collect --job 08bcgysg6k0ucjq3yn7b8chvknvs929yn5l2
+Flattens records into the final dataset.
 
-# Re-process already downloaded results
-uv run cli geolocate llm process --reprocess
+Output:
+- `output/old_prague_photos.csv`
 
-# Process only a specific job (repeat --job for multiple)
-uv run cli geolocate llm process --job batches/08bcgysg6k0ucjq3yn7b8chvknvs929yn5l2
-```
-After running all the steps, the final dataset will be available at `output/old_prague_photos.csv`.
-
----
-
-## Collect Outputs and Resume Behavior
-
-- `output/available_record_ids.json`: current ID set (what collect considers the source of truth).
-- `output/raw_records/*.json`: per-record metadata; may include older IDs not in the current ID set.
-- `output/nav_partition_progress.json`: per-label ID cache for nav partitioning; used to resume ID fetches.
-
-Resume tips:
-- Full ID refresh: `NAV_RESUME=0 uv run cli collect --ids-only`
-- Use cached IDs: `uv run cli collect --no-fetch-ids`
-- Re-scrape all current IDs: `uv run cli collect --no-fetch-ids --rescrape`
-- For resumable full refresh, move `output/raw_records` out of the way and run without `--rescrape`.
-
-## 🗺️ Viewer App
-
-The viewer is a static frontend (Leaflet map + feedback modal). It can run locally via FastAPI or as a static site on Cloudflare Pages with a D1 database for live corrections. Photos are grouped by identical `obsah + autor + datace` so versions appear together; corrections apply to the whole group. There is also a similarity review UI at `/dup-review.html` for manually merging groups that look like the same shot (even if scans differ). By default it compares groups with identical coordinates; if `viewer/static/data/similarity_candidates.json` exists, those pairs are included too.
-
-Future idea: keep corrections in a live store (KV/D1) for instant map updates, and optionally run a daily GitHub Action that snapshots corrections into a PR (CSV + GeoJSON) for audit/history.
-
-### Architecture (Cloudflare)
-
-- Static site: `viewer/static/` (HTML/CSS/JS), deployed on **Cloudflare Pages**.
-- “Backend”: **Pages Functions** in `functions/api/*.js` (runs on **Cloudflare Workers runtime**) under `/api/*`.
-- DB: Cloudflare **D1** bound as `env.CORRECTIONS_DB` (see `wrangler.toml`).
-
-### Build GeoJSON
-
-Generate the map data from the CSV export:
+### 6) Build GeoJSON for the viewer
 
 ```bash
 python viewer/build_geojson.py
 ```
 
-This writes `viewer/static/data/photos.geojson` for static hosting.
+Outputs:
+- `viewer/static/data/photos.geojson`
 
-### Build similarity candidates
+## Running the pipeline
 
-Generate candidate pairs for similar shots using perceptual hashing:
+```bash
+# Show all commands
+uv run cli --help
+
+# Full pipeline
+uv run cli pipeline
+
+# Individual steps
+uv run cli collect
+uv run cli filter
+uv run cli geolocate mapy
+uv run cli export
+```
+
+### Resume tips
+
+- Full ID refresh: `NAV_RESUME=0 uv run cli collect --ids-only`
+- Reuse cached IDs: `uv run cli collect --no-fetch-ids`
+- Re-scrape all current IDs: `uv run cli collect --no-fetch-ids --rescrape`
+- For a resumable full refresh, move `output/raw_records` aside and run without `--rescrape`.
+
+## Archive download cache (gentle, resumable)
+
+The archive is slow/fragile. Use this script to download previews + full Zoomify tiles with delay and resume support:
+
+```bash
+python download_archive_images.py
+```
+
+Defaults:
+- Output: `downloads/archive/` (gitignored)
+- Delay: 10s between photos
+- Resume: skips existing files
+
+Useful flags:
+- `--sleep 10` (delay between photos)
+- `--tile-sleep 0.2` (delay between tiles)
+- `--limit 50` (smoke test)
+- `--force` (redownload)
+- `--output-dir <path>` (custom cache root)
+
+## Image similarity + version clusters
 
 ```bash
 python build_similarity.py
 ```
 
-This writes `viewer/static/data/similarity_candidates.json` for the review UI and caches hashes in `output/similarity/`.
+What it does:
+- Computes a perceptual hash (dHash) per scan
+- Produces candidate pairs for visual duplicates
+- Builds per-series "version" clusters (scans of the same shot)
 
-How it works (short):
+Outputs:
+- `viewer/static/data/similarity_candidates.json`
+- `viewer/static/data/series_version_clusters.json`
+- Cache: `output/similarity/hashes.jsonl`
 
-- Resolves the Zoomify image for each `xid` and fetches **only the smallest tile** (level 0, 1 tile) to avoid HQ downloads.
-- Computes a dHash (perceptual hash) on that small preview.
-- Builds candidate pairs with a BK-tree + Hamming distance threshold.
-- The review UI reads these pairs and mixes them with same-coordinate candidates.
+Notes:
+- Uses local cache from `downloads/archive/` by default
+- Falls back to network if cache missing
+- Disable cache with `--no-download-cache`
+- Override cache root with `--download-root <path>`
 
 Useful flags:
-
-- `--distance 8` (lower = stricter, fewer candidates)
-- `--hash-size 8` (grid size; 8 => 64-bit hash)
+- `--distance 8` (lower = stricter)
+- `--hash-size 8` (64-bit hash)
 - `--limit 200` (smoke test)
-- `--sleep 0.2` (throttle requests)
-- `--force` (recompute hash cache)
-- `--archive-base-url <url>` (override archive host)
+- `--sleep 0.2` (throttle)
+- `--force` (recompute cache)
 
-Output format (`viewer/static/data/similarity_candidates.json`):
+## Web viewer
 
-- `pairs[]` items: `group_id_a`, `group_id_b`, `xid_a`, `xid_b`, `distance`
+The viewer is a static web app with optional Cloudflare Pages + D1 backend for corrections.
 
-### Run locally (FastAPI)
+See `docs/web-app.md` for full setup, API endpoints, and deployment.
 
-```bash
-uv run uvicorn viewer.app:app --reload \
-  --reload-dir viewer \
-  --reload-dir viewer/static \
-  --reload-include "*.html" \
-  --reload-include "*.css" \
-  --reload-include "*.js" \
-  --reload-include "*.geojson"
-```
+## Utility scripts
 
-Open `http://127.0.0.1:8000`. Corrections are stored at `viewer/data/corrections.jsonl`.
-
-### Cloudflare Pages + D1 (recommended)
-
-TL;DR (common ops): see `ops.sh`.
-
-#### `ops.sh` cheat-sheet
-
-```bash
-./ops.sh build-data
-./ops.sh build-similarity
-./ops.sh dev-fastapi
-./ops.sh dev-pages
-./ops.sh migrate-local
-./ops.sh migrate-remote
-PROJECT_NAME=<project-name> ./ops.sh deploy
-```
-
-1. Login + create D1:
-   ```bash
-   npx wrangler login
-   npx wrangler d1 create old-prague-photos
-   ```
-2. Update `wrangler.toml` with the D1 `database_id`.
-3. Apply migrations:
-   ```bash
-   npx wrangler d1 migrations apply CORRECTIONS_DB --local
-   ```
-4. Local dev with Pages:
-   ```bash
-   TURNSTILE_BYPASS=1 npx wrangler pages dev viewer/static --local
-   ```
-
-For Turnstile in Cloudflare, set `TURNSTILE_SITE_KEY` as a Pages env var and `TURNSTILE_SECRET_KEY` as a Pages secret.
-
-#### Deploy (manual)
-
-```bash
-npx wrangler pages deploy viewer/static --project-name <project-name>
-```
-
-#### Notes
-
-- `/api/zoomify` resolves Zoomify metadata server-side (avoids browser CORS issues with `ImageProperties.xml`).
-- UI is Czech-only for now (copy lives in `viewer/static/*.html` + `viewer/static/*.js`).
-
-## 🛠️ Utility Scripts
-
-The repository also includes a couple of utility scripts for specific tasks:
-
--   **`dezoomify.py`**: A standalone tool to download and stitch together high-resolution tiled images from the archive's Zoomify viewer. You need to provide the page URL directly in the script.
--   **`check.py`**: A script for validating and debugging the geolocation results by comparing the extracted neighborhood name with the results from the geolocation API.
+- `dezoomify.py`: download and stitch Zoomify tiles into a single image
+- `check.py`: debugging helper for geolocation results
