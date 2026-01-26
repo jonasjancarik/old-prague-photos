@@ -47,12 +47,35 @@
           <input type="text" id="map-search" placeholder="Hledat adresu nebo místo..." aria-label="Hledat na mapě" />
           <div id="search-results" class="search-results is-hidden"></div>
         </div>
-        <div class="cluster-toggle-container">
-          <label class="toggle-switch">
-            <input type="checkbox" id="cluster-toggle" checked />
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="toggle-label">Seskupovat fotografie</span>
+        <div class="map-controls">
+          <div class="year-filter" aria-label="Filtr podle roku">
+            <span class="year-filter-label">Rok</span>
+            <div class="year-slider-wrap" id="year-slider-wrap">
+              <div class="year-slider-track"></div>
+              <input class="year-slider year-slider-min" type="range" id="year-min" min="0" max="0" step="1"
+                aria-label="Rok od" />
+              <input class="year-slider year-slider-max" type="range" id="year-max" min="0" max="0" step="1"
+                aria-label="Rok do" />
+            </div>
+            <div class="year-filter-values">
+              <output class="year-filter-value" id="year-min-value">—</output>
+              <span class="year-filter-sep">–</span>
+              <output class="year-filter-value" id="year-max-value">—</output>
+            </div>
+            <label class="year-filter-toggle">
+              <input type="checkbox" id="year-unknown-toggle" checked />
+              <span class="year-filter-toggle-text">
+                Bez datace <span id="year-unknown-count">—</span>
+              </span>
+            </label>
+          </div>
+          <div class="cluster-toggle-container">
+            <label class="toggle-switch">
+              <input type="checkbox" id="cluster-toggle" checked />
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">Seskupovat fotografie</span>
+          </div>
         </div>
       </div>
       <section class="map-panel">

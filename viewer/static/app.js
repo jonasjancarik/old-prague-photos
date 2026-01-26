@@ -25,6 +25,19 @@ const state = {
   correctionMarker: null,
   features: [],
   groups: [],
+  filteredGroups: [],
+  yearMin: null,
+  yearMax: null,
+  yearFilterMin: null,
+  yearFilterMax: null,
+  yearUnknownGroups: 0,
+  yearIncludeUnknown: true,
+  previewPopup: null,
+  previewByXid: new Map(),
+  previewPromiseByXid: new Map(),
+  previewHoverToken: 0,
+  previewHideTimer: null,
+  previewActiveXid: "",
 };
 
 const detailContainer = document.getElementById("photo-details");
@@ -43,6 +56,16 @@ const correctionMapEl = document.getElementById("correction-map");
 const cancelCorrectionBtn = document.getElementById("cancel-correction");
 const metaView = document.getElementById("modal-meta-view");
 const correctionView = document.getElementById("modal-correction-view");
+const yearMinInput = document.getElementById("year-min");
+const yearMaxInput = document.getElementById("year-max");
+const yearRangeLabel = document.getElementById("year-range-label");
+const yearMinValue = document.getElementById("year-min-value");
+const yearMaxValue = document.getElementById("year-max-value");
+const yearSliderWrap = document.getElementById("year-slider-wrap");
+const yearUnknownToggle = document.getElementById("year-unknown-toggle");
+const yearUnknownCount = document.getElementById("year-unknown-count");
+const yearUnknownToggleWrap = yearUnknownToggle?.closest(".year-filter-toggle");
+const YEAR_SLIDER_EDGE_PX = 9;
 
 const infoModal = document.getElementById("info-modal");
 const infoOpenBtn = document.getElementById("info-open");
@@ -64,6 +87,356 @@ function setStatus(message, tone = "") {
 function clearStatus() {
   formStatus.textContent = "";
   formStatus.dataset.tone = "";
+}
+
+function updatePhotoCount(filteredCount) {
+  if (!photoCount) return;
+  const totalCount = Array.isArray(state.groups) ? state.groups.length : 0;
+  if (!totalCount) {
+    photoCount.textContent = "—";
+    return;
+  }
+  const visibleCount = Number.isFinite(filteredCount)
+    ? filteredCount
+    : totalCount;
+  if (visibleCount === totalCount) {
+    photoCount.textContent = totalCount.toLocaleString();
+    return;
+  }
+  photoCount.textContent = `${visibleCount.toLocaleString()} / ${totalCount.toLocaleString()}`;
+}
+
+function parseYear(value) {
+  if (!value) return null;
+  const match = String(value).match(/\d{4}/);
+  if (!match) return null;
+  const year = Number(match[0]);
+  return Number.isFinite(year) ? year : null;
+}
+
+function getFeatureYearRange(feature) {
+  const props = feature?.properties || {};
+  const years = [];
+  const start = parseYear(props.start_date);
+  const end = parseYear(props.end_date);
+  if (Number.isFinite(start)) years.push(start);
+  if (Number.isFinite(end)) years.push(end);
+
+  if (!years.length) {
+    const label = String(props.date_label || "");
+    const matches = label.match(/\d{4}/g);
+    if (matches) {
+      matches.forEach((match) => {
+        const year = Number(match);
+        if (Number.isFinite(year)) years.push(year);
+      });
+    }
+  }
+
+  if (!years.length) return null;
+  let min = years[0];
+  let max = years[0];
+  years.forEach((year) => {
+    if (year < min) min = year;
+    if (year > max) max = year;
+  });
+  return { min, max };
+}
+
+function getGroupYearRange(group) {
+  if (!group?.items?.length) return null;
+  let minYear = Infinity;
+  let maxYear = -Infinity;
+  let hasYear = false;
+
+  group.items.forEach((feature) => {
+    const range = getFeatureYearRange(feature);
+    if (!range) return;
+    hasYear = true;
+    if (range.min < minYear) minYear = range.min;
+    if (range.max > maxYear) maxYear = range.max;
+  });
+
+  if (!hasYear) return null;
+  return { min: minYear, max: maxYear };
+}
+
+function computeGroupYearStats(groups) {
+  let minYear = Infinity;
+  let maxYear = -Infinity;
+  let unknownGroups = 0;
+
+  (groups || []).forEach((group) => {
+    const range = getGroupYearRange(group);
+    if (!range) {
+      group.yearMin = null;
+      group.yearMax = null;
+      unknownGroups += 1;
+      return;
+    }
+    group.yearMin = range.min;
+    group.yearMax = range.max;
+    if (range.min < minYear) minYear = range.min;
+    if (range.max > maxYear) maxYear = range.max;
+  });
+
+  if (!Number.isFinite(minYear) || !Number.isFinite(maxYear)) {
+    return null;
+  }
+  return { minYear, maxYear, unknownGroups };
+}
+
+function updateYearRangeUi() {
+  const minYear = state.yearFilterMin;
+  const maxYear = state.yearFilterMax;
+  const hasRange = Number.isFinite(minYear) && Number.isFinite(maxYear);
+  if (yearRangeLabel) {
+    yearRangeLabel.textContent = hasRange ? `${minYear}-${maxYear}` : "—";
+  }
+  if (yearMinValue) yearMinValue.textContent = hasRange ? String(minYear) : "—";
+  if (yearMaxValue) yearMaxValue.textContent = hasRange ? String(maxYear) : "—";
+}
+
+function updateYearSliderTrack() {
+  if (!yearSliderWrap) return;
+  const minYear = state.yearMin;
+  const maxYear = state.yearMax;
+  const valueMin = state.yearFilterMin;
+  const valueMax = state.yearFilterMax;
+  if (
+    !Number.isFinite(minYear) ||
+    !Number.isFinite(maxYear) ||
+    !Number.isFinite(valueMin) ||
+    !Number.isFinite(valueMax) ||
+    maxYear <= minYear
+  ) {
+    return;
+  }
+  const range = maxYear - minYear;
+  const startRatio = (valueMin - minYear) / range;
+  const endRatio = (valueMax - minYear) / range;
+  const start = startRatio * 100;
+  const end = endRatio * 100;
+  yearSliderWrap.style.setProperty("--range-start", `${start}%`);
+  yearSliderWrap.style.setProperty("--range-end", `${end}%`);
+
+  const wrapRect = yearSliderWrap.getBoundingClientRect();
+  const usableWidth = Math.max(0, wrapRect.width - YEAR_SLIDER_EDGE_PX * 2);
+  const startPx = YEAR_SLIDER_EDGE_PX + usableWidth * startRatio;
+  const endPx = YEAR_SLIDER_EDGE_PX + usableWidth * endRatio;
+  yearSliderWrap.style.setProperty("--range-start-px", `${startPx}px`);
+  yearSliderWrap.style.setProperty("--range-end-px", `${endPx}px`);
+}
+
+function updateYearSliderZ() {
+  if (!yearMinInput || !yearMaxInput) return;
+  const minValue = Number(yearMinInput.value);
+  const maxValue = Number(yearMaxInput.value);
+  if (minValue >= maxValue) {
+    yearMinInput.style.zIndex = "4";
+    yearMaxInput.style.zIndex = "3";
+    return;
+  }
+  yearMinInput.style.zIndex = "2";
+  yearMaxInput.style.zIndex = "3";
+}
+
+function filterGroupsByYear(groups, minYear, maxYear) {
+  if (!Array.isArray(groups)) return [];
+  if (!Number.isFinite(minYear) || !Number.isFinite(maxYear)) {
+    return groups;
+  }
+
+  return groups.filter((group) => {
+    const groupMin = group?.yearMin;
+    const groupMax = group?.yearMax;
+    if (!Number.isFinite(groupMin) || !Number.isFinite(groupMax)) {
+      return state.yearIncludeUnknown;
+    }
+    return groupMax >= minYear && groupMin <= maxYear;
+  });
+}
+
+function applyYearFilter(options = {}) {
+  const { fitBounds = false } = options;
+  if (!Array.isArray(state.groups) || !state.groups.length) {
+    state.filteredGroups = [];
+    updatePhotoCount(0);
+    return;
+  }
+  const minYear = state.yearFilterMin;
+  const maxYear = state.yearFilterMax;
+  const filtered = filterGroupsByYear(state.groups, minYear, maxYear);
+  state.filteredGroups = filtered;
+  addMarkers(filtered, { fitBounds });
+  updatePhotoCount(filtered.length);
+}
+
+let yearFilterTimer = null;
+const YEAR_FILTER_DEBOUNCE_MS = 500;
+
+function scheduleYearFilter() {
+  if (yearFilterTimer) clearTimeout(yearFilterTimer);
+  yearFilterTimer = setTimeout(() => {
+    yearFilterTimer = null;
+    applyYearFilter({ fitBounds: false });
+  }, YEAR_FILTER_DEBOUNCE_MS);
+}
+
+function flushYearFilter() {
+  if (yearFilterTimer) {
+    clearTimeout(yearFilterTimer);
+    yearFilterTimer = null;
+  }
+  applyYearFilter({ fitBounds: false });
+}
+
+function handleYearInput(source, options = {}) {
+  if (!yearMinInput || !yearMaxInput) return;
+  const { flush = false } = options;
+  let minValue = Number(yearMinInput.value);
+  let maxValue = Number(yearMaxInput.value);
+  if (minValue > maxValue) {
+    if (source === "min") {
+      maxValue = minValue;
+      yearMaxInput.value = String(maxValue);
+    } else {
+      minValue = maxValue;
+      yearMinInput.value = String(minValue);
+    }
+  }
+  state.yearFilterMin = minValue;
+  state.yearFilterMax = maxValue;
+  updateYearRangeUi();
+  updateYearSliderTrack();
+  updateYearSliderZ();
+  if (flush) {
+    flushYearFilter();
+  } else {
+    scheduleYearFilter();
+  }
+}
+
+function getYearFromClientX(clientX) {
+  if (!yearSliderWrap) return null;
+  if (!Number.isFinite(state.yearMin) || !Number.isFinite(state.yearMax)) {
+    return null;
+  }
+  const rect = yearSliderWrap.getBoundingClientRect();
+  if (!rect.width) return null;
+  const usableWidth = Math.max(0, rect.width - YEAR_SLIDER_EDGE_PX * 2);
+  if (!usableWidth) return null;
+  const ratio = (clientX - rect.left - YEAR_SLIDER_EDGE_PX) / usableWidth;
+  const clamped = Math.min(1, Math.max(0, ratio));
+  const year = Math.round(
+    state.yearMin + clamped * (state.yearMax - state.yearMin),
+  );
+  return Number.isFinite(year) ? year : null;
+}
+
+function initYearFilter() {
+  state.filteredGroups = state.groups;
+  const stats = computeGroupYearStats(state.groups);
+  if (!yearMinInput || !yearMaxInput || !stats) {
+    addMarkers(state.groups);
+    updatePhotoCount(state.groups.length);
+    return;
+  }
+
+  state.yearMin = stats.minYear;
+  state.yearMax = stats.maxYear;
+  state.yearFilterMin = stats.minYear;
+  state.yearFilterMax = stats.maxYear;
+  state.yearUnknownGroups = stats.unknownGroups;
+
+  yearMinInput.min = String(stats.minYear);
+  yearMinInput.max = String(stats.maxYear);
+  yearMaxInput.min = String(stats.minYear);
+  yearMaxInput.max = String(stats.maxYear);
+  yearMinInput.value = String(stats.minYear);
+  yearMaxInput.value = String(stats.maxYear);
+
+  updateYearRangeUi();
+  updateYearSliderTrack();
+  updateYearSliderZ();
+
+  if (yearUnknownToggle) {
+    const hasUnknown = stats.unknownGroups > 0;
+    yearUnknownToggle.checked = hasUnknown;
+    yearUnknownToggle.disabled = !hasUnknown;
+    state.yearIncludeUnknown = hasUnknown;
+    if (yearUnknownToggleWrap) {
+      yearUnknownToggleWrap.classList.toggle("is-hidden", !hasUnknown);
+    }
+  }
+  if (yearUnknownCount) {
+    yearUnknownCount.textContent = stats.unknownGroups
+      ? `(${stats.unknownGroups.toLocaleString()})`
+      : "";
+  }
+
+  yearMinInput.addEventListener("input", () => handleYearInput("min"));
+  yearMaxInput.addEventListener("input", () => handleYearInput("max"));
+  yearMinInput.addEventListener("change", () =>
+    handleYearInput("min", { flush: true }),
+  );
+  yearMaxInput.addEventListener("change", () =>
+    handleYearInput("max", { flush: true }),
+  );
+  if (yearSliderWrap) {
+    let dragActive = false;
+    let dragSource = "min";
+    const setDragValue = (clientX, options = {}) => {
+      const value = getYearFromClientX(clientX);
+      if (value === null) return;
+      if (dragSource === "min") {
+        yearMinInput.value = String(value);
+      } else {
+        yearMaxInput.value = String(value);
+      }
+      handleYearInput(dragSource, options);
+    };
+
+    yearSliderWrap.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      const value = getYearFromClientX(event.clientX);
+      if (value === null) return;
+      const distMin = Math.abs(value - state.yearFilterMin);
+      const distMax = Math.abs(value - state.yearFilterMax);
+      dragSource = distMin <= distMax ? "min" : "max";
+      dragActive = true;
+      yearSliderWrap.setPointerCapture(event.pointerId);
+      setDragValue(event.clientX);
+      event.preventDefault();
+    });
+
+    yearSliderWrap.addEventListener("pointermove", (event) => {
+      if (!dragActive) return;
+      setDragValue(event.clientX);
+      event.preventDefault();
+    });
+
+    const stopDrag = (event) => {
+      if (!dragActive) return;
+      dragActive = false;
+      yearSliderWrap.releasePointerCapture(event.pointerId);
+      setDragValue(event.clientX, { flush: true });
+    };
+    yearSliderWrap.addEventListener("pointerup", stopDrag);
+    yearSliderWrap.addEventListener("pointercancel", stopDrag);
+    yearSliderWrap.addEventListener("pointerleave", (event) => {
+      if (!dragActive) return;
+      stopDrag(event);
+    });
+  }
+  if (yearUnknownToggle) {
+    yearUnknownToggle.addEventListener("change", () => {
+      state.yearIncludeUnknown = yearUnknownToggle.checked;
+      applyYearFilter({ fitBounds: false });
+    });
+  }
+
+  applyYearFilter({ fitBounds: true });
 }
 
 let zoomViewer = null;
@@ -317,6 +690,173 @@ function buildMarkerIcon() {
   });
 }
 
+function getPreviewFromFeature(feature) {
+  const props = feature?.properties || {};
+  const previews = props.scan_previews;
+  if (Array.isArray(previews) && previews.length) {
+    return String(previews[0]);
+  }
+  return "";
+}
+
+function buildZoomifyTiers(width, height, tileSize) {
+  const tiers = [];
+  let w = width;
+  let h = height;
+  while (w > tileSize || h > tileSize) {
+    tiers.push([w, h]);
+    w = Math.floor((w + 1) / 2);
+    h = Math.floor((h + 1) / 2);
+  }
+  tiers.push([w, h]);
+  tiers.reverse();
+  return tiers;
+}
+
+function zoomifyTilesFor([w, h], tileSize) {
+  return [Math.ceil(w / tileSize), Math.ceil(h / tileSize)];
+}
+
+function zoomifyTileGroupIndex(tiers, tileSize, level, x, y) {
+  let offset = 0;
+  for (let i = 0; i < level; i += 1) {
+    const [tilesX, tilesY] = zoomifyTilesFor(tiers[i], tileSize);
+    offset += tilesX * tilesY;
+  }
+  const [tilesX] = zoomifyTilesFor(tiers[level], tileSize);
+  return Math.floor((offset + y * tilesX + x) / 256);
+}
+
+function buildZoomifyPreviewUrl(meta) {
+  const base = String(meta?.zoomifyImgPath || "").replace(/\/$/, "");
+  const width = Number(meta?.width);
+  const height = Number(meta?.height);
+  const tileSize = Number(meta?.tileSize || 256);
+  if (!base) return "";
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return "";
+  if (!Number.isFinite(tileSize) || tileSize <= 0) return "";
+  const tiers = buildZoomifyTiers(width, height, tileSize);
+  const level = 0;
+  const group = zoomifyTileGroupIndex(tiers, tileSize, level, 0, 0);
+  return `${base}/TileGroup${group}/${level}-0-0.jpg`;
+}
+
+async function resolvePreviewUrl(feature) {
+  if (!feature) return "";
+  const props = feature.properties || {};
+  const xid = String(props.id || "").trim();
+  if (!xid) return "";
+
+  const cached = state.previewByXid.get(xid);
+  if (cached !== undefined) {
+    return cached || "";
+  }
+
+  if (state.previewPromiseByXid.has(xid)) {
+    return state.previewPromiseByXid.get(xid);
+  }
+
+  const promise = (async () => {
+    const local = getPreviewFromFeature(feature);
+    if (local) {
+      state.previewByXid.set(xid, local);
+      return local;
+    }
+    try {
+      const meta = await loadZoomifyMeta(xid);
+      const url = buildZoomifyPreviewUrl(meta);
+      state.previewByXid.set(xid, url || null);
+      return url || "";
+    } catch (error) {
+      state.previewByXid.set(xid, null);
+      return "";
+    } finally {
+      state.previewPromiseByXid.delete(xid);
+    }
+  })();
+
+  state.previewPromiseByXid.set(xid, promise);
+  return promise;
+}
+
+function ensurePreviewPopup() {
+  if (state.previewPopup || !state.map) return;
+  state.previewPopup = L.popup({
+    closeButton: false,
+    autoPan: false,
+    className: "photo-preview-popup",
+    offset: L.point(0, -12),
+  });
+}
+
+function renderPreviewContent(url, options = {}) {
+  const { loading = false } = options;
+  if (!url) {
+    return `<div class="photo-preview">${loading ? '<div class="preview-loading"></div>' : '<div class="preview-empty">Bez náhledu</div>'}</div>`;
+  }
+  return `<div class="photo-preview"><img src="${url}" alt="Náhled fotografie" loading="lazy" /></div>`;
+}
+
+function showPreviewAt(latlng, content) {
+  if (!state.map || !state.previewPopup) return;
+  state.previewPopup.setLatLng(latlng);
+  state.previewPopup.setContent(content);
+  state.previewPopup.openOn(state.map);
+}
+
+function clearPreviewHideTimer() {
+  if (state.previewHideTimer) {
+    clearTimeout(state.previewHideTimer);
+    state.previewHideTimer = null;
+  }
+}
+
+function schedulePreviewHide() {
+  clearPreviewHideTimer();
+  state.previewHideTimer = setTimeout(() => {
+    state.previewHideTimer = null;
+    hidePreview();
+  }, 80);
+}
+
+function hidePreview() {
+  clearPreviewHideTimer();
+  state.previewHoverToken += 1;
+  state.previewActiveXid = "";
+  if (state.map && state.previewPopup) {
+    state.map.closePopup(state.previewPopup);
+  }
+}
+
+function handleMarkerHover(group, latlng) {
+  const feature = group?.primary;
+  if (!feature) return;
+  const xid = String(feature?.properties?.id || "").trim();
+  clearPreviewHideTimer();
+  ensurePreviewPopup();
+  if (!state.previewPopup || !state.map) return;
+
+  const popupOpen = state.map.hasLayer(state.previewPopup);
+  if (popupOpen && xid && state.previewActiveXid === xid) {
+    return;
+  }
+  state.previewActiveXid = xid;
+
+  const hoverToken = (state.previewHoverToken += 1);
+  const localUrl = getPreviewFromFeature(feature);
+  showPreviewAt(latlng, renderPreviewContent(localUrl, { loading: !localUrl }));
+
+  if (localUrl) return;
+  resolvePreviewUrl(feature).then((url) => {
+    if (hoverToken !== state.previewHoverToken) return;
+    if (!url) {
+      showPreviewAt(latlng, renderPreviewContent("", { loading: false }));
+      return;
+    }
+    showPreviewAt(latlng, renderPreviewContent(url, { loading: false }));
+  });
+}
+
 function initMap() {
   state.map = L.map("map", {
     zoomControl: true,
@@ -429,7 +969,7 @@ function addMarkers(groups, options = {}) {
     const lat = Number(group.lat);
     const lon = Number(group.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-    const markerParams = { icon };
+    const markerParams = { icon, interactive: true };
 
     // We create separate marker instances for each cluster group
     const m1 = L.marker([lat, lon], markerParams);
@@ -439,6 +979,9 @@ function addMarkers(groups, options = {}) {
       m.on("click", () => {
         selectGroup(group, { openModal: true, updateHistory: true, panTo: true });
       });
+      m.on("mouseover", () => handleMarkerHover(group, m.getLatLng()));
+      m.on("mousemove", () => handleMarkerHover(group, m.getLatLng()));
+      m.on("mouseout", () => schedulePreviewHide());
     };
     setup(m1);
     setup(m2);
@@ -587,11 +1130,8 @@ async function bootstrap() {
   state.groupByXid = groupIndex.groupByXid;
   state.featuresById = groupIndex.featureById;
 
-  addMarkers(state.groups);
+  initYearFilter();
   renderDetails(null);
-  photoCount.textContent = state.groups.length
-    ? state.groups.length.toLocaleString()
-    : "—";
 
   const verifiedCount = document.getElementById("verified-count");
   if (verifiedCount) {
@@ -649,8 +1189,11 @@ async function bootstrap() {
               group.lon = lon;
               group.primary = group.items[0] || feature;
             }
-            if (Array.isArray(state.groups) && state.groups.length) {
-              addMarkers(state.groups, { fitBounds: false });
+            const activeGroups = Array.isArray(state.filteredGroups)
+              ? state.filteredGroups
+              : state.groups;
+            if (Array.isArray(activeGroups)) {
+              addMarkers(activeGroups, { fitBounds: false });
             }
             if (state.map) {
               state.map.setView([lat, lon], Math.max(state.map.getZoom(), 14), {
