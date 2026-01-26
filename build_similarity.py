@@ -13,6 +13,7 @@ import dezoomify
 
 
 DEFAULT_ARCHIVE_BASE_URL = "https://katalog.ahmp.cz/pragapublica"
+DEFAULT_DOWNLOAD_ROOT = "downloads/archive"
 
 
 @dataclass(frozen=True)
@@ -128,6 +129,16 @@ def parse_args() -> argparse.Namespace:
         "--archive-base-url",
         default=os.getenv("ARCHIVE_BASE_URL", DEFAULT_ARCHIVE_BASE_URL),
         help="Base URL for archive permalinks",
+    )
+    parser.add_argument(
+        "--download-root",
+        default=DEFAULT_DOWNLOAD_ROOT,
+        help="Root directory for downloaded previews/tiles",
+    )
+    parser.add_argument(
+        "--no-download-cache",
+        action="store_true",
+        help="Disable local download cache usage",
     )
     return parser.parse_args()
 
@@ -272,8 +283,14 @@ def fetch_preview_image(session: requests.Session, preview_url: str) -> Image.Im
 
 
 def compute_preview_hash(
-    session: requests.Session, preview_url: str, hash_size: int
+    session: requests.Session,
+    preview_url: str,
+    hash_size: int,
+    local_path: Path | None = None,
 ) -> int:
+    if local_path and local_path.exists():
+        with Image.open(local_path) as image:
+            return dhash(image, hash_size)
     with fetch_preview_image(session, preview_url) as image:
         return dhash(image, hash_size)
 
@@ -284,7 +301,11 @@ def compute_hash(
     archive_base_url: str,
     hash_size: int,
     scan_index: int,
+    local_tile_path: Path | None = None,
 ) -> int:
+    if local_tile_path and local_tile_path.exists():
+        with Image.open(local_tile_path) as image:
+            return dhash(image, hash_size)
     zoomify_img_path, width, height, tile_size = fetch_zoomify_meta(
         session, xid, archive_base_url, scan_index
     )
@@ -412,6 +433,25 @@ def build_series_clusters(
     return clusters
 
 
+def find_local_preview_path(download_root: Path, xid: str, scan_index: int) -> Path | None:
+    previews_dir = download_root / "previews" / xid
+    if not previews_dir.exists():
+        return None
+    candidates = sorted(previews_dir.glob(f"scan_{scan_index}.*"))
+    return candidates[0] if candidates else None
+
+
+def find_local_tile_path(download_root: Path, xid: str, scan_index: int) -> Path | None:
+    tiles_dir = download_root / "zoomify" / xid / f"scan_{scan_index}"
+    if not tiles_dir.exists():
+        return None
+    expected = tiles_dir / "TileGroup0" / "0-0-0.jpg"
+    if expected.exists():
+        return expected
+    candidates = sorted(tiles_dir.glob("TileGroup*/0-0-0.jpg"))
+    return candidates[0] if candidates else None
+
+
 def main() -> None:
     args = parse_args()
     input_path = Path(args.input)
@@ -419,6 +459,7 @@ def main() -> None:
     clusters_output_path = Path(args.clusters_output)
     hash_cache_path = Path(args.hash_cache)
     error_path = hash_cache_path.with_name("errors.jsonl")
+    download_root = Path(args.download_root)
 
     features = load_features(input_path, args.limit)
     cache = load_hash_cache(hash_cache_path, args.force, args.hash_size)
@@ -459,6 +500,13 @@ def main() -> None:
 
             for scan_index, preview_url in enumerate(previews):
                 preview_url = str(preview_url or "").strip()
+                local_preview_path = None
+                local_tile_path = None
+                if not args.no_download_cache:
+                    local_preview_path = find_local_preview_path(
+                        download_root, xid, scan_index
+                    )
+                    local_tile_path = find_local_tile_path(download_root, xid, scan_index)
                 key = (xid, scan_index)
                 cached = records_by_key.get(key)
                 if cached and not args.force:
@@ -480,10 +528,13 @@ def main() -> None:
                     continue
                 try:
                     hash_value = None
-                    if preview_url:
+                    if preview_url or local_preview_path:
                         try:
                             hash_value = compute_preview_hash(
-                                session, preview_url, args.hash_size
+                                session,
+                                preview_url,
+                                args.hash_size,
+                                local_path=local_preview_path,
                             )
                         except Exception:
                             if scan_index != 0:
@@ -497,6 +548,7 @@ def main() -> None:
                                 args.archive_base_url,
                                 args.hash_size,
                                 scan_index,
+                                local_tile_path=local_tile_path,
                             )
                         else:
                             raise ValueError("Preview missing for scan")
