@@ -1,5 +1,6 @@
 .vscode
 output/
+downloads/archive/
 .ignore*
 zoomify_tiles
 .wrangler/
