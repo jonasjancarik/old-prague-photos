@@ -107,6 +107,18 @@ For Pages (set in the Cloudflare dashboard or `wrangler.toml`):
 - `ARCHIVE_BASE_URL` (optional)
 - `R2_ZOOMIFY_BASE` (optional; points to public R2 prefix with Zoomify tiles)
 
+## Sync to R2
+
+Use the helper script to sync downloaded tiles to R2 (requires `aws` CLI):
+
+```bash
+R2_BUCKET=old-prague \\
+R2_ACCOUNT_ID=xxxx \\
+R2_ACCESS_KEY_ID=... \\
+R2_SECRET_ACCESS_KEY=... \\
+scripts/r2_sync.sh
+```
+
 ## Notes
 
 - `/api/zoomify` avoids browser CORS issues with `ImageProperties.xml`.
