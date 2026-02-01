@@ -40,6 +40,7 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `GET /api/merges` - latest merge decisions
 - `POST /api/merges` - submit merge decision
 - `GET /api/zoomify?xid=...&scanIndex=0` - server-side Zoomify metadata
+  - Uses R2 if `R2_ZOOMIFY_BASE` is set and the scan exists there.
 
 ## Local development (FastAPI)
 
@@ -104,6 +105,7 @@ For Pages (set in the Cloudflare dashboard or `wrangler.toml`):
 - `TURNSTILE_SESSION_SECRET` (optional; defaults to secret key)
 - `TURNSTILE_BYPASS=1` (dev only)
 - `ARCHIVE_BASE_URL` (optional)
+- `R2_ZOOMIFY_BASE` (optional; points to public R2 prefix with Zoomify tiles)
 
 ## Notes
 

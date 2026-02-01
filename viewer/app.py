@@ -221,6 +221,37 @@ def _parse_image_properties(props_xml: str) -> dict[str, int | None]:
     }
 
 
+def _get_r2_zoomify_base() -> str:
+    return (
+        os.environ.get("R2_ZOOMIFY_BASE", "").strip()
+        or os.environ.get("R2_BASE_URL", "").strip()
+    ).rstrip("/")
+
+
+def _resolve_r2_zoomify(
+    session: requests.Session, xid: str, scan_index: int
+) -> dict[str, Any] | None:
+    base = _get_r2_zoomify_base()
+    if not base:
+        return None
+    zoomify_img_path = f"{base}/{xid}/scan_{scan_index}"
+    props_url = f"{zoomify_img_path}/ImageProperties.xml"
+    try:
+        props_xml = _fetch_text(session, props_url)
+    except requests.RequestException:
+        return None
+    props = _parse_image_properties(props_xml)
+    if not props.get("width") or not props.get("height") or not props.get("tileSize"):
+        return None
+    return {
+        "xid": xid,
+        "zoomifyImgPath": zoomify_img_path,
+        "imagePropertiesUrl": props_url,
+        **props,
+        "source": "r2",
+    }
+
+
 def normalize_corrections() -> list[dict[str, Any]]:
     if not CORRECTIONS_PATH.exists():
         return []
@@ -338,6 +369,11 @@ def get_zoomify(xid: str) -> JSONResponse:
         }
     )
     try:
+        r2_payload = _resolve_r2_zoomify(session, xid, 0)
+        if r2_payload:
+            _zoomify_cache[xid] = r2_payload
+            return JSONResponse(r2_payload)
+
         permalink_html = _fetch_text(session, permalink_url)
         zoomify_url = _extract_zoomify_url(permalink_html, permalink_url)
         if not zoomify_url:
