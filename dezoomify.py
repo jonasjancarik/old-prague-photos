@@ -2,7 +2,9 @@ import argparse
 import html
 import math
 import os
+import time
 import re
+import random
 from urllib.parse import urljoin, urlparse, parse_qs
 
 import requests
@@ -31,18 +33,60 @@ def extract_zoomify_img_path(page_html: str) -> str | None:
     return match.group(1) if match else None
 
 
-def fetch_zoomify_page(session: requests.Session, url: str) -> str:
-    response = session.get(url, timeout=20)
-    response.raise_for_status()
+def fetch_with_retry(
+    session: requests.Session,
+    url: str,
+    timeout: float,
+    retries: int,
+    retry_sleep: float,
+) -> requests.Response:
+    last_exc = None
+    for attempt in range(retries + 1):
+        try:
+            response = session.get(url, timeout=timeout)
+            response.raise_for_status()
+            return response
+        except Exception as exc:
+            last_exc = exc
+            if attempt < retries:
+                backoff = retry_sleep * (2 ** attempt)
+                if isinstance(exc, requests.HTTPError) and exc.response is not None:
+                    if exc.response.status_code in {403, 429}:
+                        backoff = max(backoff, 10 * (attempt + 1))
+                    retry_after = exc.response.headers.get("Retry-After")
+                    if retry_after:
+                        try:
+                            backoff = max(backoff, int(retry_after))
+                        except ValueError:
+                            pass
+                backoff += random.uniform(0, retry_sleep)
+                time.sleep(backoff)
+    raise last_exc if last_exc else RuntimeError("Request failed")
+
+
+def fetch_zoomify_page(
+    session: requests.Session,
+    url: str,
+    timeout: float = 20,
+    retries: int = 0,
+    retry_sleep: float = 1.0,
+) -> str:
+    response = fetch_with_retry(session, url, timeout, retries, retry_sleep)
     return response.text
 
 
-def resolve_zoomify(session: requests.Session, url: str) -> str:
+def resolve_zoomify(
+    session: requests.Session,
+    url: str,
+    timeout: float = 20,
+    retries: int = 0,
+    retry_sleep: float = 1.0,
+) -> str:
     cleaned_url = url.replace("\\", "").split("#", maxsplit=1)[0]
 
     page_html = None
     try:
-        page_html = fetch_zoomify_page(session, cleaned_url)
+        page_html = fetch_zoomify_page(session, cleaned_url, timeout, retries, retry_sleep)
     except requests.RequestException:
         page_html = None
 
@@ -52,7 +96,7 @@ def resolve_zoomify(session: requests.Session, url: str) -> str:
 
         zoomify_url = extract_zoomify_url(page_html, cleaned_url)
         if zoomify_url:
-            zoomify_html = fetch_zoomify_page(session, zoomify_url)
+            zoomify_html = fetch_zoomify_page(session, zoomify_url, timeout, retries, retry_sleep)
             if extract_zoomify_img_path(zoomify_html):
                 return zoomify_html
 
@@ -60,20 +104,25 @@ def resolve_zoomify(session: requests.Session, url: str) -> str:
     xid = parse_qs(parsed.query).get("xid", [None])[0]
     if xid:
         permalink = f"{parsed.scheme}://{parsed.netloc}/pragapublica/permalink?xid={xid}"
-        permalink_html = fetch_zoomify_page(session, permalink)
+        permalink_html = fetch_zoomify_page(session, permalink, timeout, retries, retry_sleep)
         zoomify_url = extract_zoomify_url(permalink_html, permalink)
         if zoomify_url:
-            zoomify_html = fetch_zoomify_page(session, zoomify_url)
+            zoomify_html = fetch_zoomify_page(session, zoomify_url, timeout, retries, retry_sleep)
             if extract_zoomify_img_path(zoomify_html):
                 return zoomify_html
 
     raise ValueError("Failed to resolve Zoomify image")
 
 
-def fetch_image_properties(session: requests.Session, base_url: str) -> dict[str, int]:
+def fetch_image_properties(
+    session: requests.Session,
+    base_url: str,
+    timeout: float = 20,
+    retries: int = 0,
+    retry_sleep: float = 1.0,
+) -> dict[str, int]:
     props_url = f"{base_url}/ImageProperties.xml"
-    response = session.get(props_url, timeout=20)
-    response.raise_for_status()
+    response = fetch_with_retry(session, props_url, timeout, retries, retry_sleep)
     text = response.text
 
     def find_int(attr: str) -> int:

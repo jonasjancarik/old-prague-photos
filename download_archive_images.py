@@ -1,5 +1,6 @@
 import argparse
 import json
+import random
 import re
 import time
 from pathlib import Path
@@ -36,7 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--tile-sleep",
         type=float,
-        default=0.0,
+        default=0.05,
         help="Delay between tile requests (seconds)",
     )
     parser.add_argument(
@@ -54,13 +55,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--retries",
         type=int,
-        default=2,
+        default=4,
         help="Retry attempts for failed downloads",
     )
     parser.add_argument(
         "--retry-sleep",
         type=float,
-        default=2.0,
+        default=5.0,
         help="Delay between retries (seconds)",
     )
     parser.add_argument(
@@ -292,7 +293,18 @@ def fetch_bytes(
         except Exception as exc:
             last_exc = exc
             if attempt < retries:
-                time.sleep(retry_sleep)
+                backoff = retry_sleep * (2 ** attempt)
+                if isinstance(exc, requests.HTTPError) and exc.response is not None:
+                    if exc.response.status_code in {403, 429}:
+                        backoff = max(backoff, 10 * (attempt + 1))
+                    retry_after = exc.response.headers.get("Retry-After")
+                    if retry_after:
+                        try:
+                            backoff = max(backoff, int(retry_after))
+                        except ValueError:
+                            pass
+                backoff += random.uniform(0, retry_sleep)
+                time.sleep(backoff)
     raise last_exc if last_exc else RuntimeError("Download failed")
 
 
@@ -337,7 +349,13 @@ def download_zoomify_tiles(
         return 0
     scan_param = scan_index + 1 if scan_index >= 0 else 1
     permalink = f"{args.archive_base_url.rstrip('/')}/permalink?xid={xid}&scan={scan_param}"
-    zoomify_html = dezoomify.resolve_zoomify(session, permalink)
+    zoomify_html = dezoomify.resolve_zoomify(
+        session,
+        permalink,
+        timeout=args.timeout,
+        retries=args.retries,
+        retry_sleep=args.retry_sleep,
+    )
     zoomify_img_path = dezoomify.extract_zoomify_img_path(zoomify_html)
     if not zoomify_img_path:
         raise ValueError("zoomifyImgPath not found")
@@ -345,7 +363,13 @@ def download_zoomify_tiles(
     props_path = tiles_dir / "ImageProperties.xml"
     props = load_local_image_properties(props_path)
     if props is None or args.force:
-        props = dezoomify.fetch_image_properties(session, zoomify_img_path)
+        props = dezoomify.fetch_image_properties(
+            session,
+            zoomify_img_path,
+            timeout=args.timeout,
+            retries=args.retries,
+            retry_sleep=args.retry_sleep,
+        )
         props_xml = fetch_bytes(
             session,
             f"{zoomify_img_path}/ImageProperties.xml",
@@ -491,6 +515,12 @@ def main() -> None:
                     tiles_cached = scan_complete_marker(tiles_dir).exists()
                     photo_cached = photo_cached and tiles_cached and (preview_cached or not preview_url)
 
+            if photo_error:
+                errors += 1
+            if photo_downloaded:
+                downloaded += 1
+            elif photo_cached:
+                skipped += 1
             processed += 1
             if total:
                 percent = (processed / total) * 100
@@ -499,13 +529,7 @@ def main() -> None:
                     f"Progress {processed}/{total} ({percent:.1f}%) xid={xid} [{status}] "
                     f"downloaded={downloaded} cached={skipped} errors={errors}"
                 )
-            if photo_error:
-                errors += 1
-            if photo_downloaded:
-                downloaded += 1
-            elif photo_cached:
-                skipped += 1
-            if args.sleep and photo_downloaded:
+            if args.sleep and (photo_downloaded or photo_error):
                 time.sleep(args.sleep)
 
 
