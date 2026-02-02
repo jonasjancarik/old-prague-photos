@@ -317,6 +317,16 @@ def log_error(handle, payload: dict[str, object]) -> None:
     handle.write(json.dumps(payload, ensure_ascii=True) + "\n")
 
 
+def format_eta(seconds: float) -> str:
+    if seconds < 0:
+        seconds = 0
+    total = int(seconds)
+    hours = total // 3600
+    minutes = (total % 3600) // 60
+    secs = total % 60
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
 def download_preview(
     session: requests.Session,
     preview_url: str,
@@ -449,6 +459,7 @@ def main() -> None:
 
     output_dir.mkdir(parents=True, exist_ok=True)
     with error_path.open("a", encoding="utf-8") as error_handle:
+        start_time = time.time()
         for item in items:
             xid = str(item["xid"])
             previews = item.get("scan_previews") or []
@@ -525,9 +536,15 @@ def main() -> None:
             if total:
                 percent = (processed / total) * 100
                 status = "downloaded" if photo_downloaded else "cached" if photo_cached else "partial"
+                elapsed = time.time() - start_time
+                eta = ""
+                if processed:
+                    avg = elapsed / processed
+                    remaining = total - processed
+                    eta = format_eta(avg * remaining)
                 print(
                     f"Progress {processed}/{total} ({percent:.1f}%) xid={xid} [{status}] "
-                    f"downloaded={downloaded} cached={skipped} errors={errors}"
+                    f"downloaded={downloaded} cached={skipped} errors={errors} eta={eta}"
                 )
             if args.sleep and (photo_downloaded or photo_error):
                 time.sleep(args.sleep)
