@@ -227,6 +227,21 @@ combined_data["scan_zoomify_paths"] = combined_data["scan_zoomify_paths"].apply(
     normalize_json_array
 )
 
+if "typ záznamu" in combined_data.columns:
+    type_counts = (
+        combined_data["typ záznamu"].fillna("(missing)").value_counts().to_dict()
+    )
+    before_count = len(combined_data)
+    combined_data = combined_data[combined_data["typ záznamu"] == "Archiválie"].copy()
+    removed = before_count - len(combined_data)
+    print(
+        "Filtered non-archival records:",
+        f"removed={removed}",
+        f"types={type_counts}",
+    )
+else:
+    print("Warning: typ záznamu missing; no filter applied.")
+
 if EXPORT_MINIMAL_FILE:
     # keep only druh,obsah,datace,zobrazeno,xid,start_date,end_date,geolocation_position_lon,geolocation_position_lat,geolocation_type,geolocation_endpoint,autor,poznámka columns
     columns_to_keep = [
