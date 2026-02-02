@@ -11,6 +11,20 @@ import requests
 from PIL import Image
 
 
+class ZoomifyNotFoundError(ValueError):
+    def __init__(self, message: str, reason: str = "no_zoomify") -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+def looks_like_search_page(html_text: str) -> bool:
+    if "searchAdvanced1" in html_text:
+        return True
+    if "Rozšířené vyhledávání" in html_text:
+        return True
+    return False
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Download and stitch Zoomify tiles")
     parser.add_argument("url", help="Permalink or Zoomify.action URL")
@@ -100,6 +114,12 @@ def resolve_zoomify(
             if extract_zoomify_img_path(zoomify_html):
                 return zoomify_html
 
+        if looks_like_search_page(page_html):
+            raise ZoomifyNotFoundError(
+                "Permalink resolved to search page (no Zoomify)",
+                reason="search_page",
+            )
+
     parsed = urlparse(cleaned_url)
     xid = parse_qs(parsed.query).get("xid", [None])[0]
     if xid:
@@ -111,7 +131,13 @@ def resolve_zoomify(
             if extract_zoomify_img_path(zoomify_html):
                 return zoomify_html
 
-    raise ValueError("Failed to resolve Zoomify image")
+        if looks_like_search_page(permalink_html):
+            raise ZoomifyNotFoundError(
+                "Permalink resolved to search page (no Zoomify)",
+                reason="search_page",
+            )
+
+    raise ZoomifyNotFoundError("Failed to resolve Zoomify image")
 
 
 def fetch_image_properties(

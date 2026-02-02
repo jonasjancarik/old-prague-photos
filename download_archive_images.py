@@ -71,6 +71,11 @@ def parse_args() -> argparse.Namespace:
         help="Redownload files even if they exist",
     )
     parser.add_argument(
+        "--retry-missing",
+        action="store_true",
+        help="Retry scans marked as missing",
+    )
+    parser.add_argument(
         "--archive-base-url",
         default=DEFAULT_ARCHIVE_BASE_URL,
         help="Base URL for archive permalinks",
@@ -154,13 +159,20 @@ def scan_complete_marker(tiles_dir: Path) -> Path:
     return tiles_dir / "scan_complete.json"
 
 
+def scan_missing_marker(tiles_dir: Path) -> Path:
+    return tiles_dir / "scan_missing.json"
+
+
 def count_existing_tiles(tiles_dir: Path) -> int:
     return sum(1 for _ in tiles_dir.glob("TileGroup*/*.jpg"))
 
 
 def scan_tile_stats(tiles_dir: Path) -> dict[str, int | bool]:
     marker = scan_complete_marker(tiles_dir)
+    missing_marker = scan_missing_marker(tiles_dir)
     marker_exists = marker.exists()
+    missing_exists = missing_marker.exists()
+    unavailable = missing_exists and not marker_exists
     props_path = tiles_dir / "ImageProperties.xml"
     props = load_local_image_properties(props_path)
     existing = count_existing_tiles(tiles_dir)
@@ -173,6 +185,7 @@ def scan_tile_stats(tiles_dir: Path) -> dict[str, int | bool]:
             "partial": existing > 0 and not marker_exists,
             "missing_all": existing == 0,
             "has_props": False,
+            "unavailable": unavailable,
         }
     tiers = dezoomify.build_tiers(
         props["width"],
@@ -194,6 +207,7 @@ def scan_tile_stats(tiles_dir: Path) -> dict[str, int | bool]:
         "partial": partial,
         "missing_all": existing == 0,
         "has_props": True,
+        "unavailable": unavailable,
     }
 
 
@@ -207,6 +221,7 @@ def print_stats(items: list[dict[str, object]], previews_dir: Path, tiles_root: 
     scan_partial = 0
     scan_missing = 0
     scan_no_props = 0
+    scan_unavailable = 0
 
     tiles_expected = 0
     tiles_existing = 0
@@ -240,6 +255,8 @@ def print_stats(items: list[dict[str, object]], previews_dir: Path, tiles_root: 
             stats = scan_tile_stats(tiles_dir)
             if not stats["has_props"]:
                 scan_no_props += 1
+            if stats.get("unavailable"):
+                scan_unavailable += 1
 
             if stats["complete"]:
                 scan_complete += 1
@@ -273,7 +290,11 @@ def print_stats(items: list[dict[str, object]], previews_dir: Path, tiles_root: 
 
     print("Cache stats")
     print(f"Photos: total={len(items)} complete={photo_complete} partial={photo_partial} missing={photo_missing} empty={photo_empty}")
-    print(f"Scans: complete={scan_complete} partial={scan_partial} missing={scan_missing} no_props={scan_no_props}")
+    print(
+        "Scans: "
+        f"complete={scan_complete} partial={scan_partial} missing={scan_missing} "
+        f"unavailable={scan_unavailable} no_props={scan_no_props}"
+    )
     print(f"Tiles: expected={tiles_expected} existing={tiles_existing} missing={tiles_missing}")
     print(f"Previews: expected={preview_expected} present={preview_present} missing={preview_missing}")
 
@@ -411,17 +432,40 @@ def download_zoomify_tiles(
     args: argparse.Namespace,
 ) -> int:
     marker_path = scan_complete_marker(tiles_dir)
+    missing_path = scan_missing_marker(tiles_dir)
     if marker_path.exists() and not args.force:
+        return 0
+    if missing_path.exists() and not (args.force or args.retry_missing):
         return 0
     scan_param = scan_index + 1 if scan_index >= 0 else 1
     permalink = f"{args.archive_base_url.rstrip('/')}/permalink?xid={xid}&scan={scan_param}"
-    zoomify_html = dezoomify.resolve_zoomify(
-        session,
-        permalink,
-        timeout=args.timeout,
-        retries=args.retries,
-        retry_sleep=args.retry_sleep,
-    )
+    try:
+        zoomify_html = dezoomify.resolve_zoomify(
+            session,
+            permalink,
+            timeout=args.timeout,
+            retries=args.retries,
+            retry_sleep=args.retry_sleep,
+        )
+    except dezoomify.ZoomifyNotFoundError as exc:
+        missing_path.parent.mkdir(parents=True, exist_ok=True)
+        missing_path.write_text(
+            json.dumps(
+                {
+                    "xid": xid,
+                    "scan_index": scan_index,
+                    "reason": exc.reason,
+                },
+                ensure_ascii=True,
+            ),
+            encoding="utf-8",
+        )
+        return 0
+    if missing_path.exists():
+        try:
+            missing_path.unlink()
+        except OSError:
+            pass
     zoomify_img_path = dezoomify.extract_zoomify_img_path(zoomify_html)
     if not zoomify_img_path:
         raise ValueError("zoomifyImgPath not found")
@@ -589,7 +633,7 @@ def main() -> None:
                 if args.force:
                     photo_cached = False
                 else:
-                    tiles_cached = scan_complete_marker(tiles_dir).exists()
+                    tiles_cached = scan_complete_marker(tiles_dir).exists() or scan_missing_marker(tiles_dir).exists()
                     photo_cached = photo_cached and tiles_cached and (preview_cached or not preview_url)
 
             if photo_error:
