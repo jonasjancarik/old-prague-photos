@@ -366,7 +366,7 @@ def format_error_summary(counter: Counter) -> str:
     other = sum(counter.values()) - known
     if other:
         parts.append(f"other={other}")
-    return " " + " ".join(parts)
+    return " errors(" + " ".join(parts) + ")"
 
 
 def compact_error(message: str, max_len: int = 120) -> str:
@@ -380,7 +380,7 @@ def format_other_samples(samples: deque[str]) -> str:
     if not samples:
         return ""
     joined = " | ".join(samples)
-    return f' other_samples="{joined}"'
+    return f' error_samples="{joined}"'
 
 
 def download_preview(
