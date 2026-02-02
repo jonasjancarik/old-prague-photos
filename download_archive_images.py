@@ -73,6 +73,11 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_ARCHIVE_BASE_URL,
         help="Base URL for archive permalinks",
     )
+    parser.add_argument(
+        "--stats",
+        action="store_true",
+        help="Only report local cache stats (no network)",
+    )
     return parser.parse_args()
 
 
@@ -145,6 +150,139 @@ def is_tiles_complete(tiles_dir: Path, props: dict[str, int]) -> bool:
 
 def scan_complete_marker(tiles_dir: Path) -> Path:
     return tiles_dir / "scan_complete.json"
+
+
+def count_existing_tiles(tiles_dir: Path) -> int:
+    return sum(1 for _ in tiles_dir.glob("TileGroup*/*.jpg"))
+
+
+def scan_tile_stats(tiles_dir: Path) -> dict[str, int | bool]:
+    marker = scan_complete_marker(tiles_dir)
+    if marker.exists():
+        return {
+            "expected": 0,
+            "existing": 0,
+            "missing": 0,
+            "complete": True,
+            "partial": False,
+            "missing_all": False,
+            "has_props": True,
+        }
+    props_path = tiles_dir / "ImageProperties.xml"
+    props = load_local_image_properties(props_path)
+    existing = count_existing_tiles(tiles_dir)
+    if not props:
+        return {
+            "expected": 0,
+            "existing": existing,
+            "missing": 0,
+            "complete": False,
+            "partial": existing > 0,
+            "missing_all": existing == 0,
+            "has_props": False,
+        }
+    tiers = dezoomify.build_tiers(
+        props["width"],
+        props["height"],
+        props["tile_size"],
+    )
+    expected = 0
+    for size in tiers:
+        tiles_x, tiles_y = dezoomify.tiles_for(size, props["tile_size"])
+        expected += tiles_x * tiles_y
+    missing = max(expected - existing, 0)
+    complete = existing >= expected and expected > 0
+    partial = existing > 0 and not complete
+    return {
+        "expected": expected,
+        "existing": existing,
+        "missing": missing,
+        "complete": complete,
+        "partial": partial,
+        "missing_all": existing == 0,
+        "has_props": True,
+    }
+
+
+def print_stats(items: list[dict[str, object]], previews_dir: Path, tiles_root: Path) -> None:
+    photo_complete = 0
+    photo_partial = 0
+    photo_missing = 0
+    photo_empty = 0
+
+    scan_complete = 0
+    scan_partial = 0
+    scan_missing = 0
+    scan_no_props = 0
+
+    tiles_expected = 0
+    tiles_existing = 0
+    tiles_missing = 0
+
+    preview_expected = 0
+    preview_present = 0
+    preview_missing = 0
+
+    for item in items:
+        xid = str(item["xid"])
+        previews = item.get("scan_previews") or []
+        if not isinstance(previews, list) or not previews:
+            previews = [""]
+
+        photo_has_partial = False
+        photo_has_missing = False
+        photo_all_missing = True
+        photo_all_complete = True
+
+        for scan_index, preview_url in enumerate(previews):
+            preview_url = str(preview_url or "").strip()
+            if preview_url:
+                preview_expected += 1
+                if find_existing_preview(previews_dir, xid, scan_index):
+                    preview_present += 1
+                else:
+                    preview_missing += 1
+
+            tiles_dir = tiles_root / xid / f"scan_{scan_index}"
+            stats = scan_tile_stats(tiles_dir)
+            if not stats["has_props"]:
+                scan_no_props += 1
+
+            if stats["complete"]:
+                scan_complete += 1
+            elif stats["partial"]:
+                scan_partial += 1
+            else:
+                scan_missing += 1
+
+            if stats["partial"]:
+                photo_has_partial = True
+            if not stats["complete"]:
+                photo_all_complete = False
+            if stats["missing_all"]:
+                photo_has_missing = True
+            else:
+                photo_all_missing = False
+
+            if stats["expected"]:
+                tiles_expected += int(stats["expected"])
+                tiles_existing += int(stats["existing"])
+                tiles_missing += int(stats["missing"])
+
+        if photo_all_complete:
+            photo_complete += 1
+        elif photo_has_partial:
+            photo_partial += 1
+        elif photo_has_missing:
+            photo_missing += 1
+        if photo_all_missing:
+            photo_empty += 1
+
+    print("Cache stats")
+    print(f"Photos: total={len(items)} complete={photo_complete} partial={photo_partial} missing={photo_missing} empty={photo_empty}")
+    print(f"Scans: complete={scan_complete} partial={scan_partial} missing={scan_missing} no_props={scan_no_props}")
+    print(f"Tiles: expected={tiles_expected} existing={tiles_existing} missing={tiles_missing}")
+    print(f"Previews: expected={preview_expected} present={preview_present} missing={preview_missing}")
 
 
 def fetch_bytes(
@@ -280,6 +418,9 @@ def main() -> None:
     items = load_items(input_path, args.limit)
     if not items:
         print("No photos found")
+        return
+    if args.stats:
+        print_stats(items, previews_dir, tiles_root)
         return
 
     session = requests.Session()
