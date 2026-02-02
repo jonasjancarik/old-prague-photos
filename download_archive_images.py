@@ -158,16 +158,7 @@ def count_existing_tiles(tiles_dir: Path) -> int:
 
 def scan_tile_stats(tiles_dir: Path) -> dict[str, int | bool]:
     marker = scan_complete_marker(tiles_dir)
-    if marker.exists():
-        return {
-            "expected": 0,
-            "existing": 0,
-            "missing": 0,
-            "complete": True,
-            "partial": False,
-            "missing_all": False,
-            "has_props": True,
-        }
+    marker_exists = marker.exists()
     props_path = tiles_dir / "ImageProperties.xml"
     props = load_local_image_properties(props_path)
     existing = count_existing_tiles(tiles_dir)
@@ -176,8 +167,8 @@ def scan_tile_stats(tiles_dir: Path) -> dict[str, int | bool]:
             "expected": 0,
             "existing": existing,
             "missing": 0,
-            "complete": False,
-            "partial": existing > 0,
+            "complete": marker_exists,
+            "partial": existing > 0 and not marker_exists,
             "missing_all": existing == 0,
             "has_props": False,
         }
@@ -191,7 +182,7 @@ def scan_tile_stats(tiles_dir: Path) -> dict[str, int | bool]:
         tiles_x, tiles_y = dezoomify.tiles_for(size, props["tile_size"])
         expected += tiles_x * tiles_y
     missing = max(expected - existing, 0)
-    complete = existing >= expected and expected > 0
+    complete = marker_exists or (existing >= expected and expected > 0)
     partial = existing > 0 and not complete
     return {
         "expected": expected,
