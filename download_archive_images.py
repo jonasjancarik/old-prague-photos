@@ -1,6 +1,7 @@
 import argparse
 import json
 import random
+from collections import Counter
 import re
 import time
 from pathlib import Path
@@ -327,6 +328,47 @@ def format_eta(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
+def classify_error(exc: Exception) -> str:
+    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+        status = exc.response.status_code
+        if status == 429:
+            return "rate_limited"
+        if status == 403:
+            return "forbidden"
+        if status in {500, 502, 503, 504}:
+            return "overloaded"
+        return f"http_{status}"
+    if isinstance(exc, requests.Timeout):
+        return "timeout"
+    message = str(exc)
+    if "Read timed out" in message or "ConnectTimeout" in message:
+        return "timeout"
+    if "RemoteDisconnected" in message or "Connection reset" in message:
+        return "overloaded"
+    if "Failed to resolve Zoomify image" in message:
+        return "resolve_failed"
+    return "other"
+
+
+def format_error_summary(counter: Counter) -> str:
+    if not counter:
+        return ""
+    parts = []
+    if counter.get("rate_limited"):
+        parts.append(f"rate_limited={counter['rate_limited']}")
+    if counter.get("overloaded"):
+        parts.append(f"overloaded={counter['overloaded']}")
+    if counter.get("forbidden"):
+        parts.append(f"forbidden={counter['forbidden']}")
+    if counter.get("timeout"):
+        parts.append(f"timeout={counter['timeout']}")
+    known = sum(counter.get(key, 0) for key in ("rate_limited", "overloaded", "forbidden", "timeout"))
+    other = sum(counter.values()) - known
+    if other:
+        parts.append(f"other={other}")
+    return " " + " ".join(parts)
+
+
 def download_preview(
     session: requests.Session,
     preview_url: str,
@@ -456,6 +498,7 @@ def main() -> None:
     skipped = 0
     downloaded = 0
     errors = 0
+    error_counts: Counter[str] = Counter()
 
     output_dir.mkdir(parents=True, exist_ok=True)
     with error_path.open("a", encoding="utf-8") as error_handle:
@@ -489,6 +532,7 @@ def main() -> None:
                             photo_downloaded = True
                     except Exception as exc:
                         photo_error = True
+                        error_counts[classify_error(exc)] += 1
                         log_error(
                             error_handle,
                             {
@@ -510,6 +554,7 @@ def main() -> None:
                         photo_downloaded = True
                 except Exception as exc:
                     photo_error = True
+                    error_counts[classify_error(exc)] += 1
                     log_error(
                         error_handle,
                         {
@@ -545,6 +590,7 @@ def main() -> None:
                 print(
                     f"Progress {processed}/{total} ({percent:.1f}%) xid={xid} [{status}] "
                     f"downloaded={downloaded} cached={skipped} errors={errors} eta={eta}"
+                    f"{format_error_summary(error_counts)}"
                 )
             if args.sleep and (photo_downloaded or photo_error):
                 time.sleep(args.sleep)
