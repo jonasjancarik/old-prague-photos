@@ -1,7 +1,7 @@
 import argparse
 import json
 import random
-from collections import Counter
+from collections import Counter, deque
 import re
 import time
 from pathlib import Path
@@ -369,6 +369,20 @@ def format_error_summary(counter: Counter) -> str:
     return " " + " ".join(parts)
 
 
+def compact_error(message: str, max_len: int = 120) -> str:
+    cleaned = " ".join(message.strip().split())
+    if len(cleaned) <= max_len:
+        return cleaned
+    return cleaned[: max_len - 3] + "..."
+
+
+def format_other_samples(samples: deque[str]) -> str:
+    if not samples:
+        return ""
+    joined = " | ".join(samples)
+    return f' other_samples="{joined}"'
+
+
 def download_preview(
     session: requests.Session,
     preview_url: str,
@@ -499,6 +513,7 @@ def main() -> None:
     downloaded = 0
     errors = 0
     error_counts: Counter[str] = Counter()
+    other_samples: deque[str] = deque(maxlen=3)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     with error_path.open("a", encoding="utf-8") as error_handle:
@@ -532,7 +547,10 @@ def main() -> None:
                             photo_downloaded = True
                     except Exception as exc:
                         photo_error = True
-                        error_counts[classify_error(exc)] += 1
+                        category = classify_error(exc)
+                        error_counts[category] += 1
+                        if category not in {"rate_limited", "overloaded", "forbidden", "timeout"}:
+                            other_samples.append(compact_error(str(exc)))
                         log_error(
                             error_handle,
                             {
@@ -554,7 +572,10 @@ def main() -> None:
                         photo_downloaded = True
                 except Exception as exc:
                     photo_error = True
-                    error_counts[classify_error(exc)] += 1
+                    category = classify_error(exc)
+                    error_counts[category] += 1
+                    if category not in {"rate_limited", "overloaded", "forbidden", "timeout"}:
+                        other_samples.append(compact_error(str(exc)))
                     log_error(
                         error_handle,
                         {
@@ -591,6 +612,7 @@ def main() -> None:
                     f"Progress {processed}/{total} ({percent:.1f}%) xid={xid} [{status}] "
                     f"downloaded={downloaded} cached={skipped} errors={errors} eta={eta}"
                     f"{format_error_summary(error_counts)}"
+                    f"{format_other_samples(other_samples)}"
                 )
             if args.sleep and (photo_downloaded or photo_error):
                 time.sleep(args.sleep)
