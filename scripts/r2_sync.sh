@@ -1,9 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+if [[ -f "${ROOT_DIR}/.env" ]]; then
+  env_file="${ROOT_DIR}/.env"
+  tmp_env=""
+  if grep -q $'\r' "${ROOT_DIR}/.env"; then
+    echo "Warning: .env has CRLF; stripping CR for this run" >&2
+    tmp_env="$(mktemp)"
+    tr -d '\r' < "${ROOT_DIR}/.env" > "${tmp_env}"
+    env_file="${tmp_env}"
+  fi
+  set -a
+  # shellcheck disable=SC1090
+  source "${env_file}"
+  set +a
+  if [[ -n "${tmp_env}" ]]; then
+    rm -f "${tmp_env}"
+  fi
+fi
+
 SRC_DIR=${SRC_DIR:-"downloads/archive/zoomify"}
 R2_BUCKET=${R2_BUCKET:-""}
-R2_PREFIX=${R2_PREFIX:-"zoomify"}
+R2_PREFIX=${R2_PREFIX:-"tiles"}
 R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-""}
 R2_ENDPOINT=${R2_ENDPOINT:-""}
 
@@ -12,9 +32,9 @@ usage() {
 Usage: scripts/r2_sync.sh [--dry-run] [--delete] [--extra "<aws s3 sync args>"]
 
 Env:
-  SRC_DIR         Local zoomify root (default: downloads/archive/zoomify)
+  SRC_DIR         Local tiles root (default: downloads/archive/zoomify)
   R2_BUCKET       R2 bucket name (required)
-  R2_PREFIX       Destination prefix (default: zoomify)
+  R2_PREFIX       Destination prefix (default: tiles)
   R2_ACCOUNT_ID   Cloudflare account id (required unless R2_ENDPOINT set)
   R2_ENDPOINT     Override endpoint (e.g. https://<account>.r2.cloudflarestorage.com)
   R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY (or AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)

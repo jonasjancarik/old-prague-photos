@@ -16,6 +16,7 @@ Použití:
   ./ops.sh migrate-local        # D1 migrace (local persist)
   ./ops.sh migrate-remote       # D1 migrace (remote)
   ./ops.sh deploy               # deploy na Cloudflare Pages
+  ./ops.sh r2-sync [args]       # sync tiles to R2
 
 Env:
   TURNSTILE_BYPASS=1            # vypne Turnstile (lokálně)
@@ -85,6 +86,10 @@ case "$cmd" in
       exit 2
     fi
     npx wrangler pages deploy viewer/static --project-name "$project"
+    ;;
+  r2-sync)
+    shift
+    ./scripts/r2_sync.sh "$@"
     ;;
   ""|-h|--help|help)
     usage

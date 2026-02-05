@@ -14,9 +14,9 @@ from src.scraper.record import Record
 from src.utils.helpers import fetch, get_full_url, log_progress, log_summary
 
 
-SCAN_COUNT_PATTERN = re.compile(r"(\\d+)\\s+obrázk", re.IGNORECASE)
-ZOOMIFY_URL_PATTERN = re.compile(r"Zoomify\\.action[^\"']+", re.IGNORECASE)
-ZOOMIFY_PATH_PATTERN = re.compile(r'zoomifyImgPath\\s*=\\s*"([^"]+)"', re.IGNORECASE)
+SCAN_COUNT_PATTERN = re.compile(r"(\d+)\s+obrázk", re.IGNORECASE)
+ZOOMIFY_URL_PATTERN = re.compile(r"Zoomify\.action[^\"']+", re.IGNORECASE)
+ZOOMIFY_PATH_PATTERN = re.compile(r'zoomifyImgPath\s*=\s*"([^"]+)"', re.IGNORECASE)
 
 
 def extract_scan_count(page_html: str) -> int | None:

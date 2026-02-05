@@ -136,7 +136,7 @@ export async function onRequest({ request, env }) {
   }
 
   const archiveBaseUrl = normalizeBaseUrl(env.ARCHIVE_BASE_URL || ARCHIVE_DEFAULT);
-  const r2BaseUrl = normalizeBaseUrl(env.R2_ZOOMIFY_BASE || env.R2_BASE_URL || "");
+  const r2BaseUrl = normalizeBaseUrl(env.R2_TILES_BASE || "");
 
   try {
     const payload = await resolveZoomify({

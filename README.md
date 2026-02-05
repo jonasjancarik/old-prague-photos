@@ -184,10 +184,10 @@ Useful flags:
 - `--output-dir <path>` (custom cache root)
 
 R2 hosting (optional):
-- Upload `downloads/archive/zoomify/` to an R2 bucket prefix (e.g. `zoomify/`).
-- Set `R2_ZOOMIFY_BASE=https://<r2-public-domain>/zoomify`.
+- Upload `downloads/archive/zoomify/` to an R2 bucket prefix (e.g. `tiles/`).
+- Set `R2_TILES_BASE=https://<r2-public-domain>/tiles`.
 - The app will use R2 if `ImageProperties.xml` exists there; otherwise it falls back to the archive.
- - Sync helper: `scripts/r2_sync.sh` (requires `aws` CLI).
+- Sync helper: `scripts/r2_sync.sh` (requires `aws` CLI).
 
 ## Image similarity + version clusters
 

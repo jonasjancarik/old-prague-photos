@@ -222,10 +222,7 @@ def _parse_image_properties(props_xml: str) -> dict[str, int | None]:
 
 
 def _get_r2_zoomify_base() -> str:
-    return (
-        os.environ.get("R2_ZOOMIFY_BASE", "").strip()
-        or os.environ.get("R2_BASE_URL", "").strip()
-    ).rstrip("/")
+    return os.environ.get("R2_TILES_BASE", "").strip().rstrip("/")
 
 
 def _resolve_r2_zoomify(
