@@ -163,6 +163,28 @@ def scan_missing_marker(tiles_dir: Path) -> Path:
     return tiles_dir / "scan_missing.json"
 
 
+def is_photo_cached(
+    xid: str,
+    previews: list[str],
+    previews_dir: Path,
+    tiles_root: Path,
+    *,
+    include_missing: bool,
+) -> bool:
+    for scan_index, preview_url in enumerate(previews):
+        preview_url = str(preview_url or "").strip()
+        preview_cached = True
+        if preview_url:
+            preview_cached = find_existing_preview(previews_dir, xid, scan_index) is not None
+        tiles_dir = tiles_root / xid / f"scan_{scan_index}"
+        tiles_cached = scan_complete_marker(tiles_dir).exists()
+        if include_missing:
+            tiles_cached = tiles_cached or scan_missing_marker(tiles_dir).exists()
+        if not (tiles_cached and preview_cached):
+            return False
+    return True
+
+
 def count_existing_tiles(tiles_dir: Path) -> int:
     return sum(1 for _ in tiles_dir.glob("TileGroup*/*.jpg"))
 
@@ -558,11 +580,38 @@ def main() -> None:
     errors = 0
     error_counts: Counter[str] = Counter()
     other_samples: deque[str] = deque(maxlen=3)
+    initial_cached = 0
+    cached_xids: set[str] = set()
+    work_done = 0
+    work_elapsed = 0.0
+
+    include_missing = not args.retry_missing
+    if not args.force:
+        for item in items:
+            xid = str(item["xid"])
+            previews = item.get("scan_previews") or []
+            if not isinstance(previews, list) or not previews:
+                previews = [""]
+            if is_photo_cached(
+                xid,
+                previews,
+                previews_dir,
+                tiles_root,
+                include_missing=include_missing,
+            ):
+                initial_cached += 1
+                cached_xids.add(xid)
+        if initial_cached:
+            percent_cached = (initial_cached / total) * 100
+            print(
+                f"Initial cache: {initial_cached}/{total} ({percent_cached:.1f}%)"
+            )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     with error_path.open("a", encoding="utf-8") as error_handle:
         start_time = time.time()
         for item in items:
+            photo_start = time.time()
             xid = str(item["xid"])
             previews = item.get("scan_previews") or []
             if not isinstance(previews, list) or not previews:
@@ -642,19 +691,29 @@ def main() -> None:
                 downloaded += 1
             elif photo_cached:
                 skipped += 1
+            if not args.force and xid not in cached_xids:
+                work_done += 1
+                work_elapsed += time.time() - photo_start
             processed += 1
             if total:
                 percent = (processed / total) * 100
                 status = "downloaded" if photo_downloaded else "cached" if photo_cached else "partial"
-                elapsed = time.time() - start_time
                 eta = ""
-                if processed:
+                if total and initial_cached:
+                    remaining_work = max(total - initial_cached - work_done, 0)
+                    if work_done > 0:
+                        avg = work_elapsed / work_done
+                        eta = format_eta(avg * remaining_work)
+                elif processed:
+                    elapsed = time.time() - start_time
                     avg = elapsed / processed
                     remaining = total - processed
                     eta = format_eta(avg * remaining)
                 print(
                     f"Progress {processed}/{total} ({percent:.1f}%) xid={xid} [{status}] "
                     f"downloaded={downloaded} cached={skipped} errors={errors} eta={eta}"
+                    f" cached_total={initial_cached}"
+                    f" work={work_done}/{max(total - initial_cached, 0)}"
                     f"{format_error_summary(error_counts)}"
                     f"{format_other_samples(other_samples)}"
                 )
