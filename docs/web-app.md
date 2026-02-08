@@ -39,6 +39,8 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `POST /api/corrections` - submit correction / flag
 - `GET /api/merges` - latest merge decisions
 - `POST /api/merges` - submit merge decision
+- `GET /api/preview-url?xid=...` - popup preview URL resolver (R2 -> local cache -> feature metadata)
+- `GET /api/preview-local?xid=...&scanIndex=0` - serve local preview file from `downloads/archive/previews`
 - `GET /api/zoomify?xid=...&scanIndex=0` - server-side Zoomify metadata
   - Uses R2 if `R2_TILES_BASE` is set and the scan exists there.
 
@@ -119,8 +121,17 @@ R2_SECRET_ACCESS_KEY=... \\
 scripts/r2_sync.sh
 ```
 
+Optional: sync preview thumbnails as well:
+
+```bash
+SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
+```
+
 ## Notes
 
 - `/api/zoomify` avoids browser CORS issues with `ImageProperties.xml`.
+- `/api/preview-url` is used by map hover popups and prefers R2 `0-0-0.jpg` tiles.
+- `/api/preview-url` falls back to local preview cache and finally `scan_previews[0]` metadata.
+- `/api/zoomify` only uses `R2_TILES_BASE` (tiles path), not preview thumbnails.
 - D1 stores corrections + merge decisions (see `migrations/*.sql`).
 - UI copy is Czech-only (see `viewer/static/*.html` + `viewer/static/*.js`).

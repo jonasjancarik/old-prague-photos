@@ -14,7 +14,7 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 load_dotenv()
 
 ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = ROOT.parent
 STATIC_DIR = ROOT / "static"
 STATIC_DATA_DIR = STATIC_DIR / "data"
 DATA_DIR = ROOT / "data"
@@ -29,10 +30,14 @@ PHOTOS_PATH = STATIC_DATA_DIR / "photos.geojson"
 FEEDBACK_PATH = DATA_DIR / "feedback.jsonl"
 CORRECTIONS_PATH = DATA_DIR / "corrections.jsonl"
 MERGES_PATH = DATA_DIR / "merges.jsonl"
+LOCAL_PREVIEWS_DIR = PROJECT_ROOT / "downloads" / "archive" / "previews"
 
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+R2_PROBE_TIMEOUT_S = 5.0
+R2_PROBE_RETRIES = 1
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+XID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 SESSION_COOKIE_NAME = "opp_turnstile_session"
 SESSION_TTL_SECONDS = 6 * 60 * 60
 
@@ -42,7 +47,9 @@ _photos_cache: dict[str, Any] | None = None
 _photos_cache_mtime: float | None = None
 _feedback_lock = Lock()
 _zoomify_cache: dict[str, dict[str, Any]] = {}
+_preview_url_cache: dict[str, dict[str, Any]] = {}
 _xid_group_cache: dict[str, str] | None = None
+_feature_preview_cache: dict[str, str] | None = None
 
 
 class FeedbackPayload(BaseModel):
@@ -81,7 +88,7 @@ def is_turnstile_bypass() -> bool:
 
 
 def load_photos() -> dict[str, Any]:
-    global _photos_cache, _photos_cache_mtime, _xid_group_cache
+    global _photos_cache, _photos_cache_mtime, _xid_group_cache, _feature_preview_cache, _preview_url_cache
     if not PHOTOS_PATH.exists():
         raise HTTPException(
             status_code=500,
@@ -93,6 +100,8 @@ def load_photos() -> dict[str, Any]:
             _photos_cache = json.load(handle)
         _photos_cache_mtime = mtime
         _xid_group_cache = None
+        _feature_preview_cache = None
+        _preview_url_cache = {}
     return _photos_cache
 
 
@@ -249,6 +258,94 @@ def _resolve_r2_zoomify(
     }
 
 
+def _sanitize_xid(raw_xid: str) -> str:
+    xid = raw_xid.strip()
+    if not xid:
+        raise HTTPException(status_code=400, detail="Chybí xid")
+    if len(xid) > 200 or not XID_PATTERN.fullmatch(xid):
+        raise HTTPException(status_code=400, detail="Neplatný xid")
+    return xid
+
+
+def _r2_preview_url(xid: str, scan_index: int = 0) -> str:
+    base = _get_r2_zoomify_base()
+    if not base:
+        return ""
+    return f"{base}/{xid}/scan_{scan_index}/TileGroup0/0-0-0.jpg"
+
+
+def _url_exists(
+    session: requests.Session,
+    url: str,
+    *,
+    timeout: float = R2_PROBE_TIMEOUT_S,
+    retries: int = R2_PROBE_RETRIES,
+) -> bool:
+    last_exc: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            head = session.head(url, timeout=timeout, allow_redirects=True)
+            if 200 <= head.status_code < 300:
+                return True
+        except requests.RequestException as exc:
+            last_exc = exc
+        try:
+            # Some public object stores do not handle HEAD consistently.
+            get = session.get(
+                url,
+                timeout=timeout,
+                allow_redirects=True,
+                stream=True,
+                headers={"Range": "bytes=0-0"},
+            )
+            try:
+                return 200 <= get.status_code < 300
+            finally:
+                get.close()
+        except requests.RequestException as exc:
+            last_exc = exc
+        if attempt < retries:
+            time.sleep(0.25 * (attempt + 1))
+    if last_exc:
+        return False
+    return False
+
+
+def _find_local_preview_file(xid: str, scan_index: int = 0) -> Path | None:
+    preview_dir = LOCAL_PREVIEWS_DIR / xid
+    if not preview_dir.exists():
+        return None
+    candidates = sorted(preview_dir.glob(f"scan_{scan_index}.*"))
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _get_feature_preview_map() -> dict[str, str]:
+    global _feature_preview_cache
+    if _feature_preview_cache is not None:
+        return _feature_preview_cache
+    mapping: dict[str, str] = {}
+    photos = load_photos()
+    for feature in photos.get("features", []):
+        props = feature.get("properties") or {}
+        xid = str(props.get("id") or "").strip()
+        if not xid:
+            continue
+        previews = props.get("scan_previews")
+        if isinstance(previews, list) and previews:
+            first = str(previews[0] or "").strip()
+            if first:
+                mapping[xid] = first
+    _feature_preview_cache = mapping
+    return mapping
+
+
+def _get_feature_preview_url(xid: str) -> str:
+    return _get_feature_preview_map().get(xid, "")
+
+
 def normalize_corrections() -> list[dict[str, Any]]:
     if not CORRECTIONS_PATH.exists():
         return []
@@ -341,6 +438,65 @@ def verify_session(payload: VerifyPayload, request: Request) -> JSONResponse:
         secure=request.url.scheme == "https",
     )
     return response
+
+
+@app.get("/api/preview-local")
+def get_preview_local(xid: str, scanIndex: int = 0) -> FileResponse:
+    xid = _sanitize_xid(xid)
+    if scanIndex < 0 or scanIndex > 1000:
+        raise HTTPException(status_code=400, detail="Neplatný scanIndex")
+    local_path = _find_local_preview_file(xid, scanIndex)
+    if not local_path:
+        raise HTTPException(status_code=404, detail="Náhled nenalezen")
+    base = LOCAL_PREVIEWS_DIR.resolve()
+    resolved = local_path.resolve()
+    if base not in resolved.parents:
+        raise HTTPException(status_code=404, detail="Náhled nenalezen")
+    return FileResponse(resolved)
+
+
+@app.get("/api/preview-url")
+def get_preview_url(xid: str) -> JSONResponse:
+    xid = _sanitize_xid(xid)
+    # Trigger photo cache refresh so preview caches reset on photos.geojson updates.
+    load_photos()
+    cached = _preview_url_cache.get(xid)
+    if cached:
+        return JSONResponse(cached)
+
+    payload: dict[str, Any] = {
+        "xid": xid,
+        "url": "",
+        "source": "none",
+        "scan_index": 0,
+    }
+
+    r2_url = _r2_preview_url(xid, 0)
+    if r2_url:
+        with requests.Session() as session:
+            session.headers.update({"User-Agent": "old-prague-photos/preview-probe"})
+            if _url_exists(session, r2_url):
+                payload.update({"url": r2_url, "source": "r2"})
+                _preview_url_cache[xid] = payload
+                return JSONResponse(payload)
+
+    local_preview = _find_local_preview_file(xid, 0)
+    if local_preview:
+        payload.update(
+            {
+                "url": f"/api/preview-local?xid={xid}&scanIndex=0",
+                "source": "local_cache",
+            }
+        )
+        _preview_url_cache[xid] = payload
+        return JSONResponse(payload)
+
+    feature_preview = _get_feature_preview_url(xid)
+    if feature_preview:
+        payload.update({"url": feature_preview, "source": "feature_preview"})
+
+    _preview_url_cache[xid] = payload
+    return JSONResponse(payload)
 
 
 @app.get("/api/zoomify")

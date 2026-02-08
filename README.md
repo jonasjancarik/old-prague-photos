@@ -86,12 +86,16 @@ The pipeline is a sequence of scripts. Each step reads from `output/` and writes
 - Outputs:
   - `output/available_record_ids.json` (current ID set)
   - `output/raw_records/*.json` (scraped records)
+  - `output/failed_xids.jsonl` (failures from the latest collect run)
+  - `output/missing_details_xids.json` (candidate IDs selected by `--rescrape-missing-details`)
   - `output/nav_partition_progress.json` (resume cache when using nav partition)
 
 Useful flags:
 - `--ids-only` (stop after ID list)
 - `--no-fetch-ids` (reuse cached IDs)
 - `--rescrape` (overwrite existing raw records)
+- `--retry-failed` (retry only IDs from `output/failed_xids.jsonl`; implies `--rescrape --no-fetch-ids`)
+- `--rescrape-missing-details` (retry only records with incomplete scan metadata; implies `--rescrape --no-fetch-ids`)
 
 ### 2) Filter (`filter.py`)
 
@@ -131,6 +135,13 @@ Flattens records into the final dataset.
 Output:
 - `output/old_prague_photos.csv`
 
+If you updated scan metadata in `output/raw_records` but want to avoid re-running geolocation,
+backfill scan fields into geolocated records first:
+
+```bash
+uv run python scripts/backfill_scan_metadata.py
+```
+
 ### 6) Build GeoJSON for the viewer
 
 ```bash
@@ -154,6 +165,29 @@ uv run cli collect
 uv run cli filter
 uv run cli geolocate mapy
 uv run cli export
+```
+
+### End-to-end playbooks
+
+Full run from zero (from scrape to viewer data, includes geolocation calls):
+
+```bash
+ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli collect && \
+uv run cli filter && \
+uv run cli geolocate mapy && \
+uv run cli export && \
+uv run python viewer/build_geojson.py && \
+uv run python download_archive_images.py --previews-only
+```
+
+Refresh scan/preview metadata without re-running geolocation:
+
+```bash
+ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli collect --rescrape-missing-details && \
+uv run python scripts/backfill_scan_metadata.py && \
+uv run cli export && \
+uv run python viewer/build_geojson.py && \
+uv run python download_archive_images.py --previews-only
 ```
 
 ### Resume tips
@@ -182,12 +216,32 @@ Useful flags:
 - `--limit 50` (smoke test)
 - `--force` (redownload)
 - `--output-dir <path>` (custom cache root)
+- `--previews-only` (download only preview thumbnails; skip Zoomify tiles)
+- `--raw-records-dir output/raw_records` (fallback preview source when GeoJSON has empty `scan_previews`)
+- `--no-resolve-missing-previews` (disable archive lookup for missing preview metadata)
+- `--resolve-timeout 12 --resolve-retries 1 --resolve-retry-sleep 1` (fast, bounded preview URL resolution)
+- `--resolve-max-seconds 45` (cap per-xid preview URL resolution time)
+
+Notes for preview-only runs:
+- Missing `scan_previews` are now resolved by `xid` from archive permalinks and cached in `downloads/archive/resolved_previews.jsonl`.
+- Runs are resumable: existing files in `downloads/archive/previews/<xid>/` are skipped on restart.
+- `--stats` now prints `unknown=<n>` for photos that still have no known preview URL metadata.
 
 R2 hosting (optional):
 - Upload `downloads/archive/zoomify/` to an R2 bucket prefix (e.g. `tiles/`).
 - Set `R2_TILES_BASE=https://<r2-public-domain>/tiles`.
 - The app will use R2 if `ImageProperties.xml` exists there; otherwise it falls back to the archive.
 - Sync helper: `scripts/r2_sync.sh` (requires `aws` CLI).
+- Map popup previews resolve in this order:
+  1) R2 `TileGroup0/0-0-0.jpg` via `/api/preview-url`
+  2) local cache `downloads/archive/previews/<xid>/scan_0.*` via `/api/preview-local`
+  3) `scan_previews[0]` from `photos.geojson`
+
+Sync previews to R2 (optional; storage/backup, not used by `/api/zoomify`):
+
+```bash
+SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
+```
 
 ## Image similarity + version clusters
 

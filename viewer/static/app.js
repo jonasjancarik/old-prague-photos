@@ -447,6 +447,12 @@ async function loadZoomifyMeta(xid) {
   return fetchJson(url);
 }
 
+async function loadPreviewUrl(xid) {
+  const url = `/api/preview-url?xid=${encodeURIComponent(xid)}`;
+  const payload = await fetchJson(url);
+  return String(payload?.url || "");
+}
+
 async function loadZoomifyInto(viewerEl, wrapEl, fallbackIframe, xid) {
   if (!viewerEl || !wrapEl) return;
   if (zoomLastXid === xid) return;
@@ -757,19 +763,14 @@ async function resolvePreviewUrl(feature) {
   }
 
   const promise = (async () => {
-    const local = getPreviewFromFeature(feature);
-    if (local) {
-      state.previewByXid.set(xid, local);
-      return local;
-    }
     try {
-      const meta = await loadZoomifyMeta(xid);
-      const url = buildZoomifyPreviewUrl(meta);
+      const url = await loadPreviewUrl(xid);
       state.previewByXid.set(xid, url || null);
       return url || "";
     } catch (error) {
-      state.previewByXid.set(xid, null);
-      return "";
+      const local = getPreviewFromFeature(feature);
+      state.previewByXid.set(xid, local || null);
+      return local || "";
     } finally {
       state.previewPromiseByXid.delete(xid);
     }
