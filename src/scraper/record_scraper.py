@@ -5,7 +5,9 @@ import time
 import html as html_lib
 import logging
 import re
+import json
 from typing import List, Set
+from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
@@ -54,6 +56,13 @@ def build_preview_url(zoomify_img_path: str) -> str:
     return f"{base}/nahled_maly.jpg"
 
 
+def extract_xid_from_url(url: str) -> str:
+    parts = urlsplit(url)
+    query = parse_qs(parts.query)
+    xid = query.get("xid", [""])[0]
+    return str(xid or "").strip()
+
+
 class RecordScraper:
     def __init__(self, session: aiohttp.ClientSession):
         self.session = session
@@ -97,11 +106,12 @@ class RecordScraper:
         ]
         return record_ids
 
-    async def scrape_record(self, record_url: str) -> Record:
+    async def scrape_record(self, record_url: str):
+        start_time = time.perf_counter()
+        xid = extract_xid_from_url(record_url)
         try:
             async with self.semaphore:
                 async with aiohttp.ClientSession() as isolated_session:  # the website seems to send mixed up responses when using the same session (i.e. cookies)
-                    start_time = time.perf_counter()
                     html = await self._throttled_fetch(isolated_session, record_url)
                     soup = BeautifulSoup(html, "lxml")
                     record_data = {
@@ -180,13 +190,21 @@ class RecordScraper:
                     record_data["has_scans"] = scan_count > 1
 
                     record = Record(record_data)
-                    return record, time.perf_counter() - start_time
+                    return record, time.perf_counter() - start_time, None
         except Exception as e:
             logging.error(f"Failed to fetch and process record from {record_url}: {e}")
-            return None, time.perf_counter() - start_time
+            failure = {
+                "xid": xid,
+                "record_url": record_url,
+                "error": str(e),
+            }
+            return None, time.perf_counter() - start_time, failure
 
     async def scrape_records(
-        self, record_ids: List[str], existing_ids: Set[str]
+        self,
+        record_ids: List[str],
+        existing_ids: Set[str],
+        failed_ids_path: str | None = None,
     ) -> List[Record]:
         start_time = time.perf_counter()
         tasks = [
@@ -208,15 +226,26 @@ class RecordScraper:
             logging.info("Scraping %s records (total %s)", len(tasks), total)
         completed, errors, times = 0, 0, []
         records = []
-        for task in asyncio.as_completed(tasks):
-            record, time_taken = await task
-            if record:
-                record.save()  # Save immediately after scraping
-                records.append(record)
-                completed += 1
-            else:
-                errors += 1
-            times.append(time_taken)
-            log_progress(times, completed, errors, len(tasks), start_time)
+        failed_file = None
+        if failed_ids_path:
+            failed_path = Path(failed_ids_path)
+            failed_path.parent.mkdir(parents=True, exist_ok=True)
+            failed_file = failed_path.open("a", encoding="utf-8")
+        try:
+            for task in asyncio.as_completed(tasks):
+                record, time_taken, failure = await task
+                if record:
+                    record.save()  # Save immediately after scraping
+                    records.append(record)
+                    completed += 1
+                else:
+                    errors += 1
+                    if failed_file and failure:
+                        failed_file.write(json.dumps(failure, ensure_ascii=True) + "\n")
+                times.append(time_taken)
+                log_progress(times, completed, errors, len(tasks), start_time)
+        finally:
+            if failed_file:
+                failed_file.close()
         log_summary(times)
         return records

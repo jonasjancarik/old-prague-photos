@@ -5,7 +5,7 @@ from collections import Counter, deque
 import re
 import time
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlsplit, urlunsplit
 
 import requests
 
@@ -13,6 +13,7 @@ import dezoomify
 
 
 DEFAULT_ARCHIVE_BASE_URL = "https://katalog.ahmp.cz/pragapublica"
+SCAN_COUNT_PATTERN = re.compile(r"(\d+)\s+obrázk", re.IGNORECASE)
 
 
 def parse_args() -> argparse.Namespace:
@@ -85,24 +86,234 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only report local cache stats (no network)",
     )
+    parser.add_argument(
+        "--previews-only",
+        action="store_true",
+        help="Download only preview images and skip Zoomify tiles",
+    )
+    parser.add_argument(
+        "--raw-records-dir",
+        default="output/raw_records",
+        help="Fallback source for scan_previews when GeoJSON preview metadata is missing",
+    )
+    parser.add_argument(
+        "--resolve-missing-previews",
+        dest="resolve_missing_previews",
+        action="store_true",
+        default=True,
+        help="Resolve missing preview URLs from archive permalinks by xid",
+    )
+    parser.add_argument(
+        "--no-resolve-missing-previews",
+        dest="resolve_missing_previews",
+        action="store_false",
+        help="Disable archive lookup for missing preview metadata",
+    )
+    parser.add_argument(
+        "--resolved-previews-cache",
+        default="downloads/archive/resolved_previews.jsonl",
+        help="Cache for archive-resolved preview URLs (JSONL)",
+    )
+    parser.add_argument(
+        "--resolve-timeout",
+        type=float,
+        default=12.0,
+        help="Timeout (seconds) for preview URL resolution requests",
+    )
+    parser.add_argument(
+        "--resolve-retries",
+        type=int,
+        default=1,
+        help="Retry attempts for preview URL resolution requests",
+    )
+    parser.add_argument(
+        "--resolve-retry-sleep",
+        type=float,
+        default=1.0,
+        help="Delay between preview URL resolution retries (seconds)",
+    )
+    parser.add_argument(
+        "--resolve-max-seconds",
+        type=float,
+        default=45.0,
+        help="Maximum time budget per xid while resolving missing preview URLs",
+    )
     return parser.parse_args()
 
 
-def load_items(path: Path, limit: int) -> list[dict[str, object]]:
+def normalize_previews(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item or "").strip() for item in value]
+
+
+def has_any_preview(previews: list[str]) -> bool:
+    return any(previews)
+
+
+def load_raw_record_previews(raw_records_dir: Path, xid: str) -> list[str]:
+    path = raw_records_dir / f"{xid}.json"
+    if not path.exists():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    if not isinstance(payload, dict):
+        return []
+    return normalize_previews(payload.get("scan_previews"))
+
+
+def load_items(
+    path: Path,
+    limit: int,
+    raw_records_dir: Path | None = None,
+) -> list[dict[str, object]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     features = payload.get("features", [])
     items: list[dict[str, object]] = []
     for feature in features:
         props = feature.get("properties", {})
         xid = str(props.get("id", "")).strip()
-        scan_previews = props.get("scan_previews") or []
-        if not isinstance(scan_previews, list):
-            scan_previews = []
+        scan_previews = normalize_previews(props.get("scan_previews"))
+        if raw_records_dir and xid and not has_any_preview(scan_previews):
+            raw_previews = load_raw_record_previews(raw_records_dir, xid)
+            if has_any_preview(raw_previews):
+                scan_previews = raw_previews
         if xid:
             items.append({"xid": xid, "scan_previews": scan_previews})
         if limit and len(items) >= limit:
             break
     return items
+
+
+def parse_scan_count(page_html: str) -> int | None:
+    match = SCAN_COUNT_PATTERN.search(page_html)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def with_scan_index(url: str, scan_index: int) -> str:
+    parts = urlsplit(url)
+    query = parse_qs(parts.query)
+    query["scanIndex"] = [str(scan_index)]
+    new_query = urlencode(query, doseq=True)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
+
+
+def build_preview_url(zoomify_img_path: str) -> str:
+    base = zoomify_img_path.replace("/zoomify/", "/image/").rstrip("/")
+    return f"{base}/nahled_maly.jpg"
+
+
+def load_resolved_previews_cache(path: Path) -> dict[str, list[str]]:
+    if not path.exists():
+        return {}
+    result: dict[str, list[str]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        raw = line.strip()
+        if not raw:
+            continue
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        xid = str(payload.get("xid", "")).strip()
+        previews = normalize_previews(payload.get("scan_previews"))
+        if xid and has_any_preview(previews):
+            result[xid] = previews
+    return result
+
+
+def append_resolved_previews_cache(path: Path, xid: str, previews: list[str]) -> None:
+    if not xid or not has_any_preview(previews):
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"xid": xid, "scan_previews": previews}
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=True) + "\n")
+
+
+def resolve_preview_urls_from_permalink(
+    session: requests.Session,
+    xid: str,
+    args: argparse.Namespace,
+) -> list[str]:
+    resolve_timeout = float(getattr(args, "resolve_timeout", args.timeout))
+    resolve_retries = int(getattr(args, "resolve_retries", args.retries))
+    resolve_retry_sleep = float(getattr(args, "resolve_retry_sleep", args.retry_sleep))
+    resolve_max_seconds = float(getattr(args, "resolve_max_seconds", 45.0))
+    started = time.time()
+
+    def within_budget() -> None:
+        if resolve_max_seconds <= 0:
+            return
+        elapsed = time.time() - started
+        if elapsed > resolve_max_seconds:
+            raise TimeoutError(
+                f"Preview resolution exceeded {resolve_max_seconds:.1f}s budget"
+            )
+
+    base = args.archive_base_url.rstrip("/")
+    permalink = f"{base}/permalink?xid={xid}"
+    within_budget()
+    page_html = dezoomify.fetch_zoomify_page(
+        session,
+        permalink,
+        timeout=resolve_timeout,
+        retries=resolve_retries,
+        retry_sleep=resolve_retry_sleep,
+    )
+    zoomify_url = dezoomify.extract_zoomify_url(page_html, permalink)
+    if not zoomify_url:
+        zoomify_img_path = dezoomify.extract_zoomify_img_path(page_html)
+        if not zoomify_img_path:
+            return []
+        return [build_preview_url(zoomify_img_path)]
+
+    scan_count = parse_scan_count(page_html)
+    if scan_count is None or scan_count <= 0:
+        scan_count = 1
+
+    previews: list[str] = []
+    for scan_index in range(scan_count):
+        try:
+            within_budget()
+            zoomify_scan_url = with_scan_index(zoomify_url, scan_index)
+            zoomify_html = dezoomify.fetch_zoomify_page(
+                session,
+                zoomify_scan_url,
+                timeout=resolve_timeout,
+                retries=resolve_retries,
+                retry_sleep=resolve_retry_sleep,
+            )
+            zoomify_img_path = dezoomify.extract_zoomify_img_path(zoomify_html)
+            previews.append(build_preview_url(zoomify_img_path) if zoomify_img_path else "")
+        except Exception:
+            previews.append("")
+
+    if has_any_preview(previews):
+        return previews
+
+    # Fallback: try resolver for first scan when scan-specific probing fails.
+    within_budget()
+    zoomify_html = dezoomify.resolve_zoomify(
+        session,
+        permalink,
+        timeout=resolve_timeout,
+        retries=resolve_retries,
+        retry_sleep=resolve_retry_sleep,
+    )
+    zoomify_img_path = dezoomify.extract_zoomify_img_path(zoomify_html)
+    if not zoomify_img_path:
+        return []
+    return [build_preview_url(zoomify_img_path)]
 
 
 def url_extension(url: str, fallback: str = ".jpg") -> str:
@@ -252,11 +463,15 @@ def print_stats(items: list[dict[str, object]], previews_dir: Path, tiles_root: 
     preview_expected = 0
     preview_present = 0
     preview_missing = 0
+    preview_unknown = 0
 
     for item in items:
         xid = str(item["xid"])
-        previews = item.get("scan_previews") or []
-        if not isinstance(previews, list) or not previews:
+        known_previews = normalize_previews(item.get("scan_previews"))
+        if known_previews:
+            previews = known_previews
+        else:
+            preview_unknown += 1
             previews = [""]
 
         photo_has_partial = False
@@ -318,7 +533,10 @@ def print_stats(items: list[dict[str, object]], previews_dir: Path, tiles_root: 
         f"unavailable={scan_unavailable} no_props={scan_no_props}"
     )
     print(f"Tiles: expected={tiles_expected} existing={tiles_existing} missing={tiles_missing}")
-    print(f"Previews: expected={preview_expected} present={preview_present} missing={preview_missing}")
+    print(
+        f"Previews: expected={preview_expected} present={preview_present} "
+        f"missing={preview_missing} unknown={preview_unknown}"
+    )
 
 
 def fetch_bytes(
@@ -561,8 +779,27 @@ def main() -> None:
     previews_dir = output_dir / "previews"
     tiles_root = output_dir / "zoomify"
     error_path = output_dir / "errors.jsonl"
+    raw_records_dir = Path(args.raw_records_dir) if args.raw_records_dir else None
+    if raw_records_dir and not raw_records_dir.exists():
+        raw_records_dir = None
+    resolved_cache_path = Path(args.resolved_previews_cache)
+    resolved_previews_cache = (
+        load_resolved_previews_cache(resolved_cache_path)
+        if args.resolve_missing_previews
+        else {}
+    )
+    resolved_cache_seen = set(resolved_previews_cache)
 
-    items = load_items(input_path, args.limit)
+    items = load_items(input_path, args.limit, raw_records_dir=raw_records_dir)
+    if resolved_previews_cache:
+        for item in items:
+            xid = str(item["xid"])
+            previews = normalize_previews(item.get("scan_previews"))
+            if has_any_preview(previews):
+                continue
+            cached_previews = resolved_previews_cache.get(xid, [])
+            if has_any_preview(cached_previews):
+                item["scan_previews"] = cached_previews
     if not items:
         print("No photos found")
         return
@@ -589,16 +826,28 @@ def main() -> None:
     if not args.force:
         for item in items:
             xid = str(item["xid"])
-            previews = item.get("scan_previews") or []
-            if not isinstance(previews, list) or not previews:
-                previews = [""]
-            if is_photo_cached(
-                xid,
-                previews,
-                previews_dir,
-                tiles_root,
-                include_missing=include_missing,
-            ):
+            known_previews = normalize_previews(item.get("scan_previews"))
+            if args.previews_only:
+                if has_any_preview(known_previews):
+                    preview_cached = True
+                    for scan_index, preview_url in enumerate(known_previews):
+                        preview_url = str(preview_url or "").strip()
+                        if preview_url and not find_existing_preview(previews_dir, xid, scan_index):
+                            preview_cached = False
+                            break
+                else:
+                    preview_cached = find_existing_preview(previews_dir, xid, 0) is not None
+                cached = preview_cached
+            else:
+                previews = known_previews if known_previews else [""]
+                cached = is_photo_cached(
+                    xid,
+                    previews,
+                    previews_dir,
+                    tiles_root,
+                    include_missing=include_missing,
+                )
+            if cached:
                 initial_cached += 1
                 cached_xids.add(xid)
         if initial_cached:
@@ -613,13 +862,89 @@ def main() -> None:
         for item in items:
             photo_start = time.time()
             xid = str(item["xid"])
-            previews = item.get("scan_previews") or []
-            if not isinstance(previews, list) or not previews:
-                previews = [""]
+            previews = normalize_previews(item.get("scan_previews"))
 
             photo_downloaded = False
             photo_error = False
             photo_cached = True
+            preview_urls_resolved = False
+            photo_rate_limited = False
+
+            if args.previews_only and not has_any_preview(previews):
+                existing_fallback_preview = find_existing_preview(previews_dir, xid, 0)
+                if existing_fallback_preview and not args.force:
+                    previews = [""]
+                elif args.resolve_missing_previews:
+                    resolve_start = time.time()
+                    print(f"Resolving preview URLs xid={xid}...", flush=True)
+                    try:
+                        resolved_previews = resolve_preview_urls_from_permalink(
+                            session,
+                            xid,
+                            args,
+                        )
+                        if has_any_preview(resolved_previews):
+                            previews = resolved_previews
+                            item["scan_previews"] = resolved_previews
+                            preview_urls_resolved = True
+                            resolve_elapsed = time.time() - resolve_start
+                            print(
+                                f"Resolved preview URLs xid={xid} scans={len(resolved_previews)} in {resolve_elapsed:.1f}s",
+                                flush=True,
+                            )
+                            if xid not in resolved_cache_seen:
+                                append_resolved_previews_cache(
+                                    resolved_cache_path, xid, resolved_previews
+                                )
+                                resolved_cache_seen.add(xid)
+                        else:
+                            previews = [""]
+                            photo_cached = False
+                            photo_error = True
+                            error_counts["resolve_failed"] += 1
+                            resolve_elapsed = time.time() - resolve_start
+                            print(
+                                f"Resolve failed xid={xid} in {resolve_elapsed:.1f}s (no preview URLs)",
+                                flush=True,
+                            )
+                            other_samples.append(
+                                compact_error("Failed to resolve preview URLs")
+                            )
+                            log_error(
+                                error_handle,
+                                {
+                                    "xid": xid,
+                                    "stage": "resolve_preview_urls",
+                                    "error": "No preview URLs resolved",
+                                },
+                            )
+                    except Exception as exc:
+                        previews = [""]
+                        photo_cached = False
+                        photo_error = True
+                        category = classify_error(exc)
+                        error_counts[category] += 1
+                        if category == "rate_limited":
+                            photo_rate_limited = True
+                        resolve_elapsed = time.time() - resolve_start
+                        print(
+                            f"Resolve error xid={xid} in {resolve_elapsed:.1f}s: {compact_error(str(exc), max_len=80)}",
+                            flush=True,
+                        )
+                        if category not in {"rate_limited", "overloaded", "forbidden", "timeout"}:
+                            other_samples.append(compact_error(str(exc)))
+                        log_error(
+                            error_handle,
+                            {
+                                "xid": xid,
+                                "stage": "resolve_preview_urls",
+                                "error": str(exc),
+                            },
+                        )
+                else:
+                    previews = [""]
+            elif not previews:
+                previews = [""]
 
             for scan_index, preview_url in enumerate(previews):
                 preview_url = str(preview_url or "").strip()
@@ -642,6 +967,8 @@ def main() -> None:
                         photo_error = True
                         category = classify_error(exc)
                         error_counts[category] += 1
+                        if category == "rate_limited":
+                            photo_rate_limited = True
                         if category not in {"rate_limited", "overloaded", "forbidden", "timeout"}:
                             other_samples.append(compact_error(str(exc)))
                         log_error(
@@ -656,34 +983,40 @@ def main() -> None:
                 elif preview_cached:
                     preview_cached = True
 
-                tiles_dir = tiles_root / xid / f"scan_{scan_index}"
-                try:
-                    downloaded_tiles = download_zoomify_tiles(
-                        session, xid, scan_index, tiles_dir, args
-                    )
-                    if downloaded_tiles:
-                        photo_downloaded = True
-                except Exception as exc:
-                    photo_error = True
-                    category = classify_error(exc)
-                    error_counts[category] += 1
-                    if category not in {"rate_limited", "overloaded", "forbidden", "timeout"}:
-                        other_samples.append(compact_error(str(exc)))
-                    log_error(
-                        error_handle,
-                        {
-                            "xid": xid,
-                            "scan_index": scan_index,
-                            "permalink_scan": scan_index + 1,
-                            "error": str(exc),
-                        },
-                    )
+                if not args.previews_only:
+                    tiles_dir = tiles_root / xid / f"scan_{scan_index}"
+                    try:
+                        downloaded_tiles = download_zoomify_tiles(
+                            session, xid, scan_index, tiles_dir, args
+                        )
+                        if downloaded_tiles:
+                            photo_downloaded = True
+                    except Exception as exc:
+                        photo_error = True
+                        category = classify_error(exc)
+                        error_counts[category] += 1
+                        if category == "rate_limited":
+                            photo_rate_limited = True
+                        if category not in {"rate_limited", "overloaded", "forbidden", "timeout"}:
+                            other_samples.append(compact_error(str(exc)))
+                        log_error(
+                            error_handle,
+                            {
+                                "xid": xid,
+                                "scan_index": scan_index,
+                                "permalink_scan": scan_index + 1,
+                                "error": str(exc),
+                            },
+                        )
 
                 if args.force:
                     photo_cached = False
                 else:
-                    tiles_cached = scan_complete_marker(tiles_dir).exists() or scan_missing_marker(tiles_dir).exists()
-                    photo_cached = photo_cached and tiles_cached and (preview_cached or not preview_url)
+                    if args.previews_only:
+                        photo_cached = photo_cached and (preview_cached or not preview_url)
+                    else:
+                        tiles_cached = scan_complete_marker(tiles_dir).exists() or scan_missing_marker(tiles_dir).exists()
+                        photo_cached = photo_cached and tiles_cached and (preview_cached or not preview_url)
 
             if photo_error:
                 errors += 1
@@ -698,6 +1031,8 @@ def main() -> None:
             if total:
                 percent = (processed / total) * 100
                 status = "downloaded" if photo_downloaded else "cached" if photo_cached else "partial"
+                if preview_urls_resolved and not photo_downloaded and not photo_error:
+                    status = "resolved"
                 eta = ""
                 if total and initial_cached:
                     remaining_work = max(total - initial_cached - work_done, 0)
@@ -718,7 +1053,10 @@ def main() -> None:
                     f"{format_other_samples(other_samples)}"
                 )
             if args.sleep and (photo_downloaded or photo_error):
-                time.sleep(args.sleep)
+                sleep_s = float(args.sleep)
+                if photo_rate_limited:
+                    sleep_s = max(sleep_s, 15.0)
+                time.sleep(sleep_s)
 
 
 if __name__ == "__main__":

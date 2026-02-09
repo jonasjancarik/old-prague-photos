@@ -50,6 +50,20 @@ def collect(
             help="Only fetch record IDs and skip record scraping",
         ),
     ] = False,
+    retry_failed: Annotated[
+        bool,
+        typer.Option(
+            "--retry-failed",
+            help="Retry only IDs from output/failed_xids.jsonl (implies --rescrape --no-fetch-ids)",
+        ),
+    ] = False,
+    rescrape_missing_details: Annotated[
+        bool,
+        typer.Option(
+            "--rescrape-missing-details",
+            help="Rescrape only local records with incomplete scan metadata (implies --rescrape --no-fetch-ids)",
+        ),
+    ] = False,
 ):
     """
     Scrape photo records from the Prague City Archives.
@@ -61,9 +75,15 @@ def collect(
     import asyncio
 
     # Set env vars based on CLI args
-    os.environ["RESCRAPE_EXISTING_RECORDS"] = str(rescrape)
-    os.environ["GET_RECORD_IDS"] = str(fetch_ids)
+    if retry_failed or rescrape_missing_details:
+        os.environ["RESCRAPE_EXISTING_RECORDS"] = "True"
+        os.environ["GET_RECORD_IDS"] = "False"
+    else:
+        os.environ["RESCRAPE_EXISTING_RECORDS"] = str(rescrape)
+        os.environ["GET_RECORD_IDS"] = str(fetch_ids)
     os.environ["FETCH_IDS_ONLY"] = str(ids_only)
+    os.environ["RETRY_FAILED_RECORDS"] = str(retry_failed)
+    os.environ["RESCRAPE_MISSING_DETAILS"] = str(rescrape_missing_details)
 
     from collect import main_async
 
