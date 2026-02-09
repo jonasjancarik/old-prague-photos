@@ -508,6 +508,7 @@ function renderVerifyTurnstile() {
 
   state.verifyWidgetId = window.turnstile.render("#verify-turnstile", {
     sitekey: state.turnstileSiteKey,
+    action: "session_verify",
     callback: (token) => {
       state.verifyToken = token;
       if (verifyContinueBtn) verifyContinueBtn.disabled = false;

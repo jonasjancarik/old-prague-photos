@@ -46,6 +46,12 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `GET /api/zoomify?xid=...&scanIndex=0` - server-side Zoomify metadata
   - Uses R2 if `R2_TILES_BASE` is set and the scan exists there.
 
+Write API hardening:
+- `POST /api/verify`, `POST /api/corrections`, `POST /api/merges` require same-origin (`Origin`/`Referer` match).
+- Per-IP rate limits are enforced in D1.
+- Turnstile verification checks `success`, `hostname`, and expected `action`.
+- Typical failures: `403` origin mismatch/missing, `429` rate limit exceeded (`Retry-After`), `400` invalid Turnstile action/hostname.
+
 ## Local development (FastAPI)
 
 FastAPI serves the static app and stores corrections locally in JSONL files:
@@ -68,7 +74,7 @@ uv run uvicorn viewer.app:app --reload \
 
 Open `http://127.0.0.1:8000`.
 
-Turnstile is enforced unless `TURNSTILE_BYPASS=1` is set.
+Turnstile bypass is local-only: `TURNSTILE_BYPASS=1` is honored only on `localhost`/`127.0.0.1`/`::1`.
 
 ## Cloudflare Pages + D1
 
@@ -107,7 +113,13 @@ For Pages (set in the Cloudflare dashboard or `wrangler.toml`):
 - `TURNSTILE_SITE_KEY`
 - `TURNSTILE_SECRET_KEY`
 - `TURNSTILE_SESSION_SECRET` (optional; defaults to secret key)
-- `TURNSTILE_BYPASS=1` (dev only)
+- `TURNSTILE_SESSION_TTL_SECONDS` (optional; defaults to `3600`)
+- `TURNSTILE_ALLOWED_HOSTNAMES` (optional CSV; defaults to request hostname)
+- `TURNSTILE_BYPASS=1` (dev only; localhost-only)
+- `API_RATE_LIMIT_WINDOW_SECONDS` (optional; defaults to `3600`)
+- `API_RATE_LIMIT_VERIFY_MAX` (optional; defaults to `15`)
+- `API_RATE_LIMIT_WRITE_MAX` (optional; defaults to `30`)
+- `API_RATE_LIMIT_SECRET` (optional; falls back to Turnstile/session secret)
 - `ARCHIVE_BASE_URL` (optional)
 - `R2_TILES_BASE` (optional; points to public R2 prefix with tiles)
 

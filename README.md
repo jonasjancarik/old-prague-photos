@@ -44,8 +44,20 @@ TURNSTILE_SITE_KEY="your_turnstile_site_key_here"
 TURNSTILE_SECRET_KEY="your_turnstile_secret_key_here"
 # Optional: override session signing key
 # TURNSTILE_SESSION_SECRET="your_session_secret"
-# Optional: disable Turnstile for local dev
+# Optional: session cookie TTL in seconds (default: 3600)
+# TURNSTILE_SESSION_TTL_SECONDS="3600"
+# Optional: allowed Turnstile hostnames (CSV, default: request hostname)
+# TURNSTILE_ALLOWED_HOSTNAMES="example.com,www.example.com"
+# Optional: disable Turnstile for local dev (localhost only)
 TURNSTILE_BYPASS="1"
+# Optional: shared rate-limit window in seconds (default: 3600)
+# API_RATE_LIMIT_WINDOW_SECONDS="3600"
+# Optional: max /api/verify requests per IP/window (default: 15)
+# API_RATE_LIMIT_VERIFY_MAX="15"
+# Optional: max write requests per IP/window (default: 30)
+# API_RATE_LIMIT_WRITE_MAX="30"
+# Optional: dedicated rate-limit secret (fallback: TURNSTILE_SESSION_SECRET/TURNSTILE_SECRET_KEY)
+# API_RATE_LIMIT_SECRET="your_rate_limit_secret"
 
 # Optional: override archive base URL used for links
 ARCHIVE_BASE_URL="https://katalog.ahmp.cz/pragapublica"

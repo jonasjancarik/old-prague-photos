@@ -222,6 +222,7 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
 
             this.turnstileWidgetId = window.turnstile.render(this.turnstileContainerEl, {
                 sitekey: this.turnstileSiteKey,
+                action: "corrections_submit",
                 callback: (token) => {
                     this.turnstileToken = token;
                     this.updateSubmitState();

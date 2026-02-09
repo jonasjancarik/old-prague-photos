@@ -423,6 +423,7 @@ function renderTurnstile() {
 
   state.turnstileWidgetId = window.turnstile.render("#review-turnstile", {
     sitekey: state.turnstileSiteKey,
+    action: "merges_submit",
     callback: (token) => {
       state.turnstileToken = token;
       updateActionState();
