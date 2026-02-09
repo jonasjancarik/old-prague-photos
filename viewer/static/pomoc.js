@@ -50,9 +50,14 @@ const verifyContinueBtn = document.getElementById("verify-continue");
 
 const pragueFallback = [50.0755, 14.4378];
 const EMAIL_STORAGE_KEY = "old-prague-help-email";
+const REVIEW_STATE_REFRESH_INTERVAL_MS = 45_000;
+const REVIEW_STATE_REFRESH_MIN_GAP_MS = 8_000;
 
 let dataReady = false;
 let flowStarted = false;
+let reviewStateRefreshInFlight = false;
+let reviewStateLastRefreshAt = 0;
+let reviewStateRefreshTimer = null;
 
 let zoomViewer = null;
 let zoomLastXid = null;
@@ -163,6 +168,8 @@ function maybeStartFlow() {
   if (!dataReady || !state.sessionVerified || flowStarted) return;
   flowStarted = true;
   setControlsEnabled(true);
+  startReviewStatePolling();
+  refreshRemainingCloud({ force: true });
   pickRandom();
 }
 
@@ -196,7 +203,24 @@ function updateCounts() {
   }
 }
 
-async function refreshRemainingCloud() {
+function startReviewStatePolling() {
+  if (reviewStateRefreshTimer !== null) return;
+  reviewStateRefreshTimer = window.setInterval(() => {
+    refreshRemainingCloud();
+  }, REVIEW_STATE_REFRESH_INTERVAL_MS);
+}
+
+async function refreshRemainingCloud(options = {}) {
+  const force = Boolean(options.force);
+  const now = Date.now();
+  if (!force) {
+    if (reviewStateRefreshInFlight) return;
+    if (reviewStateLastRefreshAt > 0 && now - reviewStateLastRefreshAt < REVIEW_STATE_REFRESH_MIN_GAP_MS) {
+      return;
+    }
+  }
+
+  reviewStateRefreshInFlight = true;
   try {
     const reviewState = await fetchJson("/api/review-state");
     const done = applyReviewStateToFeatures(state.features, reviewState);
@@ -204,8 +228,11 @@ async function refreshRemainingCloud() {
     // Update local remaining pool while keeping out things already done by others
     state.remaining = state.groups.filter((group) => !done.has(group.id));
     updateCounts();
+    reviewStateLastRefreshAt = Date.now();
   } catch (err) {
     console.warn("Refresh counteru selhal", err);
+  } finally {
+    reviewStateRefreshInFlight = false;
   }
 }
 
@@ -434,10 +461,6 @@ function setMode(mode) {
 }
 
 async function pickRandom() {
-  // Optional: Refresh count from server to see other people's progress
-  // We don't await so UI doesn't lag
-  refreshRemainingCloud();
-
   if (!state.remaining.length) {
     state.remaining = [...state.groups];
   }
@@ -699,7 +722,7 @@ async function bootstrap() {
   state.groupByXid = groupIndex.groupByXid;
   state.remaining = state.groups.filter((group) => !doneGroupIds.has(group.id));
   updateCounts();
-  refreshRemainingCloud();
+  refreshRemainingCloud({ force: true });
 
   dataReady = true;
   maybeStartFlow();

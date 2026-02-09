@@ -1,11 +1,14 @@
 import { buildReviewState, loadXidGroupMap } from "./_review_state.js";
 
-function jsonResponse(payload, status = 200) {
+const CACHE_TTL_SECONDS = 30;
+const FRESH_PARAM_VALUES = new Set(["1", "true", "yes", "on"]);
+
+function jsonResponse(payload, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(payload), {
     status,
     headers: {
       "Content-Type": "application/json",
-      "Cache-Control": "no-store",
+      ...extraHeaders,
     },
   });
 }
@@ -15,11 +18,34 @@ async function queryRows(env, query) {
   return result?.results || [];
 }
 
+function cacheKeyFor(request) {
+  const url = new URL(request.url);
+  url.search = "";
+  url.hash = "";
+  return new Request(url.toString(), { method: "GET" });
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
 
   if (request.method !== "GET") {
-    return jsonResponse({ detail: "Method Not Allowed" }, 405);
+    return jsonResponse({ detail: "Method Not Allowed" }, 405, {
+      "Cache-Control": "no-store",
+    });
+  }
+
+  const url = new URL(request.url);
+  const freshParam = String(url.searchParams.get("fresh") || "").toLowerCase();
+  const forceFresh = FRESH_PARAM_VALUES.has(freshParam);
+  const key = cacheKeyFor(request);
+  const edgeCache =
+    typeof caches !== "undefined" && caches.default ? caches.default : null;
+
+  if (!forceFresh && edgeCache) {
+    const cached = await edgeCache.match(key);
+    if (cached) {
+      return cached;
+    }
   }
 
   const correctionRows = await queryRows(
@@ -63,7 +89,7 @@ export async function onRequest(context) {
     xidGroupMap,
   });
 
-  return jsonResponse({
+  const payload = {
     ...reviewState,
     counts: {
       corrections: reviewState.groupCorrections.length,
@@ -71,5 +97,17 @@ export async function onRequest(context) {
       merges: reviewState.mergeDecisions.length,
       knownXids: Object.keys(reviewState.resolvedGroupByXid).length,
     },
+  };
+
+  const response = jsonResponse(payload, 200, {
+    "Cache-Control": forceFresh
+      ? "no-store"
+      : `public, max-age=0, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${CACHE_TTL_SECONDS}`,
   });
+
+  if (!forceFresh && edgeCache) {
+    context.waitUntil(edgeCache.put(key, response.clone()));
+  }
+
+  return response;
 }

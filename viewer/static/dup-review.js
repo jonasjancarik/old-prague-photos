@@ -388,7 +388,7 @@ async function submitDecision(verdict) {
       throw new Error(error.detail || "Odeslání selhalo");
     }
 
-    const reviewState = await fetchJson("/api/review-state").catch(() => ({}));
+    const reviewState = await fetchJson("/api/review-state?fresh=1").catch(() => ({}));
     applyReviewStatePayload(reviewState);
 
     setStatus("Uloženo.", "success");
