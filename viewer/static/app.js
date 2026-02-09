@@ -8,21 +8,12 @@ const state = {
   archiveBaseUrl: "",
   turnstileSiteKey: "",
   turnstileBypass: false,
-  turnstileReady: false,
-  turnstileWidgetId: null,
-  turnstileToken: "",
   featuresById: new Map(),
   groupById: new Map(),
   groupByXid: new Map(),
-  groupIdByXid: new Map(),
-  resolveGroupId: (id) => id,
   correctionsByGroup: new Map(),
   overlapCluster: null,
   clusteringEnabled: true,
-  correctionLat: null,
-  correctionLon: null,
-  correctionMap: null,
-  correctionMarker: null,
   features: [],
   groups: [],
   filteredGroups: [],
@@ -69,13 +60,6 @@ const YEAR_SLIDER_EDGE_PX = 9;
 
 const infoModal = document.getElementById("info-modal");
 const infoOpenBtn = document.getElementById("info-open");
-
-const correctionLatInput = feedbackForm?.querySelector(
-  "input[name='correction_lat']",
-);
-const correctionLonInput = feedbackForm?.querySelector(
-  "input[name='correction_lon']",
-);
 
 const pragueFallback = [50.0755, 14.4378];
 
@@ -489,16 +473,7 @@ async function loadZoomifyInto(viewerEl, wrapEl, fallbackIframe, xid) {
 }
 
 function updateSubmitState() {
-  if (window.CorrectionUI) {
-    window.CorrectionUI.updateSubmitState();
-    return;
-  }
-  const button = feedbackForm.querySelector("button[type='submit']");
-  const canSubmit = Boolean(
-    state.selectedFeature &&
-    (state.turnstileBypass || state.turnstileToken),
-  );
-  button.disabled = !canSubmit;
+  window.CorrectionUI?.updateSubmitState();
 }
 
 function getArchiveUrl(feature) {
@@ -522,75 +497,6 @@ function setUrlXid(xid, mode = "push") {
   } else {
     history.pushState({ xid }, "", url);
   }
-}
-
-function setCorrection(lat, lon) {
-  state.correctionLat = lat;
-  state.correctionLon = lon;
-  if (correctionLatInput) correctionLatInput.value = String(lat);
-  if (correctionLonInput) correctionLonInput.value = String(lon);
-  updateSubmitState();
-}
-
-function clearCorrection() {
-  state.correctionLat = null;
-  state.correctionLon = null;
-  if (correctionLatInput) correctionLatInput.value = "";
-  if (correctionLonInput) correctionLonInput.value = "";
-  updateSubmitState();
-}
-
-function ensureCorrectionMap() {
-  if (!correctionMapEl || state.correctionMap) return;
-  state.correctionMap = L.map(correctionMapEl, {
-    zoomControl: false,
-    scrollWheelZoom: false,
-  }).setView(pragueFallback, 13);
-
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-    attribution: "&copy; OpenStreetMap přispěvatelé",
-  }).addTo(state.correctionMap);
-
-  state.correctionMap.on("click", (event) => {
-    const { lat, lng } = event.latlng;
-    updateCorrectionMarker(lat, lng);
-  });
-}
-
-function updateCorrectionMarker(lat, lng) {
-  if (!state.correctionMarker) {
-    state.correctionMarker = L.marker([lat, lng], {
-      draggable: true
-    }).addTo(state.correctionMap);
-
-    state.correctionMarker.on("dragend", (event) => {
-      const marker = event.target;
-      const position = marker.getLatLng();
-      setCorrection(Number(position.lat.toFixed(6)), Number(position.lng.toFixed(6)));
-    });
-  } else {
-    state.correctionMarker.setLatLng([lat, lng]);
-  }
-  setCorrection(Number(lat.toFixed(6)), Number(lng.toFixed(6)));
-}
-
-function resetCorrectionMap(feature) {
-  if (!state.correctionMap || !feature) return;
-  const [lon, lat] = feature.geometry.coordinates;
-  state.correctionMap.setView([lat, lon], 15);
-
-  if (feature.properties?.corrected) {
-    const { lat: cLat, lon: cLon } = feature.properties.corrected;
-    updateCorrectionMarker(cLat, cLon);
-    return;
-  }
-
-  if (state.correctionMarker) {
-    state.correctionMap.removeLayer(state.correctionMarker);
-    state.correctionMarker = null;
-  }
-  clearCorrection();
 }
 
 function openArchiveModal(url, xid, options = {}) {
@@ -617,7 +523,6 @@ function openArchiveModal(url, xid, options = {}) {
   if (feedbackForm) {
     feedbackForm.classList.remove("is-open");
   }
-  clearCorrection();
   if (reportCtaWrap) {
     reportCtaWrap.classList.remove("is-hidden");
   }
@@ -1033,47 +938,10 @@ function selectFeature(feature, options = {}) {
 }
 
 function renderTurnstile() {
-  if (window.CorrectionUI) {
-    window.CorrectionUI.renderTurnstile();
-    return;
-  }
-
-  if (state.turnstileBypass) {
-    if (turnstileNote) turnstileNote.textContent = "Turnstile je vypnutý pro lokální vývoj.";
-    updateSubmitState();
-    return;
-  }
-
-  if (!state.turnstileReady || !state.turnstileSiteKey) {
-    if (!state.turnstileSiteKey) {
-      if (turnstileNote) turnstileNote.textContent = "Chybí Turnstile klíč.";
-    }
-    return;
-  }
-
-  if (state.turnstileWidgetId !== null) {
-    return;
-  }
-
-  state.turnstileWidgetId = window.turnstile.render("#turnstile", {
-    sitekey: state.turnstileSiteKey,
-    callback: (token) => {
-      state.turnstileToken = token;
-      updateSubmitState();
-    },
-    "expired-callback": () => {
-      state.turnstileToken = "";
-      updateSubmitState();
-    },
-    "error-callback": () => {
-      state.turnstileToken = "";
-      updateSubmitState();
-    },
-  });
+  window.CorrectionUI?.renderTurnstile();
 }
 
 window.turnstileOnload = () => {
-  state.turnstileReady = true;
   renderTurnstile();
 };
 
@@ -1104,28 +972,12 @@ async function bootstrap() {
 
   const features = photos.features || [];
   state.features = features;
-
-  const mergeData = await fetchJson("/api/merges").catch(() => ({
-    items: [],
-  }));
-  const mergeItems = mergeData.items || [];
-
   const grouping = window.OldPragueGrouping;
-  const { map: groupIdByXid, groupIds } = grouping.buildGroupIdByXid(features);
-  state.groupIdByXid = groupIdByXid;
-  state.resolveGroupId = grouping.buildMergeResolver(groupIds, mergeItems);
+  const reviewState = await fetchJson("/api/review-state").catch(() => ({}));
+  const appliedReviewState = grouping.applyReviewState(features, reviewState);
+  state.correctionsByGroup = appliedReviewState.correctionByGroup;
 
-  const corrections = await fetchJson("/api/corrections").catch(() => ({
-    items: [],
-  }));
-  state.correctionsByGroup = grouping.applyCorrections(
-    features,
-    corrections.items || [],
-    groupIdByXid,
-    state.resolveGroupId,
-  );
-
-  const groupIndex = grouping.buildGroups(features, state.resolveGroupId);
+  const groupIndex = grouping.buildGroups(features);
   state.groups = groupIndex.groups;
   state.groupById = groupIndex.groupById;
   state.groupByXid = groupIndex.groupByXid;
@@ -1285,78 +1137,7 @@ function renderSearchResults(results, container) {
 
 feedbackForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (window.CorrectionUI) {
-    window.CorrectionUI.submit();
-    return;
-  }
-  clearStatus();
-
-  if (!state.selectedFeature) {
-    setStatus("Nejprve vyberte bod na mapě.", "error");
-    return;
-  }
-
-  if (!state.turnstileToken) {
-    if (!state.turnstileBypass) {
-      setStatus("Dokončete Turnstile kontrolu.", "error");
-      return;
-    }
-  }
-
-  const formData = new FormData(feedbackForm);
-  const rawMessage = String(formData.get("message") || "").trim();
-  const hasCoordinates = state.correctionLat !== null && state.correctionLon !== null;
-  const groupId =
-    state.selectedGroup?.id ||
-    state.selectedFeature?.properties?.group_root ||
-    state.selectedFeature?.properties?.group_id ||
-    null;
-  const payload = {
-    xid: state.selectedFeature.properties.id,
-    group_id: groupId,
-    lat: state.correctionLat ?? null,
-    lon: state.correctionLon ?? null,
-    verdict: hasCoordinates ? "wrong" : "flag",
-    message: rawMessage || "Nahlášena špatná poloha.",
-    email: formData.get("email"),
-    token: state.turnstileToken || "",
-  };
-
-  try {
-    const response = await fetch("/api/corrections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || "Odeslání selhalo");
-    }
-
-    setStatus("Děkujeme! Zpětná vazba byla přijata.", "success");
-    feedbackForm.reset();
-    feedbackForm.classList.remove("is-open");
-    if (state.correctionMarker && state.correctionMap) {
-      state.correctionMap.removeLayer(state.correctionMarker);
-      state.correctionMarker = null;
-    }
-    clearCorrection();
-    if (correctionToggle) {
-      correctionToggle.checked = false;
-      correctionMapEl?.parentElement?.classList.add("is-hidden");
-    }
-    if (reportCtaWrap) {
-      reportCtaWrap.classList.remove("is-hidden");
-    }
-    state.turnstileToken = "";
-    if (state.turnstileWidgetId !== null && window.turnstile) {
-      window.turnstile.reset(state.turnstileWidgetId);
-    }
-    updateSubmitState();
-  } catch (err) {
-    setStatus(err.message || "Odeslání selhalo", "error");
-  }
+  window.CorrectionUI?.submit();
 });
 
 if (reportCta) {

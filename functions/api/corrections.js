@@ -1,3 +1,5 @@
+import { buildReviewState, loadXidGroupMap } from "./_review_state.js";
+
 const TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
@@ -119,35 +121,52 @@ async function verifyTurnstile(token, env, remoteip) {
   }
 }
 
-async function handleGet(env) {
-  const query = `
-    WITH latest_any AS (
-      SELECT COALESCE(group_id, xid) AS group_key, MAX(id) AS any_id
+async function loadReviewState(request, env) {
+  const correctionsResult = await env.CORRECTIONS_DB.prepare(
+    `
+      SELECT
+        id,
+        xid,
+        group_id,
+        lat,
+        lon,
+        has_coordinates,
+        verdict,
+        created_at
       FROM corrections
-      GROUP BY group_key
-    ),
-    latest_coords AS (
-      SELECT COALESCE(group_id, xid) AS group_key, MAX(id) AS coord_id
-      FROM corrections
-      WHERE has_coordinates = 1
-      GROUP BY group_key
-    )
-    SELECT
-      a.xid,
-      a.group_id,
-      a.verdict,
-      a.created_at AS received_at,
-      c.lat,
-      c.lon,
-      COALESCE(c.has_coordinates, 0) AS has_coordinates
-    FROM latest_any la
-    JOIN corrections a ON a.id = la.any_id
-    LEFT JOIN latest_coords lc ON lc.group_key = la.group_key
-    LEFT JOIN corrections c ON c.id = lc.coord_id
-  `;
+    `,
+  ).all();
+  const correctionRows = correctionsResult?.results || [];
 
-  const result = await env.CORRECTIONS_DB.prepare(query).all();
-  const items = result?.results || [];
+  let mergeRows = [];
+  try {
+    const mergesResult = await env.CORRECTIONS_DB.prepare(
+      `
+        SELECT
+          id,
+          group_id_a,
+          group_id_b,
+          verdict,
+          created_at
+        FROM merge_decisions
+      `,
+    ).all();
+    mergeRows = mergesResult?.results || [];
+  } catch (error) {
+    mergeRows = [];
+  }
+
+  const xidGroupMap = await loadXidGroupMap(request, env);
+  return buildReviewState({
+    correctionRows,
+    mergeRows,
+    xidGroupMap,
+  });
+}
+
+async function handleGet(request, env) {
+  const reviewState = await loadReviewState(request, env);
+  const items = reviewState.groupCorrections || [];
   return jsonResponse({ items, count: items.length });
 }
 
@@ -221,6 +240,16 @@ async function handlePost(request, env) {
     }
   }
 
+  const xidGroupMap = await loadXidGroupMap(request, env);
+  const mappedGroupId = xidGroupMap.get(xid) || "";
+  if (xidGroupMap.size > 0 && !mappedGroupId) {
+    return jsonResponse({ detail: "Neznámé xid" }, 400);
+  }
+  if (mappedGroupId && groupId && groupId !== mappedGroupId) {
+    return jsonResponse({ detail: "Neplatná skupina pro xid" }, 400);
+  }
+  const canonicalGroupId = mappedGroupId || groupId || xid;
+
   const statement = env.CORRECTIONS_DB.prepare(
     `
       INSERT INTO corrections (
@@ -238,7 +267,7 @@ async function handlePost(request, env) {
     `,
   ).bind(
     xid,
-    groupId || null,
+    canonicalGroupId || null,
     hasCoordinates ? Number(lat) : null,
     hasCoordinates ? Number(lon) : null,
     hasCoordinates ? 1 : 0,
@@ -257,7 +286,7 @@ export async function onRequest(context) {
   const { request, env } = context;
 
   if (request.method === "GET") {
-    return handleGet(env);
+    return handleGet(request, env);
   }
 
   if (request.method === "POST") {

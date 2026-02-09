@@ -35,6 +35,7 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 
 - `GET /api/config` - Turnstile + archive base URL config
 - `POST /api/verify` - Turnstile verification, sets session cookie
+- `GET /api/review-state` - backend-resolved group roots + latest corrections + done groups
 - `GET /api/corrections` - latest corrections (per group)
 - `POST /api/corrections` - submit correction / flag
 - `GET /api/merges` - latest merge decisions

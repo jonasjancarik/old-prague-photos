@@ -15,8 +15,6 @@ const state = {
   features: [],
   groups: [],
   groupByXid: new Map(),
-  groupIdByXid: new Map(),
-  resolveGroupId: (id) => id,
   remaining: [],
   history: [],
   voted: {}, // group_id -> "ok" | "wrong"
@@ -200,13 +198,8 @@ function updateCounts() {
 
 async function refreshRemainingCloud() {
   try {
-    const corrections = await fetchJson("/api/corrections");
-    const grouping = window.OldPragueGrouping;
-    const done = grouping.buildDoneGroupSet(
-      corrections.items || [],
-      state.groupIdByXid,
-      state.resolveGroupId,
-    );
+    const reviewState = await fetchJson("/api/review-state");
+    const done = applyReviewStateToFeatures(state.features, reviewState);
 
     // Update local remaining pool while keeping out things already done by others
     state.remaining = state.groups.filter((group) => !done.has(group.id));
@@ -230,6 +223,12 @@ async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Požadavek selhal: ${response.status}`);
   return response.json();
+}
+
+function applyReviewStateToFeatures(features, reviewState) {
+  const grouping = window.OldPragueGrouping;
+  const applied = grouping.applyReviewState(features, reviewState || {});
+  return applied.doneGroupIds || new Set();
 }
 
 async function loadZoomifyMeta(xid) {
@@ -691,31 +690,16 @@ async function bootstrap() {
   const features = photos.features || [];
   state.features = features;
 
-  const mergeData = await fetchJson("/api/merges").catch(() => ({
-    items: [],
-  }));
-  const mergeItems = mergeData.items || [];
+  const reviewState = await fetchJson("/api/review-state").catch(() => ({}));
+  const doneGroupIds = applyReviewStateToFeatures(features, reviewState);
 
   const grouping = window.OldPragueGrouping;
-  const { map: groupIdByXid, groupIds } = grouping.buildGroupIdByXid(features);
-  state.groupIdByXid = groupIdByXid;
-  state.resolveGroupId = grouping.buildMergeResolver(groupIds, mergeItems);
-
-  const corrections = await fetchJson("/api/corrections").catch(() => ({
-    items: [],
-  }));
-  grouping.applyCorrections(
-    features,
-    corrections.items || [],
-    groupIdByXid,
-    state.resolveGroupId,
-  );
-
-  const groupIndex = grouping.buildGroups(features, state.resolveGroupId);
+  const groupIndex = grouping.buildGroups(features);
   state.groups = groupIndex.groups;
   state.groupByXid = groupIndex.groupByXid;
-
-  await refreshRemainingCloud();
+  state.remaining = state.groups.filter((group) => !doneGroupIds.has(group.id));
+  updateCounts();
+  refreshRemainingCloud();
 
   dataReady = true;
   maybeStartFlow();

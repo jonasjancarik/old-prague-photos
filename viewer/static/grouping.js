@@ -49,6 +49,11 @@
     return { find, union };
   }
 
+  function toFiniteCoord(value) {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  }
+
   function buildMergeResolver(groupIds, decisions) {
     const unionFind = createUnionFind(groupIds);
     (decisions || []).forEach((item) => {
@@ -93,6 +98,47 @@
     return correctionByGroup;
   }
 
+  function applyReviewState(features, reviewState) {
+    const resolvedByXid = reviewState?.resolvedGroupByXid || {};
+    const corrections = Array.isArray(reviewState?.groupCorrections)
+      ? reviewState.groupCorrections
+      : [];
+    const correctionByGroup = new Map();
+
+    corrections.forEach((item) => {
+      if (!item) return;
+      const groupId = normalizeId(item.group_id);
+      if (!groupId) return;
+      correctionByGroup.set(groupId, item);
+    });
+
+    (features || []).forEach((feature) => {
+      const props = feature?.properties || {};
+      const xid = normalizeId(props.id);
+      const fallbackGroup = normalizeId(props.group_id) || xid;
+      const resolvedGroup = normalizeId(resolvedByXid[xid]) || fallbackGroup;
+      if (resolvedGroup) {
+        props.group_root = resolvedGroup;
+      }
+
+      if (!resolvedGroup || !correctionByGroup.has(resolvedGroup)) return;
+      const correction = correctionByGroup.get(resolvedGroup);
+      const lat = toFiniteCoord(correction.lat);
+      const lon = toFiniteCoord(correction.lon);
+      if (lat === null || lon === null) return;
+      feature.geometry.coordinates = [lon, lat];
+      props.corrected = { lat, lon };
+    });
+
+    const doneGroupIds = new Set(
+      Array.isArray(reviewState?.doneGroupIds)
+        ? reviewState.doneGroupIds.map((value) => normalizeId(value)).filter(Boolean)
+        : [],
+    );
+
+    return { correctionByGroup, doneGroupIds };
+  }
+
   function sortGroupItems(items) {
     return items.sort((a, b) => {
       const propsA = a?.properties || {};
@@ -120,7 +166,8 @@
       const xid = normalizeId(props.id);
       if (xid) featureById.set(xid, feature);
 
-      const baseGroup = normalizeId(props.group_id) || xid;
+      const baseGroup =
+        normalizeId(props.group_root) || normalizeId(props.group_id) || xid;
       const groupId = resolveGroupId ? resolveGroupId(baseGroup) : baseGroup;
       if (!groupId) return;
 
@@ -171,6 +218,7 @@
     buildGroupIdByXid,
     buildMergeResolver,
     applyCorrections,
+    applyReviewState,
     buildGroups,
     buildDoneGroupSet,
   };

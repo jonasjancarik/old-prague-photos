@@ -38,6 +38,9 @@ R2_PROBE_RETRIES = 1
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 XID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+SQLITE_DATETIME_PATTERN = re.compile(
+    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$"
+)
 SESSION_COOKIE_NAME = "opp_turnstile_session"
 SESSION_TTL_SECONDS = 6 * 60 * 60
 
@@ -121,6 +124,267 @@ def build_xid_group_cache() -> dict[str, str]:
                 mapping[xid] = group_id
         _xid_group_cache = mapping
     return _xid_group_cache
+
+
+def _normalize_id(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _parse_event_time(value: Any) -> float:
+    raw = _normalize_id(value)
+    if not raw:
+        return 0.0
+
+    iso_value = raw
+    if SQLITE_DATETIME_PATTERN.fullmatch(raw):
+        iso_value = raw.replace(" ", "T") + "Z"
+    elif raw.endswith("Z"):
+        iso_value = raw[:-1] + "+00:00"
+
+    try:
+        parsed = datetime.fromisoformat(iso_value)
+    except ValueError:
+        return 0.0
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
+
+
+def _event_order_key(record: dict[str, Any]) -> tuple[float, float, str, int]:
+    ts = _parse_event_time(record.get("received_at") or record.get("created_at"))
+    raw_id = _normalize_id(record.get("id"))
+    try:
+        numeric_id = float(raw_id)
+    except ValueError:
+        numeric_id = float("-inf")
+    seq = int(record.get("_seq") or 0)
+    return (ts, numeric_id, raw_id, seq)
+
+
+def _is_newer_event(candidate: dict[str, Any], current: dict[str, Any]) -> bool:
+    return _event_order_key(candidate) > _event_order_key(current)
+
+
+def _to_finite_float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number or number in {float("inf"), float("-inf")}:
+        return None
+    return number
+
+
+def _create_union_find(ids: set[str]) -> tuple[dict[str, str], Any, Any]:
+    parent = {item: item for item in ids if item}
+
+    def find(item: str) -> str:
+        if not item:
+            return ""
+        if item not in parent:
+            parent[item] = item
+            return item
+        root = item
+        while parent[root] != root:
+            root = parent[root]
+        while parent[item] != item:
+            next_item = parent[item]
+            parent[item] = root
+            item = next_item
+        return root
+
+    def union(a: str, b: str) -> None:
+        if not a or not b:
+            return
+        root_a = find(a)
+        root_b = find(b)
+        if not root_a or not root_b or root_a == root_b:
+            return
+        winner, loser = sorted([root_a, root_b])
+        parent[loser] = winner
+
+    return parent, find, union
+
+
+def _load_correction_records() -> list[dict[str, Any]]:
+    if not CORRECTIONS_PATH.exists():
+        return []
+
+    rows: list[dict[str, Any]] = []
+    with CORRECTIONS_PATH.open(encoding="utf-8") as handle:
+        for seq, line in enumerate(handle, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            xid = _normalize_id(record.get("xid"))
+            if not xid:
+                continue
+            rows.append(
+                {
+                    **record,
+                    "xid": xid,
+                    "_seq": seq,
+                }
+            )
+    return rows
+
+
+def _load_latest_merge_records() -> list[dict[str, Any]]:
+    if not MERGES_PATH.exists():
+        return []
+
+    latest: dict[str, dict[str, Any]] = {}
+    with MERGES_PATH.open(encoding="utf-8") as handle:
+        for seq, line in enumerate(handle, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            group_id_a = _normalize_id(record.get("group_id_a"))
+            group_id_b = _normalize_id(record.get("group_id_b"))
+            verdict = _normalize_id(record.get("verdict")).lower()
+            if not group_id_a or not group_id_b or group_id_a == group_id_b:
+                continue
+            if verdict not in {"same", "different"}:
+                continue
+            if group_id_a > group_id_b:
+                group_id_a, group_id_b = group_id_b, group_id_a
+
+            pair_key = f"{group_id_a}::{group_id_b}"
+            candidate = {
+                "id": record.get("id") or f"merge_{seq}",
+                "group_id_a": group_id_a,
+                "group_id_b": group_id_b,
+                "verdict": verdict,
+                "received_at": record.get("received_at"),
+                "created_at": record.get("received_at"),
+                "_seq": seq,
+            }
+            current = latest.get(pair_key)
+            if current is None or _is_newer_event(candidate, current):
+                latest[pair_key] = candidate
+
+    return [latest[key] for key in sorted(latest)]
+
+
+def build_review_state() -> dict[str, Any]:
+    xid_group = build_xid_group_cache()
+    correction_rows = _load_correction_records()
+    merge_rows = _load_latest_merge_records()
+
+    known_group_ids = set(xid_group.values())
+    normalized_corrections: list[dict[str, Any]] = []
+    for record in correction_rows:
+        xid = _normalize_id(record.get("xid"))
+        if not xid:
+            continue
+        mapped_group = xid_group.get(xid, "")
+        stored_group = _normalize_id(record.get("group_id"))
+        base_group = mapped_group or stored_group or xid
+        if not base_group:
+            continue
+
+        lat = _to_finite_float(record.get("lat"))
+        lon = _to_finite_float(record.get("lon"))
+        has_coordinates = bool(record.get("has_coordinates")) and lat is not None and lon is not None
+
+        normalized = {
+            "id": record.get("id") or f"corr_{record.get('_seq', 0)}",
+            "xid": xid,
+            "base_group_id": base_group,
+            "verdict": _normalize_id(record.get("verdict")).lower(),
+            "received_at": record.get("received_at"),
+            "created_at": record.get("received_at"),
+            "has_coordinates": has_coordinates,
+            "lat": lat,
+            "lon": lon,
+            "_seq": int(record.get("_seq") or 0),
+        }
+        normalized_corrections.append(normalized)
+        known_group_ids.add(base_group)
+
+    for merge in merge_rows:
+        known_group_ids.add(merge["group_id_a"])
+        known_group_ids.add(merge["group_id_b"])
+
+    _parent, find, union = _create_union_find(known_group_ids)
+    for merge in merge_rows:
+        if merge["verdict"] == "same":
+            union(merge["group_id_a"], merge["group_id_b"])
+
+    resolved_group_by_xid: dict[str, str] = {}
+    for xid, group_id in xid_group.items():
+        resolved_group_by_xid[xid] = find(group_id) or group_id
+
+    group_roots: dict[str, str] = {}
+    for group_id in sorted(known_group_ids):
+        if group_id:
+            group_roots[group_id] = find(group_id) or group_id
+
+    latest_any_by_group: dict[str, dict[str, Any]] = {}
+    latest_coords_by_group: dict[str, dict[str, Any]] = {}
+    for record in normalized_corrections:
+        resolved_group = find(record["base_group_id"]) or record["base_group_id"]
+        if not resolved_group:
+            continue
+
+        current_any = latest_any_by_group.get(resolved_group)
+        if current_any is None or _is_newer_event(record, current_any):
+            latest_any_by_group[resolved_group] = record
+
+        if record["has_coordinates"]:
+            current_coords = latest_coords_by_group.get(resolved_group)
+            if current_coords is None or _is_newer_event(record, current_coords):
+                latest_coords_by_group[resolved_group] = record
+
+    group_corrections: list[dict[str, Any]] = []
+    for group_id in sorted(latest_any_by_group):
+        latest_any = latest_any_by_group[group_id]
+        latest_coords = latest_coords_by_group.get(group_id)
+        group_corrections.append(
+            {
+                "xid": latest_any["xid"],
+                "group_id": group_id,
+                "verdict": latest_any["verdict"] or None,
+                "received_at": latest_any.get("received_at"),
+                "has_coordinates": bool(latest_coords),
+                "lat": latest_coords.get("lat") if latest_coords else None,
+                "lon": latest_coords.get("lon") if latest_coords else None,
+            }
+        )
+
+    done_group_ids = sorted(
+        item["group_id"]
+        for item in group_corrections
+        if item.get("has_coordinates") or item.get("verdict") == "ok"
+    )
+
+    merge_decisions = [
+        {
+            "group_id_a": row["group_id_a"],
+            "group_id_b": row["group_id_b"],
+            "verdict": row["verdict"],
+            "received_at": row.get("received_at"),
+        }
+        for row in merge_rows
+    ]
+
+    return {
+        "groupCorrections": group_corrections,
+        "doneGroupIds": done_group_ids,
+        "resolvedGroupByXid": resolved_group_by_xid,
+        "groupRoots": group_roots,
+        "mergeDecisions": merge_decisions,
+    }
 
 
 def is_valid_email(email: str) -> bool:
@@ -347,52 +611,7 @@ def _get_feature_preview_url(xid: str) -> str:
 
 
 def normalize_corrections() -> list[dict[str, Any]]:
-    if not CORRECTIONS_PATH.exists():
-        return []
-
-    latest_by_group: dict[str, dict[str, Any]] = {}
-    latest_coords_by_group: dict[str, dict[str, Any]] = {}
-    xid_group = build_xid_group_cache()
-    with CORRECTIONS_PATH.open(encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            xid = record.get("xid")
-            if not xid:
-                continue
-            group_id = (
-                str(record.get("group_id") or "").strip()
-                or xid_group.get(xid)
-                or xid
-            )
-            latest_by_group[group_id] = {
-                "xid": xid,
-                "group_id": group_id,
-                "verdict": record.get("verdict"),
-                "received_at": record.get("received_at"),
-            }
-
-            has_coordinates = bool(record.get("has_coordinates"))
-            if has_coordinates:
-                latest_coords_by_group[group_id] = {
-                    "lat": record.get("lat"),
-                    "lon": record.get("lon"),
-                    "has_coordinates": True,
-                }
-
-    merged: list[dict[str, Any]] = []
-    for group_id, base in latest_by_group.items():
-        coords = latest_coords_by_group.get(
-            group_id, {"lat": None, "lon": None, "has_coordinates": False}
-        )
-        merged.append({**base, **coords})
-
-    return merged
+    return build_review_state()["groupCorrections"]
 
 
 @app.get("/api/config")
@@ -561,6 +780,21 @@ def get_corrections() -> JSONResponse:
     return JSONResponse({"items": items, "count": len(items)})
 
 
+@app.get("/api/review-state")
+def get_review_state() -> JSONResponse:
+    state = build_review_state()
+    payload = {
+        **state,
+        "counts": {
+            "corrections": len(state.get("groupCorrections", [])),
+            "doneGroups": len(state.get("doneGroupIds", [])),
+            "merges": len(state.get("mergeDecisions", [])),
+            "knownXids": len(state.get("resolvedGroupByXid", {})),
+        },
+    }
+    return JSONResponse(payload)
+
+
 @app.post("/api/corrections")
 def submit_correction(payload: CorrectionPayload, request: Request) -> JSONResponse:
     email = (payload.email or "").strip()
@@ -602,9 +836,14 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
         elif not _has_valid_session(request):
             raise HTTPException(status_code=400, detail="Turnstile je povinný")
 
-    group_id = (payload.group_id or "").strip()
-    if not group_id:
-        group_id = build_xid_group_cache().get(payload.xid, "")
+    requested_group_id = (payload.group_id or "").strip()
+    xid_group_cache = build_xid_group_cache()
+    mapped_group_id = xid_group_cache.get(payload.xid, "")
+    if xid_group_cache and not mapped_group_id:
+        raise HTTPException(status_code=400, detail="Neznámé xid")
+    if mapped_group_id and requested_group_id and requested_group_id != mapped_group_id:
+        raise HTTPException(status_code=400, detail="Neplatná skupina pro xid")
+    group_id = mapped_group_id or requested_group_id or payload.xid
 
     record = {
         "id": f"corr_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
@@ -631,39 +870,15 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
 
 
 def normalize_merges() -> list[dict[str, Any]]:
-    if not MERGES_PATH.exists():
-        return []
-
-    latest: dict[str, dict[str, Any]] = {}
-    with MERGES_PATH.open(encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            group_id_a = str(record.get("group_id_a") or "").strip()
-            group_id_b = str(record.get("group_id_b") or "").strip()
-            verdict = str(record.get("verdict") or "").strip().lower()
-            if not group_id_a or not group_id_b:
-                continue
-            if group_id_a == group_id_b:
-                continue
-            if verdict not in {"same", "different"}:
-                continue
-            if group_id_a > group_id_b:
-                group_id_a, group_id_b = group_id_b, group_id_a
-            key = f"{group_id_a}::{group_id_b}"
-            latest[key] = {
-                "group_id_a": group_id_a,
-                "group_id_b": group_id_b,
-                "verdict": verdict,
-                "received_at": record.get("received_at"),
-            }
-
-    return list(latest.values())
+    return [
+        {
+            "group_id_a": row["group_id_a"],
+            "group_id_b": row["group_id_b"],
+            "verdict": row["verdict"],
+            "received_at": row.get("received_at"),
+        }
+        for row in _load_latest_merge_records()
+    ]
 
 
 @app.get("/api/merges")

@@ -3,9 +3,7 @@ const state = {
   groups: [],
   groupById: new Map(),
   groupByXid: new Map(),
-  groupIdByXid: new Map(),
-  groupIds: new Set(),
-  resolveGroupId: (id) => id,
+  groupRoots: new Map(),
   decisions: [],
   decisionsByPair: new Map(),
   candidates: [],
@@ -89,6 +87,28 @@ async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Požadavek selhal: ${response.status}`);
   return response.json();
+}
+
+function resolveGroupRoot(groupId) {
+  const raw = String(groupId || "").trim();
+  if (!raw) return "";
+  return state.groupRoots.get(raw) || raw;
+}
+
+function applyReviewStatePayload(reviewState) {
+  const grouping = window.OldPragueGrouping;
+  grouping.applyReviewState(state.features, reviewState || {});
+
+  const roots = reviewState?.groupRoots || {};
+  state.groupRoots = new Map(Object.entries(roots));
+  state.decisions = Array.isArray(reviewState?.mergeDecisions)
+    ? reviewState.mergeDecisions
+    : [];
+
+  const groupIndex = grouping.buildGroups(state.features);
+  state.groups = groupIndex.groups;
+  state.groupById = groupIndex.groupById;
+  state.groupByXid = groupIndex.groupByXid;
 }
 
 async function loadZoomifyMeta(xid, scanIndex) {
@@ -245,8 +265,8 @@ function buildDecisionMap() {
     const b = String(item?.group_id_b || "").trim();
     const verdict = String(item?.verdict || "").trim();
     if (!a || !b) return;
-    const resolvedA = state.resolveGroupId ? state.resolveGroupId(a) : a;
-    const resolvedB = state.resolveGroupId ? state.resolveGroupId(b) : b;
+    const resolvedA = resolveGroupRoot(a);
+    const resolvedB = resolveGroupRoot(b);
     if (!resolvedA || !resolvedB || resolvedA === resolvedB) return;
     const key = pairKey(resolvedA, resolvedB);
     if (key) state.decisionsByPair.set(key, verdict);
@@ -289,8 +309,8 @@ function buildCandidates() {
     const rawA = String(item?.group_id_a || "").trim();
     const rawB = String(item?.group_id_b || "").trim();
     if (!rawA || !rawB) return;
-    const resolvedA = state.resolveGroupId ? state.resolveGroupId(rawA) : rawA;
-    const resolvedB = state.resolveGroupId ? state.resolveGroupId(rawB) : rawB;
+    const resolvedA = resolveGroupRoot(rawA);
+    const resolvedB = resolveGroupRoot(rawB);
     if (!resolvedA || !resolvedB || resolvedA === resolvedB) return;
     const groupA = state.groupById.get(resolvedA);
     const groupB = state.groupById.get(resolvedB);
@@ -335,16 +355,7 @@ function pickPrev() {
 function rebuildPairs() {
   state.history = [];
   state.currentPair = null;
-  const grouping = window.OldPragueGrouping;
-  state.resolveGroupId = grouping.buildMergeResolver(
-    state.groupIds,
-    state.decisions,
-  );
   buildDecisionMap();
-  const groupIndex = grouping.buildGroups(state.features, state.resolveGroupId);
-  state.groups = groupIndex.groups;
-  state.groupById = groupIndex.groupById;
-  state.groupByXid = groupIndex.groupByXid;
   buildCandidates();
   pickNext();
 }
@@ -377,9 +388,8 @@ async function submitDecision(verdict) {
       throw new Error(error.detail || "Odeslání selhalo");
     }
 
-    state.decisions.push(payload);
-    const key = pairKey(payload.group_id_a, payload.group_id_b);
-    if (key) state.decisionsByPair.set(key, verdict);
+    const reviewState = await fetchJson("/api/review-state").catch(() => ({}));
+    applyReviewStatePayload(reviewState);
 
     setStatus("Uloženo.", "success");
     state.turnstileToken = "";
@@ -447,36 +457,15 @@ async function bootstrap() {
   const photos = await fetchJson("/data/photos.geojson");
   state.features = photos.features || [];
 
-  const mergeData = await fetchJson("/api/merges").catch(() => ({ items: [] }));
-  state.decisions = mergeData.items || [];
+  const reviewState = await fetchJson("/api/review-state").catch(() => ({}));
+  applyReviewStatePayload(reviewState);
 
   const similarityData = await fetchJson("/data/similarity_candidates.json").catch(
     () => ({ pairs: [] }),
   );
   state.similarityPairs = similarityData.pairs || [];
 
-  const grouping = window.OldPragueGrouping;
-  const { map: groupIdByXid, groupIds } = grouping.buildGroupIdByXid(state.features);
-  state.groupIdByXid = groupIdByXid;
-  state.groupIds = groupIds;
-  state.resolveGroupId = grouping.buildMergeResolver(groupIds, state.decisions);
   buildDecisionMap();
-
-  const corrections = await fetchJson("/api/corrections").catch(() => ({
-    items: [],
-  }));
-  grouping.applyCorrections(
-    state.features,
-    corrections.items || [],
-    groupIdByXid,
-    state.resolveGroupId,
-  );
-
-  const groupIndex = grouping.buildGroups(state.features, state.resolveGroupId);
-  state.groups = groupIndex.groups;
-  state.groupById = groupIndex.groupById;
-  state.groupByXid = groupIndex.groupByXid;
-
   buildCandidates();
   pickNext();
   renderTurnstile();
