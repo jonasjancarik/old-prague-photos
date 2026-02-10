@@ -17,6 +17,23 @@ python viewer/build_geojson.py
 python build_similarity.py
 ```
 
+Similarity generation contract:
+- `similarity_candidates.json`
+  - Backward compatible keys: `generated_at`, `distance`, `hash_size`, `algo`, `pairs`
+  - New key: `pair_distance` (defaults to `8`)
+  - Pair schema unchanged: `group_id_a`, `group_id_b`, `distance`, `xid_a`, `xid_b`
+- `series_version_clusters.json`
+  - Backward compatible keys: `generated_at`, `distance`, `hash_size`, `algo`, `clusters`
+  - New key: `cluster_distance` (defaults to `10`)
+  - Cluster schema unchanged: `series_id`, `version_id`, `xids`, `representative_xid`, `max_distance`
+
+Hashing source order in `build_similarity.py`:
+- local stitched cache (`output/similarity/stitched`)
+- R2 Zoomify (`R2_TILES_BASE`)
+- feature `scan_zoomify_paths`
+- archive permalink fallback
+- preview fallback (local preview or metadata URL)
+
 ## Pages and UI modes
 
 - `/` (index) - map browser + corrections

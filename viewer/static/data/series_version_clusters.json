@@ -1,6 +1,7 @@
 {
-  "generated_at": "2026-01-18T22:58:52Z",
+  "generated_at": "2026-02-10T21:16:53Z",
   "distance": 10,
+  "cluster_distance": 10,
   "hash_size": 8,
   "algo": "dhash",
   "clusters": [
@@ -2711,19 +2712,11 @@
       "series_id": "ca6d119d11b1a3a5136bc685e3eceafba7a11008",
       "version_id": "v1",
       "xids": [
-        "3C50F9B8035211E7A51174D435EEBE90"
-      ],
-      "representative_xid": "3C50F9B8035211E7A51174D435EEBE90",
-      "max_distance": 0
-    },
-    {
-      "series_id": "ca6d119d11b1a3a5136bc685e3eceafba7a11008",
-      "version_id": "v2",
-      "xids": [
+        "3C50F9B8035211E7A51174D435EEBE90",
         "A11870A5B67611DF820F00166F1163D4"
       ],
-      "representative_xid": "A11870A5B67611DF820F00166F1163D4",
-      "max_distance": 0
+      "representative_xid": "3C50F9B8035211E7A51174D435EEBE90",
+      "max_distance": 5
     },
     {
       "series_id": "d32f2c29da270ac18589b65fff4995f2c4ec3d56",
@@ -7072,7 +7065,7 @@
         "CEF2138B267B11E6B917406186009F3A"
       ],
       "representative_xid": "A1188551B67611DF820F00166F1163D4",
-      "max_distance": 10
+      "max_distance": 9
     },
     {
       "series_id": "ab32281ab1ee80ac6c60e1d0f40e09e9ec4c52d6",
@@ -28952,15 +28945,6 @@
       "max_distance": 0
     },
     {
-      "series_id": "e8fe5433bc141d8192a38d05153ce19dea65591f",
-      "version_id": "v1",
-      "xids": [
-        "2b4ad90645eef4a32af5f7c6806dc29a"
-      ],
-      "representative_xid": "2b4ad90645eef4a32af5f7c6806dc29a",
-      "max_distance": 0
-    },
-    {
       "series_id": "4e7b51e6cad7a5e5fc232d86c6e1e80c86c8381d",
       "version_id": "v1",
       "xids": [
@@ -31688,7 +31672,7 @@
         "D45AE6079B9711E6A59B406186009F3A"
       ],
       "representative_xid": "A11885C2B67611DF820F00166F1163D4",
-      "max_distance": 4
+      "max_distance": 3
     },
     {
       "series_id": "31a13cbba5fef794d41dec3e2bf11fa6935bd5b5",
@@ -32394,7 +32378,7 @@
         "F85B99990E2811E2935B6C626D41E503"
       ],
       "representative_xid": "A1187A07B67611DF820F00166F1163D4",
-      "max_distance": 8
+      "max_distance": 6
     },
     {
       "series_id": "c37286777ecf7fab86439d4dd079aa7c5ffb3f8d",
@@ -36946,7 +36930,7 @@
         "A1186BA0B67611DF820F00166F1163D4"
       ],
       "representative_xid": "2F8D918CB01511E3801E0024BE7CD9AC",
-      "max_distance": 10
+      "max_distance": 9
     },
     {
       "series_id": "d3ac4831e6e4b1e12654a25b19b18cfa24b94192",
@@ -49001,7 +48985,7 @@
         "A11866ADB67611DF820F00166F1163D4"
       ],
       "representative_xid": "A0C50FB1B67611DF820F00166F1163D4",
-      "max_distance": 15
+      "max_distance": 12
     },
     {
       "series_id": "3cec89c5266b1a57b4a6c62a54cc99a7fd54c66a",
@@ -51256,7 +51240,7 @@
         "E30B0D19E28C11E89F1B74D435EEBE90"
       ],
       "representative_xid": "1963C972CFF611E196716C626D41E503",
-      "max_distance": 10
+      "max_distance": 8
     },
     {
       "series_id": "4b1f1df5340053887bfada3066c1a5f475435d08",
@@ -82896,7 +82880,7 @@
         "A11878BAB67611DF820F00166F1163D4"
       ],
       "representative_xid": "790036A52BBF11E69C9A406186009F3A",
-      "max_distance": 8
+      "max_distance": 7
     },
     {
       "series_id": "195e181ee7bfe30c9ec8570a93e10647c9de5425",

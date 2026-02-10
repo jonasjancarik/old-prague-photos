@@ -270,15 +270,22 @@ Outputs:
 - `viewer/static/data/similarity_candidates.json`
 - `viewer/static/data/series_version_clusters.json`
 - Cache: `output/similarity/hashes.jsonl`
+- Stitched cache: `output/similarity/stitched/<xid>/scan_<n>.jpg`
 
 Notes:
-- Uses local cache from `downloads/archive/` by default
-- Falls back to network if cache missing
+- Source order per scan: local stitched cache -> R2 Zoomify -> feature `scan_zoomify_paths` -> archive permalink -> preview fallback
+- Uses local cache from `downloads/archive/` for previews by default
 - Disable cache with `--no-download-cache`
 - Override cache root with `--download-root <path>`
+- Legacy hash cache lines without `hash_profile` are ignored and recomputed
 
 Useful flags:
-- `--distance 8` (lower = stricter)
+- `--pair-distance 8` (stricter duplicate pair queue; default)
+- `--cluster-distance 10` (within-series version clustering; default)
+- `--distance 8` (legacy alias; sets both unless explicit split flags are passed)
+- `--r2-tiles-base https://<r2-public-domain>/tiles`
+- `--stitch-target-long-side 1024`
+- `--stitch-max-tiles 16`
 - `--hash-size 8` (64-bit hash)
 - `--limit 200` (smoke test)
 - `--sleep 0.2` (throttle)
@@ -287,6 +294,31 @@ Useful flags:
 ## Web viewer
 
 The viewer is a static web app with optional Cloudflare Pages + D1 backend for corrections.
+
+### Run locally
+
+Preferred (Cloudflare Pages Functions + local D1, closest to production):
+
+```bash
+bunx wrangler d1 migrations apply CORRECTIONS_DB --local
+TURNSTILE_BYPASS=1 bunx wrangler pages dev viewer/static --local
+```
+
+Open the URL printed by Wrangler (typically `http://127.0.0.1:8788`).
+
+FastAPI fallback (quick local app server):
+
+```bash
+uv run uvicorn viewer.app:app --reload \
+  --reload-dir viewer \
+  --reload-dir viewer/static \
+  --reload-include "*.html" \
+  --reload-include "*.css" \
+  --reload-include "*.js" \
+  --reload-include "*.geojson"
+```
+
+Open `http://127.0.0.1:8000`.
 
 See `docs/web-app.md` for full setup, API endpoints, and deployment.
 
