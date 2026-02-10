@@ -19,10 +19,6 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
         statusEl: null,
         turnstileContainerEl: null,
         turnstileNoteEl: null,
-        turnstileWidgetId: null,
-        turnstileToken: "",
-        turnstileBypass: false,
-        turnstileSiteKey: "",
         onSubmit: null,
         onCancel: null,
         feature: null,
@@ -54,8 +50,6 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
             this.statusEl = options.statusEl;
             this.turnstileContainerEl = options.turnstileContainerEl;
             this.turnstileNoteEl = options.turnstileNoteEl;
-            this.turnstileSiteKey = options.turnstileSiteKey || "";
-            this.turnstileBypass = options.turnstileBypass || false;
             this.onSubmit = options.onSubmit || (() => { });
             this.onCancel = options.onCancel || (() => { });
 
@@ -183,10 +177,9 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
         },
 
         updateSubmitState() {
-            const hasToken = !!(this.turnstileToken || this.turnstileBypass);
             const hasProposed = !!this.proposedCoords;
             if (this.submitBtn) {
-                this.submitBtn.disabled = !hasProposed || !hasToken;
+                this.submitBtn.disabled = !hasProposed;
             }
         },
 
@@ -205,47 +198,16 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
         },
 
         renderTurnstile() {
-            if (this.turnstileBypass) {
-                if (this.turnstileNoteEl) this.turnstileNoteEl.textContent = "Turnstile je vypnutý pro lokální vývoj.";
-                this.updateSubmitState();
-                return;
+            if (this.turnstileNoteEl) {
+                this.turnstileNoteEl.textContent =
+                    "Při prvním odeslání může vyskočit ověření pro relaci.";
             }
-
-            if (!window.turnstile || !this.turnstileSiteKey || !this.turnstileContainerEl) {
-                if (this.turnstileNoteEl && !this.turnstileSiteKey) {
-                    this.turnstileNoteEl.textContent = "Chybí Turnstile klíč.";
-                }
-                return;
-            }
-
-            if (this.turnstileWidgetId !== null) return;
-
-            this.turnstileWidgetId = window.turnstile.render(this.turnstileContainerEl, {
-                sitekey: this.turnstileSiteKey,
-                action: "corrections_submit",
-                callback: (token) => {
-                    this.turnstileToken = token;
-                    this.updateSubmitState();
-                },
-                "expired-callback": () => {
-                    this.turnstileToken = "";
-                    this.updateSubmitState();
-                },
-                "error-callback": () => {
-                    this.turnstileToken = "";
-                    this.updateSubmitState();
-                },
-            });
+            this.updateSubmitState();
         },
 
         async submit() {
             if (!this.feature || !this.proposedCoords) {
                 this.setStatus("Nejprve vyberte bod na mapě.", "error");
-                return;
-            }
-
-            if (!this.turnstileToken && !this.turnstileBypass) {
-                this.setStatus("Dokončete Turnstile kontrolu.", "error");
                 return;
             }
 
@@ -256,29 +218,31 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
                 verdict: "wrong",
                 message: (this.messageEl?.value || "").trim() || "Nahlášena špatná poloha.",
                 email: (this.emailEl?.value || "").trim() || null,
-                token: this.turnstileToken || "",
             };
 
             if (this.submitBtn) this.submitBtn.disabled = true;
 
             try {
-                const response = await fetch("/api/corrections", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
-
-                if (!response.ok) {
-                    const error = await response.json().catch(() => ({}));
-                    throw new Error(error.detail || "Odeslání selhalo");
+                const sendRequest = () =>
+                    fetch("/api/corrections", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "same-origin",
+                        body: JSON.stringify(payload),
+                    });
+                const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
+                if (submitWithRetry) {
+                    await submitWithRetry(sendRequest);
+                } else {
+                    const response = await sendRequest();
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({}));
+                        throw new Error(error.detail || "Odeslání selhalo");
+                    }
                 }
 
                 this.setStatus("Díky! Oprava byla uložena.", "success");
-                this.turnstileToken = "";
-                if (this.turnstileWidgetId !== null && window.turnstile) {
-                    window.turnstile.reset(this.turnstileWidgetId);
-                }
-                this.onSubmit(this.feature, this.proposedCoords);
+                await Promise.resolve(this.onSubmit(this.feature, this.proposedCoords));
                 setTimeout(() => this.close(), 500);
             } catch (error) {
                 this.setStatus(error.message || "Odeslání selhalo", "error");

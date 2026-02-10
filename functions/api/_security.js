@@ -110,6 +110,18 @@ function rateLimitSecret(request, env) {
   return "";
 }
 
+function voterKeySecret(request, env) {
+  const secret = (
+    env.API_RATE_LIMIT_SECRET ||
+    env.TURNSTILE_SESSION_SECRET ||
+    env.TURNSTILE_SECRET_KEY ||
+    ""
+  ).trim();
+  if (secret) return secret;
+  if (isLocalBypassAllowed(request, env)) return "dev-voter-key";
+  return "";
+}
+
 function clientIp(request) {
   const cfIp = String(request.headers.get("CF-Connecting-IP") || "").trim();
   if (cfIp) return cfIp;
@@ -287,6 +299,16 @@ export async function buildSessionCookie(request, env) {
     .join("; ");
 
   return { cookie, ttlSeconds };
+}
+
+export async function buildVoterKey(request, env) {
+  const secret = voterKeySecret(request, env);
+  if (!secret) return "";
+  const cookieHeader = request.headers.get("Cookie") || "";
+  const cookies = parseCookies(cookieHeader);
+  const sessionValue = String(cookies[SESSION_COOKIE_NAME] || "");
+  const keyMaterial = `${secret}:${clientIp(request)}:${sessionValue}`;
+  return sha256Hex(keyMaterial);
 }
 
 function maxForBucket(env, bucket) {

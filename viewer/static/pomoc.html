@@ -128,39 +128,14 @@
             <button class="secondary help-secondary" type="button" id="cancel-correction">
               Zrušit
             </button>
+            <button class="secondary help-secondary" type="button" id="submit-flag">
+              Nevím kde přesně
+            </button>
             <button class="primary help-primary is-hidden" type="button" id="submit-correction" disabled>
               Uložit opravu
             </button>
           </div>
           <p class="form-status" id="modal-status"></p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal" id="verify-modal" aria-hidden="true">
-    <div class="modal-backdrop"></div>
-    <div class="modal-dialog modal-compact" role="dialog" aria-modal="true" aria-label="Ověření">
-      <div class="modal-header">
-        <div>
-          <p class="modal-eyebrow">Ověření</p>
-          <h2 class="modal-title">Než začneme</h2>
-        </div>
-      </div>
-      <div class="modal-body verify-body">
-        <p class="helper">Potvrďte, že nejste robot. Ověření platí pro celou relaci.</p>
-        <label class="field">
-          <span>E-mail (volitelné)</span>
-          <input id="verify-email" type="email" placeholder="vy@priklad.cz" />
-        </label>
-        <div class="turnstile-wrap">
-          <div id="verify-turnstile"></div>
-          <p class="helper" id="verify-status">Pro pokračování je potřeba ověření.</p>
-        </div>
-        <div class="verify-actions">
-          <button class="primary" type="button" id="verify-continue" disabled>
-            Pokračovat
-          </button>
         </div>
       </div>
     </div>
@@ -172,9 +147,8 @@
   <script src="./zoomify.js"></script>
   <script src="./photo-meta.js"></script>
   <script src="./grouping.js"></script>
+  <script src="./session-verify.js"></script>
   <script src="./correction-ui.js"></script>
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=turnstileOnload" async
-    defer></script>
   <script src="./pomoc.js"></script>
   <script src="./mode-picker.js"></script>
 </body>

@@ -1,6 +1,7 @@
 import { buildReviewState, loadXidGroupMap } from "./_review_state.js";
 import {
   assertSameOrigin,
+  buildVoterKey,
   enforceRateLimit,
   hasValidSession,
   toHttpError,
@@ -30,6 +31,7 @@ async function loadReviewState(request, env) {
         lat,
         lon,
         has_coordinates,
+        voter_key,
         verdict,
         created_at
       FROM corrections
@@ -175,12 +177,13 @@ async function handlePost(request, env) {
         lat,
         lon,
         has_coordinates,
+        voter_key,
         verdict,
         message,
         email,
         user_agent
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
   ).bind(
     xid,
@@ -188,6 +191,7 @@ async function handlePost(request, env) {
     hasCoordinates ? Number(lat) : null,
     hasCoordinates ? Number(lon) : null,
     hasCoordinates ? 1 : 0,
+    await buildVoterKey(request, env),
     verdict,
     message,
     email || null,

@@ -17,11 +17,6 @@ const state = {
   rightFeature: null,
   archiveBaseUrl: "",
   scanIndexByXid: new Map(),
-  turnstileSiteKey: "",
-  turnstileBypass: false,
-  turnstileReady: false,
-  turnstileWidgetId: null,
-  turnstileToken: "",
 };
 
 const candidateCountEl = document.getElementById("candidate-count");
@@ -77,8 +72,7 @@ function updateCounts() {
 }
 
 function updateActionState() {
-  const canSubmit =
-    !!state.currentPair && (state.turnstileBypass || state.turnstileToken);
+  const canSubmit = !!state.currentPair;
   if (sameBtn) sameBtn.disabled = !canSubmit;
   if (differentBtn) differentBtn.disabled = !canSubmit;
 }
@@ -362,10 +356,6 @@ function rebuildPairs() {
 
 async function submitDecision(verdict) {
   if (!state.currentPair) return;
-  if (!state.turnstileToken && !state.turnstileBypass) {
-    setStatus("Dokončete Turnstile kontrolu.", "error");
-    return;
-  }
 
   clearStatus();
 
@@ -373,29 +363,32 @@ async function submitDecision(verdict) {
     group_id_a: state.currentPair.groupA.id,
     group_id_b: state.currentPair.groupB.id,
     verdict,
-    token: state.turnstileToken || "",
   };
 
   try {
-    const response = await fetch("/api/merges", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const sendRequest = () =>
+      fetch("/api/merges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(payload),
+      });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || "Odeslání selhalo");
+    const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
+    if (submitWithRetry) {
+      await submitWithRetry(sendRequest);
+    } else {
+      const response = await sendRequest();
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || "Odeslání selhalo");
+      }
     }
 
     const reviewState = await fetchJson("/api/review-state?fresh=1").catch(() => ({}));
     applyReviewStatePayload(reviewState);
 
     setStatus("Uloženo.", "success");
-    state.turnstileToken = "";
-    if (state.turnstileWidgetId !== null && window.turnstile) {
-      window.turnstile.reset(state.turnstileWidgetId);
-    }
     updateActionState();
     rebuildPairs();
   } catch (error) {
@@ -403,56 +396,8 @@ async function submitDecision(verdict) {
   }
 }
 
-function renderTurnstile() {
-  if (state.turnstileBypass) {
-    if (turnstileNote) {
-      turnstileNote.textContent = "Turnstile je vypnutý pro lokální vývoj.";
-    }
-    updateActionState();
-    return;
-  }
-
-  if (!state.turnstileReady || !state.turnstileSiteKey) {
-    if (turnstileNote && !state.turnstileSiteKey) {
-      turnstileNote.textContent = "Chybí Turnstile klíč.";
-    }
-    return;
-  }
-
-  if (state.turnstileWidgetId !== null) return;
-
-  state.turnstileWidgetId = window.turnstile.render("#review-turnstile", {
-    sitekey: state.turnstileSiteKey,
-    action: "merges_submit",
-    callback: (token) => {
-      state.turnstileToken = token;
-      updateActionState();
-    },
-    "expired-callback": () => {
-      state.turnstileToken = "";
-      updateActionState();
-    },
-    "error-callback": () => {
-      state.turnstileToken = "";
-      updateActionState();
-    },
-  });
-}
-
-window.turnstileOnload = () => {
-  state.turnstileReady = true;
-  renderTurnstile();
-};
-
-window.addEventListener("old-prague-mode", (event) => {
-  if (event.detail?.mode !== "dedupe") return;
-  renderTurnstile();
-});
-
 async function bootstrap() {
   const config = await fetchJson("/api/config").catch(() => ({}));
-  state.turnstileSiteKey = config.turnstileSiteKey || "";
-  state.turnstileBypass = Boolean(config.turnstileBypass);
   state.archiveBaseUrl = config.archiveBaseUrl || "";
 
   const photos = await fetchJson("/data/photos.geojson");
@@ -469,7 +414,10 @@ async function bootstrap() {
   buildDecisionMap();
   buildCandidates();
   pickNext();
-  renderTurnstile();
+  if (turnstileNote) {
+    turnstileNote.textContent =
+      "Při prvním hlasu může vyskočit ověření pro relaci.";
+  }
 }
 
 if (skipBtn) skipBtn.addEventListener("click", () => pickNext());

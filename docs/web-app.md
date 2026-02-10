@@ -41,6 +41,8 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `POST /api/corrections` - submit correction / flag
 - `GET /api/merges` - latest merge decisions
 - `POST /api/merges` - submit merge decision
+- `GET /api/admin/review` - maintainer overview (pending corrections, flags, conflicts, recent merges)
+- `GET /api/admin/export?format=json|csv&since=...&limit=...` - maintainer export
 - `GET /api/preview-url?xid=...` - popup preview URL resolver (R2 -> local cache -> feature metadata)
 - `GET /api/preview-local?xid=...&scanIndex=0` - serve local preview file from `downloads/archive/previews`
 - `GET /api/zoomify?xid=...&scanIndex=0` - server-side Zoomify metadata
@@ -50,6 +52,7 @@ Write API hardening:
 - `POST /api/verify`, `POST /api/corrections`, `POST /api/merges` require same-origin (`Origin`/`Referer` match).
 - Per-IP rate limits are enforced in D1.
 - Turnstile verification checks `success`, `hostname`, and expected `action`.
+- Recommended for production: protect `/admin*` and `/api/admin/*` at Cloudflare WAF/Access.
 - Typical failures: `403` origin mismatch/missing, `429` rate limit exceeded (`Retry-After`), `400` invalid Turnstile action/hostname.
 
 ## Local development (FastAPI)
@@ -148,4 +151,8 @@ SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
 - `/api/preview-url` falls back to local preview cache and finally `scan_previews[0]` metadata.
 - `/api/zoomify` only uses `R2_TILES_BASE` (tiles path), not preview thumbnails.
 - D1 stores corrections + merge decisions (see `migrations/*.sql`).
+- `review-state` includes consensus metadata per group:
+  - `correction_state`: `none | pending | approved`
+  - `anchor_type`: `none | flag | correction`
+  - `ok_votes`, `required_ok_votes`, `done`, `needs_confirmation`
 - UI copy is Czech-only (see `viewer/static/*.html` + `viewer/static/*.js`).

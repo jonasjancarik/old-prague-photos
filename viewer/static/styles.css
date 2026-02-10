@@ -639,6 +639,17 @@ input:checked+.toggle-slider:before {
   white-space: nowrap;
 }
 
+.report-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 190px;
+}
+
+.report-flag-button {
+  width: 100%;
+}
+
 .correction-picker {
   display: grid;
   gap: 8px;
@@ -771,6 +782,11 @@ input:checked+.toggle-slider:before {
 
 .detail-item:last-child {
   border-bottom: none;
+}
+
+.scope-hint {
+  border-left: 3px solid rgba(43, 110, 120, 0.34);
+  padding-left: 10px;
 }
 
 .detail-label {
@@ -1008,6 +1024,24 @@ textarea {
   background: var(--accent);
   box-shadow: 0 6px 14px rgba(195, 77, 47, 0.5);
   display: block;
+}
+
+.marker-dot.is-pending {
+  background: rgba(43, 110, 120, 0.24);
+}
+
+.marker-dot.is-pending span {
+  background: var(--accent-2);
+  box-shadow: 0 0 0 3px rgba(43, 110, 120, 0.3);
+}
+
+.marker-dot.is-approved {
+  background: rgba(47, 138, 71, 0.24);
+}
+
+.marker-dot.is-approved span {
+  background: #2f8a47;
+  box-shadow: 0 0 0 3px rgba(47, 138, 71, 0.25);
 }
 
 .form-status[data-tone=\"error\"] {
@@ -1567,6 +1601,31 @@ textarea {
 
 .report-cta-container {
   margin-top: 24px;
+}
+
+.consensus-banner {
+  margin-bottom: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(43, 110, 120, 0.26);
+  background: linear-gradient(
+    135deg,
+    rgba(43, 110, 120, 0.13) 0%,
+    rgba(43, 110, 120, 0.04) 100%
+  );
+  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.consensus-text {
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.consensus-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .form-actions {

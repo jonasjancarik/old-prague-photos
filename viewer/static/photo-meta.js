@@ -93,6 +93,23 @@
       container.appendChild(wrapper);
     });
 
+    if (groupItems.length > 1) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "detail-item scope-hint";
+
+      const labelEl = document.createElement("div");
+      labelEl.className = "detail-label";
+      labelEl.textContent = "Rozsah opravy";
+
+      const valueEl = document.createElement("p");
+      valueEl.className = "detail-value";
+      valueEl.textContent = `Opravujete polohu celé série (${groupItems.length} verzí).`;
+
+      wrapper.appendChild(labelEl);
+      wrapper.appendChild(valueEl);
+      container.appendChild(wrapper);
+    }
+
     if (versionClusters.length) {
       const wrapper = document.createElement("div");
       wrapper.className = "detail-item";

@@ -6,12 +6,11 @@ const state = {
   selectedGroup: null,
   selectedFeature: null,
   archiveBaseUrl: "",
-  turnstileSiteKey: "",
-  turnstileBypass: false,
   featuresById: new Map(),
   groupById: new Map(),
   groupByXid: new Map(),
   correctionsByGroup: new Map(),
+  reviewCounts: {},
   overlapCluster: null,
   clusteringEnabled: true,
   features: [],
@@ -43,6 +42,11 @@ const zoomWrap = archiveIframe?.closest(".zoom-wrap");
 const zoomViewerEl = document.getElementById("zoom-viewer");
 const reportCta = document.getElementById("report-cta");
 const reportCtaWrap = document.getElementById("report-cta-container");
+const reportFlagBtn = document.getElementById("report-flag");
+const consensusBanner = document.getElementById("consensus-banner");
+const consensusText = document.getElementById("consensus-text");
+const confirmCta = document.getElementById("confirm-cta");
+const correctionScopeHint = document.getElementById("correction-scope-hint");
 const correctionMapEl = document.getElementById("correction-map");
 const cancelCorrectionBtn = document.getElementById("cancel-correction");
 const metaView = document.getElementById("modal-meta-view");
@@ -516,7 +520,6 @@ function openArchiveModal(url, xid, options = {}) {
   archiveModal.classList.add("is-open");
   archiveModal.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
-  renderTurnstile();
   if (metaView) metaView.classList.remove("is-hidden");
   if (correctionView) correctionView.classList.add("is-hidden");
 
@@ -573,13 +576,70 @@ function closeArchiveModal(options = {}) {
   }
 }
 
+function resolveGroupIdForFeature(feature) {
+  const props = feature?.properties || {};
+  return props.group_root || props.group_id || props.id || "";
+}
+
+function getCorrectionForFeature(feature) {
+  const groupId = resolveGroupIdForFeature(feature);
+  if (!groupId) return null;
+  return state.correctionsByGroup.get(groupId) || null;
+}
+
+function renderConsensusStatus(feature) {
+  if (!consensusBanner || !consensusText || !confirmCta) return;
+  const correction = getCorrectionForFeature(feature);
+  if (!correction) {
+    consensusBanner.classList.add("is-hidden");
+    return;
+  }
+
+  const correctionState = String(correction.correction_state || "none");
+  const anchorType = String(correction.anchor_type || "none");
+  let text = "";
+  let showConfirm = false;
+
+  if (correctionState === "pending" && anchorType === "correction") {
+    text = "Poloha upravena jiným uživatelem. Sedí to?";
+    showConfirm = true;
+  } else if (correctionState === "approved") {
+    text = "Poloha potvrzena komunitou.";
+  } else if (anchorType === "flag") {
+    text = "Nahlášeno: poloha možná nesedí, čeká na potvrzení.";
+  } else {
+    consensusBanner.classList.add("is-hidden");
+    return;
+  }
+
+  consensusText.textContent = text;
+  confirmCta.classList.toggle("is-hidden", !showConfirm);
+  consensusBanner.classList.remove("is-hidden");
+}
+
+function renderCorrectionScopeHint() {
+  if (!correctionScopeHint) return;
+  const versionCount = Array.isArray(state.selectedGroup?.items)
+    ? state.selectedGroup.items.length
+    : 0;
+  if (versionCount > 1) {
+    correctionScopeHint.textContent = `Opravujete polohu celé série (${versionCount} verzí).`;
+    correctionScopeHint.classList.remove("is-hidden");
+    return;
+  }
+  correctionScopeHint.textContent = "";
+  correctionScopeHint.classList.add("is-hidden");
+}
+
 function renderDetails(feature) {
   if (!detailContainer) return;
   if (!window.OldPragueMeta?.renderDetails) return;
   const group = state.selectedGroup;
+  const correction = getCorrectionForFeature(feature);
   window.OldPragueMeta.renderDetails(detailContainer, feature, state.archiveBaseUrl, {
     groupItems: group?.items || [],
     selectedId: feature?.properties?.id || "",
+    correctionStatus: correction,
     onSelectVersion: (xid) => {
       if (!xid || !state.featuresById.has(xid)) return;
       const nextGroup = state.groupByXid.get(xid);
@@ -591,11 +651,14 @@ function renderDetails(feature) {
       });
     },
   });
+  renderConsensusStatus(feature);
+  renderCorrectionScopeHint();
 }
 
-function buildMarkerIcon() {
+function buildMarkerIcon(markerState = "") {
+  const className = markerState ? `marker-dot is-${markerState}` : "marker-dot";
   return L.divIcon({
-    className: "marker-dot",
+    className,
     html: "<span></span>",
     iconSize: [18, 18],
   });
@@ -868,13 +931,20 @@ function addMarkers(groups, options = {}) {
   state.overlapCluster.clearLayers();
 
   const bounds = L.latLngBounds();
-  const icon = buildMarkerIcon();
 
   groups.forEach((group) => {
     if (!group) return;
     const lat = Number(group.lat);
     const lon = Number(group.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    const correction = state.correctionsByGroup.get(group.id);
+    const markerState =
+      correction?.correction_state === "pending"
+        ? "pending"
+        : correction?.correction_state === "approved"
+          ? "approved"
+          : "";
+    const icon = buildMarkerIcon(markerState);
     const markerParams = { icon, interactive: true };
 
     // We create separate marker instances for each cluster group
@@ -937,13 +1007,97 @@ function selectFeature(feature, options = {}) {
   }
 }
 
-function renderTurnstile() {
-  window.CorrectionUI?.renderTurnstile();
+function rebuildGroupIndexes() {
+  const grouping = window.OldPragueGrouping;
+  const groupIndex = grouping.buildGroups(state.features);
+  state.groups = groupIndex.groups;
+  state.groupById = groupIndex.groupById;
+  state.groupByXid = groupIndex.groupByXid;
+  state.featuresById = groupIndex.featureById;
 }
 
-window.turnstileOnload = () => {
-  renderTurnstile();
-};
+function applyReviewStatePayload(reviewState = {}) {
+  const grouping = window.OldPragueGrouping;
+  const appliedReviewState = grouping.applyReviewState(state.features, reviewState);
+  state.correctionsByGroup = appliedReviewState.correctionByGroup;
+  state.reviewCounts = reviewState?.counts || {};
+  rebuildGroupIndexes();
+}
+
+function updateVerifiedCount(reviewState = null) {
+  const verifiedCount = document.getElementById("verified-count");
+  if (!verifiedCount) return;
+  const value =
+    Number(reviewState?.counts?.doneGroups) ||
+    Number(state.reviewCounts?.doneGroups) ||
+    0;
+  verifiedCount.textContent = value.toLocaleString();
+}
+
+async function refreshReviewState(options = {}) {
+  const { fresh = false } = options;
+  const selectedXid = state.selectedFeature?.properties?.id || "";
+  const reviewState = await fetchJson(
+    fresh ? "/api/review-state?fresh=1" : "/api/review-state",
+  );
+  applyReviewStatePayload(reviewState);
+  updateVerifiedCount(reviewState);
+  if (Number.isFinite(state.yearFilterMin) && Number.isFinite(state.yearFilterMax)) {
+    applyYearFilter({ fitBounds: false });
+  } else {
+    addMarkers(state.groups, { fitBounds: false });
+  }
+
+  if (selectedXid && state.featuresById.has(selectedXid)) {
+    const group = state.groupByXid.get(selectedXid);
+    if (group) {
+      state.selectedGroup = group;
+      state.selectedFeature = state.featuresById.get(selectedXid);
+      renderDetails(state.selectedFeature);
+    }
+  }
+  return reviewState;
+}
+
+async function submitModalVerdict(verdict) {
+  if (!state.selectedFeature) return;
+  const groupId = resolveGroupIdForFeature(state.selectedFeature);
+  const payload = {
+    xid: state.selectedFeature.properties.id,
+    group_id: groupId || undefined,
+    verdict,
+    message:
+      verdict === "ok"
+        ? "Poloha potvrzena jako správná."
+        : "Nahlášeno bez upřesnění polohy.",
+  };
+  const sendRequest = () =>
+    fetch("/api/corrections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(payload),
+    });
+  const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
+  if (submitWithRetry) {
+    await submitWithRetry(sendRequest);
+  } else {
+    const response = await sendRequest();
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || "Odeslání selhalo");
+    }
+  }
+  await refreshReviewState({ fresh: true });
+  if (verdict === "ok") {
+    if (consensusText) {
+      consensusText.textContent = "Díky! Potvrzení bylo uloženo.";
+    }
+  } else if (consensusText) {
+    consensusText.textContent =
+      "Díky! Hlášení bylo uloženo a čeká na potvrzení.";
+  }
+}
 
 async function fetchJson(url) {
   const response = await fetch(url);
@@ -955,8 +1109,6 @@ async function fetchJson(url) {
 
 async function bootstrap() {
   const config = await fetchJson("/api/config").catch(() => ({}));
-  state.turnstileSiteKey = config.turnstileSiteKey || "";
-  state.turnstileBypass = Boolean(config.turnstileBypass);
   state.archiveBaseUrl = config.archiveBaseUrl || "";
 
   let photos;
@@ -968,30 +1120,14 @@ async function bootstrap() {
 
   initMap();
 
-  renderTurnstile();
-
   const features = photos.features || [];
   state.features = features;
-  const grouping = window.OldPragueGrouping;
   const reviewState = await fetchJson("/api/review-state").catch(() => ({}));
-  const appliedReviewState = grouping.applyReviewState(features, reviewState);
-  state.correctionsByGroup = appliedReviewState.correctionByGroup;
-
-  const groupIndex = grouping.buildGroups(features);
-  state.groups = groupIndex.groups;
-  state.groupById = groupIndex.groupById;
-  state.groupByXid = groupIndex.groupByXid;
-  state.featuresById = groupIndex.featureById;
+  applyReviewStatePayload(reviewState);
 
   initYearFilter();
   renderDetails(null);
-
-  const verifiedCount = document.getElementById("verified-count");
-  if (verifiedCount) {
-    verifiedCount.textContent = state.correctionsByGroup.size
-      ? state.correctionsByGroup.size.toLocaleString()
-      : "0";
-  }
+  updateVerifiedCount(reviewState);
 
   const xid = new URLSearchParams(window.location.search).get("xid");
   if (xid && state.featuresById.has(xid)) {
@@ -1018,53 +1154,17 @@ async function bootstrap() {
       statusEl: formStatus,
       turnstileContainerEl: document.getElementById("turnstile"),
       turnstileNoteEl: turnstileNote,
-      turnstileSiteKey: state.turnstileSiteKey,
-      turnstileBypass: state.turnstileBypass,
-      onSubmit: (feature, proposedCoords) => {
+      onSubmit: async () => {
         if (metaView) metaView.classList.remove("is-hidden");
         if (correctionView) correctionView.classList.add("is-hidden");
         if (reportCtaWrap) reportCtaWrap.classList.remove("is-hidden");
-        if (feature && proposedCoords) {
-          const lat = Number(proposedCoords.lat);
-          const lon = Number(proposedCoords.lon);
-          if (Number.isFinite(lat) && Number.isFinite(lon)) {
-            const groupId =
-              feature.properties?.group_root || feature.properties?.group_id;
-            const group = groupId ? state.groupById.get(groupId) : null;
-            const targets = group?.items?.length ? group.items : [feature];
-            targets.forEach((item) => {
-              item.geometry.coordinates = [lon, lat];
-              item.properties = item.properties || {};
-              item.properties.corrected = { lat, lon };
-            });
-            if (group) {
-              group.lat = lat;
-              group.lon = lon;
-              group.primary = group.items[0] || feature;
-            }
-            const activeGroups = Array.isArray(state.filteredGroups)
-              ? state.filteredGroups
-              : state.groups;
-            if (Array.isArray(activeGroups)) {
-              addMarkers(activeGroups, { fitBounds: false });
-            }
-            if (state.map) {
-              state.map.setView([lat, lon], Math.max(state.map.getZoom(), 14), {
-                animate: true,
-              });
-            }
-          }
-        }
+        await refreshReviewState({ fresh: true });
       },
       onCancel: () => {
         if (metaView) metaView.classList.remove("is-hidden");
         if (correctionView) correctionView.classList.add("is-hidden");
       },
     });
-
-    if (window.turnstile) {
-      window.CorrectionUI.renderTurnstile();
-    }
   }
 
   initSearch();
@@ -1148,6 +1248,32 @@ if (reportCta) {
     if (feedbackForm) feedbackForm.classList.add("is-open");
     if (window.CorrectionUI) {
       window.CorrectionUI.open(state.selectedFeature);
+    }
+  });
+}
+
+if (reportFlagBtn) {
+  reportFlagBtn.addEventListener("click", async () => {
+    try {
+      await submitModalVerdict("flag");
+      renderConsensusStatus(state.selectedFeature);
+    } catch (error) {
+      const message = error?.message || "Odeslání selhalo";
+      if (consensusText) consensusText.textContent = message;
+      if (consensusBanner) consensusBanner.classList.remove("is-hidden");
+    }
+  });
+}
+
+if (confirmCta) {
+  confirmCta.addEventListener("click", async () => {
+    try {
+      await submitModalVerdict("ok");
+      renderConsensusStatus(state.selectedFeature);
+    } catch (error) {
+      const message = error?.message || "Odeslání selhalo";
+      if (consensusText) consensusText.textContent = message;
+      if (consensusBanner) consensusBanner.classList.remove("is-hidden");
     }
   });
 }

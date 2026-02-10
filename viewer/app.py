@@ -14,7 +14,7 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -166,6 +166,110 @@ def _is_newer_event(candidate: dict[str, Any], current: dict[str, Any]) -> bool:
     return _event_order_key(candidate) > _event_order_key(current)
 
 
+def _event_voter_identity(record: dict[str, Any]) -> str:
+    voter_key = _normalize_id(record.get("voter_key"))
+    if voter_key:
+        return voter_key
+    record_id = _normalize_id(record.get("id"))
+    if record_id:
+        return f"legacy:{record_id}"
+    return f"legacy:{int(record.get('_seq') or 0)}"
+
+
+def _is_anchor_event(record: dict[str, Any]) -> bool:
+    verdict = _normalize_id(record.get("verdict")).lower()
+    if verdict == "flag":
+        return True
+    return verdict == "wrong" and bool(record.get("has_coordinates"))
+
+
+def _anchor_type_for_record(record: dict[str, Any] | None) -> str:
+    if not record:
+        return "none"
+    verdict = _normalize_id(record.get("verdict")).lower()
+    if verdict == "flag":
+        return "flag"
+    if verdict == "wrong" and bool(record.get("has_coordinates")):
+        return "correction"
+    return "none"
+
+
+def _count_ok_votes(
+    events: list[dict[str, Any]], start_index: int, excluded_identity: str = ""
+) -> int:
+    voters: set[str] = set()
+    for event in events[start_index:]:
+        if _normalize_id(event.get("verdict")).lower() != "ok":
+            continue
+        identity = _event_voter_identity(event)
+        if excluded_identity and identity == excluded_identity:
+            continue
+        voters.add(identity)
+    return len(voters)
+
+
+def _latest_approved_correction(
+    events: list[dict[str, Any]], anchor_indexes: list[int]
+) -> dict[str, Any] | None:
+    approved: dict[str, Any] | None = None
+    for pos, anchor_index in enumerate(anchor_indexes):
+        anchor = events[anchor_index]
+        if _anchor_type_for_record(anchor) != "correction":
+            continue
+        next_anchor = (
+            anchor_indexes[pos + 1] if pos + 1 < len(anchor_indexes) else len(events)
+        )
+        segment = events[:next_anchor]
+        ok_votes = _count_ok_votes(
+            segment, anchor_index + 1, _event_voter_identity(anchor)
+        )
+        if ok_votes >= 1:
+            approved = anchor
+    return approved
+
+
+def _analyze_group_events(events: list[dict[str, Any]]) -> dict[str, Any] | None:
+    ordered = sorted(events, key=_event_order_key)
+    if not ordered:
+        return None
+
+    anchor_indexes = [i for i, event in enumerate(ordered) if _is_anchor_event(event)]
+    approved_correction = _latest_approved_correction(ordered, anchor_indexes)
+    latest_anchor_index = anchor_indexes[-1] if anchor_indexes else -1
+    latest_anchor = ordered[latest_anchor_index] if latest_anchor_index >= 0 else None
+    anchor_type = _anchor_type_for_record(latest_anchor)
+    required_ok_votes = 1 if anchor_type == "correction" else 2
+    excluded_identity = (
+        _event_voter_identity(latest_anchor) if anchor_type == "correction" else ""
+    )
+    ok_votes = _count_ok_votes(ordered, latest_anchor_index + 1, excluded_identity)
+    done = ok_votes >= required_ok_votes
+
+    if anchor_type == "correction":
+        correction_state = "approved" if done else "pending"
+    elif anchor_type == "flag":
+        correction_state = "pending"
+    else:
+        correction_state = "none"
+
+    applied_coords = None
+    if anchor_type == "correction":
+        applied_coords = latest_anchor
+    elif approved_correction and approved_correction.get("has_coordinates"):
+        applied_coords = approved_correction
+
+    return {
+        "latest_event": ordered[-1],
+        "latest_anchor": latest_anchor,
+        "anchor_type": anchor_type,
+        "correction_state": correction_state,
+        "required_ok_votes": required_ok_votes,
+        "ok_votes": ok_votes,
+        "done": done,
+        "applied_coords": applied_coords,
+    }
+
+
 def _to_finite_float(value: Any) -> float | None:
     try:
         number = float(value)
@@ -234,11 +338,11 @@ def _load_correction_records() -> list[dict[str, Any]]:
     return rows
 
 
-def _load_latest_merge_records() -> list[dict[str, Any]]:
+def _load_merge_records() -> list[dict[str, Any]]:
     if not MERGES_PATH.exists():
         return []
 
-    latest: dict[str, dict[str, Any]] = {}
+    rows: list[dict[str, Any]] = []
     with MERGES_PATH.open(encoding="utf-8") as handle:
         for seq, line in enumerate(handle, start=1):
             line = line.strip()
@@ -259,20 +363,27 @@ def _load_latest_merge_records() -> list[dict[str, Any]]:
             if group_id_a > group_id_b:
                 group_id_a, group_id_b = group_id_b, group_id_a
 
-            pair_key = f"{group_id_a}::{group_id_b}"
-            candidate = {
-                "id": record.get("id") or f"merge_{seq}",
-                "group_id_a": group_id_a,
-                "group_id_b": group_id_b,
-                "verdict": verdict,
-                "received_at": record.get("received_at"),
-                "created_at": record.get("received_at"),
-                "_seq": seq,
-            }
-            current = latest.get(pair_key)
-            if current is None or _is_newer_event(candidate, current):
-                latest[pair_key] = candidate
+            rows.append(
+                {
+                    "id": record.get("id") or f"merge_{seq}",
+                    "group_id_a": group_id_a,
+                    "group_id_b": group_id_b,
+                    "verdict": verdict,
+                    "received_at": record.get("received_at"),
+                    "created_at": record.get("received_at"),
+                    "_seq": seq,
+                }
+            )
+    return rows
 
+
+def _load_latest_merge_records() -> list[dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    for row in _load_merge_records():
+        pair_key = f"{row['group_id_a']}::{row['group_id_b']}"
+        current = latest.get(pair_key)
+        if current is None or _is_newer_event(row, current):
+            latest[pair_key] = row
     return [latest[key] for key in sorted(latest)]
 
 
@@ -307,6 +418,7 @@ def build_review_state() -> dict[str, Any]:
             "has_coordinates": has_coordinates,
             "lat": lat,
             "lon": lon,
+            "voter_key": _normalize_id(record.get("voter_key")),
             "_seq": int(record.get("_seq") or 0),
         }
         normalized_corrections.append(normalized)
@@ -330,42 +442,48 @@ def build_review_state() -> dict[str, Any]:
         if group_id:
             group_roots[group_id] = find(group_id) or group_id
 
-    latest_any_by_group: dict[str, dict[str, Any]] = {}
-    latest_coords_by_group: dict[str, dict[str, Any]] = {}
+    events_by_group: dict[str, list[dict[str, Any]]] = {}
     for record in normalized_corrections:
         resolved_group = find(record["base_group_id"]) or record["base_group_id"]
         if not resolved_group:
             continue
-
-        current_any = latest_any_by_group.get(resolved_group)
-        if current_any is None or _is_newer_event(record, current_any):
-            latest_any_by_group[resolved_group] = record
-
-        if record["has_coordinates"]:
-            current_coords = latest_coords_by_group.get(resolved_group)
-            if current_coords is None or _is_newer_event(record, current_coords):
-                latest_coords_by_group[resolved_group] = record
+        events_by_group.setdefault(resolved_group, []).append(record)
 
     group_corrections: list[dict[str, Any]] = []
-    for group_id in sorted(latest_any_by_group):
-        latest_any = latest_any_by_group[group_id]
-        latest_coords = latest_coords_by_group.get(group_id)
+    for group_id in sorted(events_by_group):
+        analysis = _analyze_group_events(events_by_group[group_id])
+        if not analysis:
+            continue
+        latest_any = analysis["latest_event"]
+        latest_coords = analysis["applied_coords"]
+        latest_anchor = analysis["latest_anchor"]
         group_corrections.append(
             {
                 "xid": latest_any["xid"],
                 "group_id": group_id,
                 "verdict": latest_any["verdict"] or None,
                 "received_at": latest_any.get("received_at"),
+                "last_event_at": latest_any.get("received_at")
+                or latest_any.get("created_at"),
                 "has_coordinates": bool(latest_coords),
                 "lat": latest_coords.get("lat") if latest_coords else None,
                 "lon": latest_coords.get("lon") if latest_coords else None,
+                "correction_state": analysis["correction_state"],
+                "ok_votes": analysis["ok_votes"],
+                "required_ok_votes": analysis["required_ok_votes"],
+                "done": analysis["done"],
+                "needs_confirmation": not analysis["done"],
+                "anchor_type": analysis["anchor_type"],
+                "anchor_at": (
+                    latest_anchor.get("received_at") or latest_anchor.get("created_at")
+                    if latest_anchor
+                    else None
+                ),
             }
         )
 
     done_group_ids = sorted(
-        item["group_id"]
-        for item in group_corrections
-        if item.get("has_coordinates") or item.get("verdict") == "ok"
+        item["group_id"] for item in group_corrections if item.get("done")
     )
 
     merge_decisions = [
@@ -396,6 +514,26 @@ def _session_secret() -> str:
         os.environ.get("TURNSTILE_SESSION_SECRET", "").strip()
         or os.environ.get("TURNSTILE_SECRET_KEY", "").strip()
     )
+
+
+def _voter_key_secret() -> str:
+    return (
+        os.environ.get("API_RATE_LIMIT_SECRET", "").strip()
+        or os.environ.get("TURNSTILE_SESSION_SECRET", "").strip()
+        or os.environ.get("TURNSTILE_SECRET_KEY", "").strip()
+    )
+
+
+def _build_voter_key(request: Request) -> str:
+    secret = _voter_key_secret()
+    if not secret and is_turnstile_bypass():
+        secret = "dev-voter-key"
+    if not secret:
+        return ""
+    ip = request.client.host if request.client else "unknown"
+    session_value = request.cookies.get(SESSION_COOKIE_NAME, "")
+    payload = f"{secret}:{ip}:{session_value}".encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _sign_session(exp: int) -> str:
@@ -788,6 +926,27 @@ def get_review_state() -> JSONResponse:
         "counts": {
             "corrections": len(state.get("groupCorrections", [])),
             "doneGroups": len(state.get("doneGroupIds", [])),
+            "pendingCorrections": len(
+                [
+                    item
+                    for item in state.get("groupCorrections", [])
+                    if item.get("correction_state") == "pending"
+                ]
+            ),
+            "approvedCorrections": len(
+                [
+                    item
+                    for item in state.get("groupCorrections", [])
+                    if item.get("correction_state") == "approved"
+                ]
+            ),
+            "flaggedGroups": len(
+                [
+                    item
+                    for item in state.get("groupCorrections", [])
+                    if item.get("anchor_type") == "flag"
+                ]
+            ),
             "merges": len(state.get("mergeDecisions", [])),
             "knownXids": len(state.get("resolvedGroupByXid", {})),
         },
@@ -856,6 +1015,7 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
         "message": (payload.message or "Nahlášena špatná poloha.").strip(),
         "email": email or None,
         "newsletter_opt_in": bool(email),
+        "voter_key": _build_voter_key(request),
         "user_agent": request.headers.get("user-agent", ""),
         "received_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -927,6 +1087,355 @@ def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
             handle.write("\n")
 
     return JSONResponse({"ok": True})
+
+
+def _resolved_correction_records(
+    review_state: dict[str, Any], correction_rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    xid_group = build_xid_group_cache()
+    roots = review_state.get("groupRoots", {})
+    rows: list[dict[str, Any]] = []
+    for record in correction_rows:
+        xid = _normalize_id(record.get("xid"))
+        if not xid:
+            continue
+        mapped_group = xid_group.get(xid, "")
+        stored_group = _normalize_id(record.get("group_id"))
+        base_group = mapped_group or stored_group or xid
+        resolved_group = _normalize_id(roots.get(base_group)) or base_group
+        lat = _to_finite_float(record.get("lat"))
+        lon = _to_finite_float(record.get("lon"))
+        has_coordinates = (
+            bool(record.get("has_coordinates")) and lat is not None and lon is not None
+        )
+        rows.append(
+            {
+                **record,
+                "group_id": resolved_group,
+                "xid": xid,
+                "lat": lat,
+                "lon": lon,
+                "has_coordinates": has_coordinates,
+                "_event_ts": _parse_event_time(
+                    record.get("received_at") or record.get("created_at")
+                ),
+            }
+        )
+    return rows
+
+
+def _location_conflict_groups(
+    group_corrections: list[dict[str, Any]], correction_rows: list[dict[str, Any]]
+) -> set[str]:
+    by_group: dict[str, list[dict[str, Any]]] = {}
+    for row in correction_rows:
+        group_id = _normalize_id(row.get("group_id"))
+        if not group_id:
+            continue
+        by_group.setdefault(group_id, []).append(row)
+
+    conflicts: set[str] = set()
+    for item in group_corrections:
+        group_id = _normalize_id(item.get("group_id"))
+        if not group_id:
+            continue
+        if item.get("correction_state") == "approved":
+            continue
+        if _normalize_id(item.get("anchor_type")) != "correction":
+            continue
+        anchor_ts = _parse_event_time(item.get("anchor_at"))
+        coord_keys: set[str] = set()
+        voter_keys: set[str] = set()
+        for row in by_group.get(group_id, []):
+            if not row.get("has_coordinates"):
+                continue
+            if float(row.get("_event_ts") or 0.0) < anchor_ts:
+                continue
+            lat = _to_finite_float(row.get("lat"))
+            lon = _to_finite_float(row.get("lon"))
+            if lat is None or lon is None:
+                continue
+            coord_keys.add(f"{lat:.6f},{lon:.6f}")
+            voter_keys.add(_event_voter_identity(row))
+        if len(coord_keys) >= 2 and len(voter_keys) >= 2:
+            conflicts.add(group_id)
+    return conflicts
+
+
+def _merge_conflict_pairs(merge_rows: list[dict[str, Any]]) -> set[str]:
+    verdicts: dict[str, set[str]] = {}
+    for row in merge_rows:
+        group_id_a = _normalize_id(row.get("group_id_a"))
+        group_id_b = _normalize_id(row.get("group_id_b"))
+        verdict = _normalize_id(row.get("verdict")).lower()
+        if not group_id_a or not group_id_b or group_id_a == group_id_b:
+            continue
+        if verdict not in {"same", "different"}:
+            continue
+        if group_id_a > group_id_b:
+            group_id_a, group_id_b = group_id_b, group_id_a
+        key = f"{group_id_a}::{group_id_b}"
+        verdicts.setdefault(key, set()).add(verdict)
+    return {key for key, values in verdicts.items() if {"same", "different"} <= values}
+
+
+@app.get("/api/admin/review")
+def get_admin_review() -> JSONResponse:
+    review_state = build_review_state()
+    correction_rows = _resolved_correction_records(review_state, _load_correction_records())
+    merge_rows = _load_merge_records()
+
+    location_conflicts = _location_conflict_groups(
+        review_state.get("groupCorrections", []), correction_rows
+    )
+    merge_conflicts = _merge_conflict_pairs(merge_rows)
+
+    pending_corrections = [
+        {
+            **item,
+            "location_conflict": item.get("group_id") in location_conflicts,
+        }
+        for item in review_state.get("groupCorrections", [])
+        if item.get("correction_state") == "pending"
+        and item.get("anchor_type") == "correction"
+    ]
+    unresolved_flags = [
+        {
+            **item,
+            "location_conflict": False,
+        }
+        for item in review_state.get("groupCorrections", [])
+        if item.get("anchor_type") == "flag" and not item.get("done")
+    ]
+
+    recent_merges = sorted(
+        merge_rows,
+        key=lambda item: _parse_event_time(item.get("received_at") or item.get("created_at")),
+        reverse=True,
+    )[:100]
+    recent_merges_payload = []
+    for row in recent_merges:
+        group_id_a = _normalize_id(row.get("group_id_a"))
+        group_id_b = _normalize_id(row.get("group_id_b"))
+        if group_id_a > group_id_b:
+            group_id_a, group_id_b = group_id_b, group_id_a
+        key = f"{group_id_a}::{group_id_b}"
+        recent_merges_payload.append(
+            {
+                "group_id_a": group_id_a,
+                "group_id_b": group_id_b,
+                "verdict": _normalize_id(row.get("verdict")).lower(),
+                "received_at": row.get("received_at") or row.get("created_at"),
+                "merge_conflict": key in merge_conflicts,
+            }
+        )
+
+    conflict_candidates: list[dict[str, Any]] = []
+    for item in pending_corrections:
+        if item.get("location_conflict"):
+            conflict_candidates.append(
+                {
+                    "type": "location",
+                    "group_id": item.get("group_id"),
+                    "received_at": item.get("received_at"),
+                }
+            )
+    for pair in sorted(merge_conflicts):
+        group_id_a, group_id_b = pair.split("::", 1)
+        conflict_candidates.append(
+            {
+                "type": "merge",
+                "group_id_a": group_id_a,
+                "group_id_b": group_id_b,
+            }
+        )
+
+    return JSONResponse(
+        {
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "counts": {
+                "pendingCorrections": len(pending_corrections),
+                "unresolvedFlags": len(unresolved_flags),
+                "locationConflicts": len(
+                    [item for item in pending_corrections if item.get("location_conflict")]
+                ),
+                "mergeConflicts": len(merge_conflicts),
+                "recentMerges": len(recent_merges_payload),
+            },
+            "pendingCorrections": pending_corrections,
+            "unresolvedFlags": unresolved_flags,
+            "conflictCandidates": conflict_candidates,
+            "recentMerges": recent_merges_payload,
+        }
+    )
+
+
+def _csv_escape(value: Any) -> str:
+    text = str(value or "")
+    if any(char in text for char in [",", '"', "\n"]):
+        return '"' + text.replace('"', '""') + '"'
+    return text
+
+
+@app.get("/api/admin/export")
+def get_admin_export(request: Request) -> Response:
+    format_value = _normalize_id(request.query_params.get("format")).lower() or "json"
+    if format_value not in {"json", "csv"}:
+        raise HTTPException(status_code=400, detail="Neplatný format")
+
+    since_raw = _normalize_id(request.query_params.get("since"))
+    since_ts = _parse_event_time(since_raw) if since_raw else 0.0
+    if since_raw and since_ts == 0.0:
+        raise HTTPException(status_code=400, detail="Neplatný parametr since")
+
+    try:
+        limit = int(request.query_params.get("limit", "500"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Neplatný limit") from exc
+    limit = max(1, min(5000, limit))
+
+    correction_rows = _load_correction_records()
+    merge_rows = _load_merge_records()
+    review_state = build_review_state()
+
+    def include_since(row: dict[str, Any]) -> bool:
+        if since_ts <= 0:
+            return True
+        event_ts = _parse_event_time(row.get("received_at") or row.get("created_at"))
+        return event_ts >= since_ts
+
+    filtered_corrections = sorted(
+        [row for row in correction_rows if include_since(row)],
+        key=lambda row: _parse_event_time(row.get("received_at") or row.get("created_at")),
+        reverse=True,
+    )[:limit]
+
+    filtered_merges = sorted(
+        [row for row in merge_rows if include_since(row)],
+        key=lambda row: _parse_event_time(row.get("received_at") or row.get("created_at")),
+        reverse=True,
+    )[:limit]
+
+    if format_value == "json":
+        return JSONResponse(
+            {
+                "generatedAt": datetime.now(timezone.utc).isoformat(),
+                "since": since_raw or None,
+                "limit": limit,
+                "corrections": filtered_corrections,
+                "merges": filtered_merges,
+                "groupState": review_state.get("groupCorrections", []),
+            }
+        )
+
+    columns = [
+        "record_type",
+        "id",
+        "xid",
+        "group_id",
+        "group_id_a",
+        "group_id_b",
+        "verdict",
+        "correction_state",
+        "anchor_type",
+        "ok_votes",
+        "required_ok_votes",
+        "done",
+        "has_coordinates",
+        "lat",
+        "lon",
+        "message",
+        "email",
+        "voter_key",
+        "created_at",
+    ]
+
+    export_rows: list[dict[str, Any]] = []
+    for row in filtered_corrections:
+        export_rows.append(
+            {
+                "record_type": "correction",
+                "id": row.get("id"),
+                "xid": row.get("xid"),
+                "group_id": row.get("group_id"),
+                "group_id_a": "",
+                "group_id_b": "",
+                "verdict": row.get("verdict"),
+                "correction_state": "",
+                "anchor_type": "",
+                "ok_votes": "",
+                "required_ok_votes": "",
+                "done": "",
+                "has_coordinates": int(bool(row.get("has_coordinates"))),
+                "lat": row.get("lat"),
+                "lon": row.get("lon"),
+                "message": row.get("message"),
+                "email": row.get("email"),
+                "voter_key": row.get("voter_key"),
+                "created_at": row.get("received_at"),
+            }
+        )
+    for row in filtered_merges:
+        export_rows.append(
+            {
+                "record_type": "merge",
+                "id": row.get("id"),
+                "xid": "",
+                "group_id": "",
+                "group_id_a": row.get("group_id_a"),
+                "group_id_b": row.get("group_id_b"),
+                "verdict": row.get("verdict"),
+                "correction_state": "",
+                "anchor_type": "",
+                "ok_votes": "",
+                "required_ok_votes": "",
+                "done": "",
+                "has_coordinates": "",
+                "lat": "",
+                "lon": "",
+                "message": "",
+                "email": "",
+                "voter_key": "",
+                "created_at": row.get("received_at"),
+            }
+        )
+    for row in review_state.get("groupCorrections", []):
+        export_rows.append(
+            {
+                "record_type": "group_state",
+                "id": "",
+                "xid": row.get("xid"),
+                "group_id": row.get("group_id"),
+                "group_id_a": "",
+                "group_id_b": "",
+                "verdict": row.get("verdict"),
+                "correction_state": row.get("correction_state"),
+                "anchor_type": row.get("anchor_type"),
+                "ok_votes": row.get("ok_votes"),
+                "required_ok_votes": row.get("required_ok_votes"),
+                "done": int(bool(row.get("done"))),
+                "has_coordinates": int(bool(row.get("has_coordinates"))),
+                "lat": row.get("lat"),
+                "lon": row.get("lon"),
+                "message": "",
+                "email": "",
+                "voter_key": "",
+                "created_at": row.get("last_event_at"),
+            }
+        )
+
+    lines = [",".join(_csv_escape(column) for column in columns)]
+    for row in export_rows:
+        lines.append(",".join(_csv_escape(row.get(column)) for column in columns))
+
+    return Response(
+        "\n".join(lines),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": 'attachment; filename="community-review-export.csv"',
+        },
+    )
 
 
 @app.post("/api/feedback")

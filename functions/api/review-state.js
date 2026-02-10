@@ -58,6 +58,7 @@ export async function onRequest(context) {
         lat,
         lon,
         has_coordinates,
+        voter_key,
         verdict,
         created_at
       FROM corrections
@@ -94,6 +95,15 @@ export async function onRequest(context) {
     counts: {
       corrections: reviewState.groupCorrections.length,
       doneGroups: reviewState.doneGroupIds.length,
+      pendingCorrections: reviewState.groupCorrections.filter(
+        (item) => item?.correction_state === "pending",
+      ).length,
+      approvedCorrections: reviewState.groupCorrections.filter(
+        (item) => item?.correction_state === "approved",
+      ).length,
+      flaggedGroups: reviewState.groupCorrections.filter(
+        (item) => item?.anchor_type === "flag",
+      ).length,
       merges: reviewState.mergeDecisions.length,
       knownXids: Object.keys(reviewState.resolvedGroupByXid).length,
     },

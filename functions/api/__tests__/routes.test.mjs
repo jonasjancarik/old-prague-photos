@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { onRequest as correctionsOnRequest } from "../corrections.js";
+import { onRequest as adminExportOnRequest } from "../admin/export.js";
+import { onRequest as adminReviewOnRequest } from "../admin/review.js";
 import { onRequest as mergesOnRequest } from "../merges.js";
 import { onRequest as verifyOnRequest } from "../verify.js";
 import { FakeD1, makeRequest } from "./test-helpers.mjs";
@@ -151,6 +153,49 @@ test("POST /api/corrections accepts same-origin with valid token", async () => {
   }
 });
 
+test("POST /api/corrections accepts same-origin with valid session cookie", async () => {
+  const env = makeEnv();
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          hostname: "example.com",
+          action: "session_verify",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+
+    const verifyRequest = makeRequest("/api/verify", {
+      headers: { Origin: "https://example.com" },
+      jsonBody: { token: "ok" },
+    });
+    const verifyResponse = await verifyOnRequest({ request: verifyRequest, env });
+    assert.equal(verifyResponse.status, 200);
+
+    const cookie = String(verifyResponse.headers.get("Set-Cookie") || "").split(";")[0];
+    const correctionRequest = makeRequest("/api/corrections", {
+      headers: { Origin: "https://example.com", Cookie: cookie },
+      jsonBody: {
+        xid: "A1",
+        lat: 50.087,
+        lon: 14.421,
+        verdict: "wrong",
+      },
+    });
+
+    const correctionResponse = await correctionsOnRequest({
+      request: correctionRequest,
+      env,
+    });
+    assert.equal(correctionResponse.status, 200);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("POST /api/merges accepts same-origin with valid session cookie", async () => {
   const env = makeEnv();
   const originalFetch = globalThis.fetch;
@@ -188,4 +233,51 @@ test("POST /api/merges accepts same-origin with valid session cookie", async () 
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("GET /api/admin/review exposes pending corrections", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.corrections.push({
+    id: 1,
+    xid: "X1",
+    group_id: "G1",
+    lat: 50.1,
+    lon: 14.4,
+    has_coordinates: 1,
+    voter_key: "voter-a",
+    verdict: "wrong",
+    created_at: "2026-01-01 10:00:00",
+  });
+
+  const request = makeRequest("/api/admin/review", { method: "GET" });
+  const response = await adminReviewOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.counts.pendingCorrections, 1);
+});
+
+test("GET /api/admin/export supports CSV output", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.corrections.push({
+    id: 1,
+    xid: "X1",
+    group_id: "G1",
+    lat: 50.1,
+    lon: 14.4,
+    has_coordinates: 1,
+    voter_key: "voter-a",
+    verdict: "wrong",
+    created_at: "2026-01-01 10:00:00",
+  });
+
+  const request = makeRequest("/api/admin/export?format=csv", { method: "GET" });
+  const response = await adminExportOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  assert.match(
+    String(response.headers.get("Content-Type") || ""),
+    /text\/csv/u,
+  );
+  const body = await response.text();
+  assert.match(body, /record_type/u);
+  assert.match(body, /correction/u);
 });

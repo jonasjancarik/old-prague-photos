@@ -121,8 +121,16 @@
         props.group_root = resolvedGroup;
       }
 
+      props.correction_state = "none";
+      props.anchor_type = "none";
+      props.needs_confirmation = false;
+      delete props.corrected;
+
       if (!resolvedGroup || !correctionByGroup.has(resolvedGroup)) return;
       const correction = correctionByGroup.get(resolvedGroup);
+      props.correction_state = correction?.correction_state || "none";
+      props.anchor_type = correction?.anchor_type || "none";
+      props.needs_confirmation = Boolean(correction?.needs_confirmation);
       const lat = toFiniteCoord(correction.lat);
       const lon = toFiniteCoord(correction.lon);
       if (lat === null || lon === null) return;

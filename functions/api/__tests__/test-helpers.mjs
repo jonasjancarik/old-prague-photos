@@ -90,7 +90,7 @@ export class FakeD1 {
     }
 
     if (query.includes("insert into corrections")) {
-      const [xid, groupId, lat, lon, hasCoordinates, verdict] = args;
+      const [xid, groupId, lat, lon, hasCoordinates, voterKey, verdict] = args;
       this.corrections.push({
         id: this.corrections.length + 1,
         xid,
@@ -98,6 +98,7 @@ export class FakeD1 {
         lat,
         lon,
         has_coordinates: hasCoordinates,
+        voter_key: voterKey,
         verdict,
         created_at: "2026-01-01 00:00:00",
       });

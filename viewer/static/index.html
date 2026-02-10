@@ -27,6 +27,7 @@
         <div class="topbar-actions">
           <button class="secondary" type="button" id="info-open">O co jde</button>
           <a class="action-link" href="./pomoc.html">Chci pomoct</a>
+          <a class="action-link" href="./admin.html">Admin</a>
         </div>
       </div>
       <div class="topbar-meta">
@@ -35,7 +36,7 @@
           <span class="stat-value" id="photo-count">—</span>
         </div>
         <div class="stat">
-          <span class="stat-label">Ověřeno komunitou</span>
+          <span class="stat-label">Zkontrolováno komunitou</span>
           <span class="stat-value" id="verified-count">—</span>
         </div>
       </div>
@@ -108,7 +109,7 @@
           </p>
           <ul class="how-list">
             <li><strong>Výsledek:</strong> dataset s GPS souřadnicemi pro mapu.</li>
-            <li><strong>Opravy:</strong> vaše nahlášení se ukládá a po schválení se projeví všem.</li>
+            <li><strong>Opravy:</strong> změny se projeví hned jako čekající na potvrzení komunitou.</li>
             <li><strong>Cíl:</strong> Vytvořit co nejpřesnější mapu historických fotografií Prahy.</li>
           </ul>
           <div class="info-footer">
@@ -148,6 +149,15 @@
                 <div id="photo-details" class="detail-list"></div>
 
                 <div class="report-cta-container">
+                  <div class="consensus-banner is-hidden" id="consensus-banner">
+                    <p class="helper consensus-text" id="consensus-text"></p>
+                    <div class="consensus-actions">
+                      <button class="secondary" type="button" id="confirm-cta">
+                        Sedí, potvrdit
+                      </button>
+                    </div>
+                  </div>
+
                   <div class="report-cta" id="report-cta-container">
                     <div class="report-meta">
                       <p class="report-eyebrow">Zpětná vazba</p>
@@ -156,9 +166,14 @@
                         Je fotografie špatně umístěna?
                       </p>
                     </div>
-                    <button class="primary report-button" type="button" id="report-cta">
-                      Opravit polohu
-                    </button>
+                    <div class="report-actions">
+                      <button class="primary report-button" type="button" id="report-cta">
+                        Opravit polohu
+                      </button>
+                      <button class="secondary report-button report-flag-button" type="button" id="report-flag">
+                        Nevím kde přesně
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -168,6 +183,7 @@
                 <div class="modal-meta-head">
                   <p class="modal-meta-eyebrow">Oprava polohy</p>
                   <h3 class="modal-meta-title">Zadejte správné místo</h3>
+                  <p class="helper scope-hint is-hidden" id="correction-scope-hint"></p>
                 </div>
 
                 <form id="feedback-form" class="is-open"> <!-- form stays open in its container -->
@@ -191,7 +207,6 @@
                   </label>
 
                   <div class="turnstile-wrap">
-                    <div id="turnstile"></div>
                     <p class="helper" id="turnstile-note"></p>
                   </div>
 
@@ -225,9 +240,8 @@
   <script src="./zoomify.js"></script>
   <script src="./photo-meta.js"></script>
   <script src="./grouping.js"></script>
+  <script src="./session-verify.js"></script>
   <script src="./correction-ui.js"></script>
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=turnstileOnload" async
-    defer></script>
   <script src="./app.js"></script>
 </body>
 

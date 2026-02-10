@@ -5,12 +5,6 @@ const state = {
   originalMarker: null,
   proposedMarker: null,
   mode: null, // null | "ok" | "wrong"
-  turnstileSiteKey: "",
-  turnstileBypass: false,
-  turnstileReady: false,
-  verifyWidgetId: null,
-  verifyToken: "",
-  sessionVerified: false,
   archiveBaseUrl: "https://katalog.ahmp.cz/pragapublica",
   features: [],
   groups: [],
@@ -30,6 +24,7 @@ const remainingEl = document.getElementById("remaining-count");
 const currentXidEl = document.getElementById("current-xid");
 const detailsEl = document.getElementById("help-details");
 const submitCorrectionBtn = document.getElementById("submit-correction");
+const submitFlagBtn = document.getElementById("submit-flag");
 const cancelCorrectionBtn = document.getElementById("cancel-correction");
 const prevBtn = document.getElementById("prev-photo");
 const skipBtn = document.getElementById("skip-photo");
@@ -43,10 +38,6 @@ const emailEl = document.getElementById("help-email");
 const formStatus = document.getElementById("form-status");
 const modalStatus = document.getElementById("modal-status");
 const turnstileNote = document.getElementById("turnstile-note");
-const verifyModal = document.getElementById("verify-modal");
-const verifyStatus = document.getElementById("verify-status");
-const verifyEmailInput = document.getElementById("verify-email");
-const verifyContinueBtn = document.getElementById("verify-continue");
 
 const pragueFallback = [50.0755, 14.4378];
 const EMAIL_STORAGE_KEY = "old-prague-help-email";
@@ -90,12 +81,6 @@ function clearStatus() {
   });
 }
 
-function setVerifyStatus(message, tone = "") {
-  if (!verifyStatus) return;
-  verifyStatus.textContent = message;
-  verifyStatus.dataset.tone = tone;
-}
-
 function setVerificationNote(message, tone = "") {
   if (!turnstileNote) return;
   turnstileNote.textContent = message;
@@ -109,6 +94,9 @@ function setControlsEnabled(enabled) {
   });
   if (!enabled && submitCorrectionBtn) {
     submitCorrectionBtn.disabled = true;
+  }
+  if (!enabled && submitFlagBtn) {
+    submitFlagBtn.disabled = true;
   }
 }
 
@@ -141,31 +129,8 @@ function cancelCorrection() {
   updateSubmitState();
 }
 
-function openVerifyModal() {
-  if (!verifyModal) return;
-  if (state.sessionVerified) return;
-  closeCorrectionModal();
-  verifyModal.classList.add("is-open");
-  verifyModal.setAttribute("aria-hidden", "false");
-  document.body.style.overflow = "hidden";
-  setControlsEnabled(false);
-  setVerifyStatus("Pro pokračování je potřeba ověření.", "");
-  if (state.verifyWidgetId !== null && window.turnstile) {
-    window.turnstile.reset(state.verifyWidgetId);
-    state.verifyToken = "";
-  }
-  if (verifyContinueBtn) verifyContinueBtn.disabled = true;
-}
-
-function closeVerifyModal() {
-  if (!verifyModal) return;
-  verifyModal.classList.remove("is-open");
-  verifyModal.setAttribute("aria-hidden", "true");
-  document.body.style.overflow = "";
-}
-
 function maybeStartFlow() {
-  if (!dataReady || !state.sessionVerified || flowStarted) return;
+  if (!dataReady || flowStarted) return;
   flowStarted = true;
   setControlsEnabled(true);
   startReviewStatePolling();
@@ -176,7 +141,6 @@ function maybeStartFlow() {
 function loadSavedEmail() {
   const saved = localStorage.getItem(EMAIL_STORAGE_KEY);
   if (saved) {
-    if (verifyEmailInput) verifyEmailInput.value = saved;
     if (emailEl) emailEl.value = saved;
   }
 }
@@ -238,11 +202,10 @@ async function refreshRemainingCloud(options = {}) {
 
 function updateSubmitState() {
   const isWrong = state.mode === "wrong";
-  const hasSession = state.sessionVerified || state.turnstileBypass;
   const hasProposed = !!state.proposed;
 
   if (submitCorrectionBtn) {
-    submitCorrectionBtn.disabled = !isWrong || !hasProposed || !hasSession;
+    submitCorrectionBtn.disabled = !isWrong || !hasProposed;
   }
 }
 
@@ -425,7 +388,6 @@ function showGroup(group, options = {}) {
 }
 
 function setMode(mode) {
-  console.log("setMode:", mode);
   state.mode = mode;
   clearStatus();
 
@@ -440,7 +402,6 @@ function setMode(mode) {
 
   // For "ok", submit immediately and auto-advance
   if (mode === "ok") {
-    console.log("Calling submitOk directly from setMode");
     submitOk();
     return;
   }
@@ -456,7 +417,10 @@ function setMode(mode) {
   if (submitCorrectionBtn) {
     submitCorrectionBtn.classList.remove("is-hidden");
   }
-  if (helpMapNote) helpMapNote.textContent = "Nesedí? Klikněte do mapy na správné místo.";
+  if (helpMapNote) {
+    helpMapNote.textContent =
+      "Nesedí? Klikněte do mapy na správné místo, nebo zvolte „Nevím kde přesně“.";
+  }
   updateSubmitState();
 }
 
@@ -487,124 +451,32 @@ function pickPrev() {
   showGroup(prevGroup);
 }
 
-function renderVerifyTurnstile() {
-  if (state.turnstileBypass) {
-    setVerifyStatus("Turnstile je vypnutý pro lokální vývoj.", "success");
-    state.sessionVerified = true;
-    setVerificationNote("Turnstile je vypnutý pro lokální vývoj.");
-    closeVerifyModal();
-    maybeStartFlow();
-    return;
-  }
-
-  if (!state.turnstileReady || !state.turnstileSiteKey) {
-    if (!state.turnstileSiteKey) {
-      setVerifyStatus("Chybí Turnstile klíč.", "error");
-    }
-    return;
-  }
-
-  if (state.verifyWidgetId !== null) return;
-
-  state.verifyWidgetId = window.turnstile.render("#verify-turnstile", {
-    sitekey: state.turnstileSiteKey,
-    action: "session_verify",
-    callback: (token) => {
-      state.verifyToken = token;
-      if (verifyContinueBtn) verifyContinueBtn.disabled = false;
-      setVerifyStatus("Ověření připraveno. Pokračujte.", "success");
-    },
-    "expired-callback": () => {
-      state.verifyToken = "";
-      if (verifyContinueBtn) verifyContinueBtn.disabled = true;
-      setVerifyStatus("Ověření vypršelo, zkuste to znovu.", "error");
-    },
-    "error-callback": () => {
-      state.verifyToken = "";
-      if (verifyContinueBtn) verifyContinueBtn.disabled = true;
-      setVerifyStatus("Ověření selhalo, zkuste to znovu.", "error");
-    },
-  });
-}
-
-async function submitVerification() {
-  if (state.sessionVerified) {
-    closeVerifyModal();
-    return;
-  }
-  if (state.turnstileBypass) {
-    state.sessionVerified = true;
-    setVerificationNote("Turnstile je vypnutý pro lokální vývoj.");
-    closeVerifyModal();
-    maybeStartFlow();
-    return;
-  }
-
-  if (!state.verifyToken) {
-    setVerifyStatus("Dokončete Turnstile kontrolu.", "error");
-    return;
-  }
-
-  if (verifyContinueBtn) verifyContinueBtn.disabled = true;
-  setVerifyStatus("Ověřuji...", "");
-
-  try {
-    const response = await fetch("/api/verify", {
+async function submitCorrectionRequest(payload) {
+  const sendRequest = () =>
+    fetch("/api/corrections", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
-      body: JSON.stringify({ token: state.verifyToken }),
+      body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || "Ověření selhalo");
-    }
+  const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
+  if (submitWithRetry) {
+    await submitWithRetry(sendRequest);
+    return;
+  }
 
-    state.sessionVerified = true;
-    state.verifyToken = "";
-    if (state.verifyWidgetId !== null && window.turnstile) {
-      window.turnstile.reset(state.verifyWidgetId);
-    }
-    if (verifyContinueBtn) verifyContinueBtn.disabled = true;
-
-    const email = (verifyEmailInput?.value || "").trim();
-    if (email) {
-      localStorage.setItem(EMAIL_STORAGE_KEY, email);
-      if (emailEl) emailEl.value = email;
-    }
-
-    setVerificationNote("Ověřeno pro tuto relaci.");
-    closeVerifyModal();
-    maybeStartFlow();
-    setControlsEnabled(true);
-    updateCounts();
-    if (state.mode === "ok") {
-      submitOk();
-    } else if (state.mode === "wrong" && state.proposed) {
-      openCorrectionModal();
-      updateSubmitState();
-    }
-  } catch (error) {
-    setVerifyStatus(error.message || "Ověření selhalo", "error");
-    if (verifyContinueBtn) verifyContinueBtn.disabled = false;
+  const response = await sendRequest();
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || "Odeslání selhalo");
   }
 }
-
-window.turnstileOnload = () => {
-  state.turnstileReady = true;
-  renderVerifyTurnstile();
-};
 
 async function submitCorrection() {
   if (!state.currentGroup || !state.currentFeature || state.mode !== "wrong" || !state.proposed) return;
 
   clearStatus();
-
-  if (!state.sessionVerified && !state.turnstileBypass) {
-    openVerifyModal();
-    return;
-  }
 
   const payload = {
     xid: state.currentFeature.properties.id,
@@ -619,42 +491,49 @@ async function submitCorrection() {
   submitCorrectionBtn.disabled = true;
 
   try {
-    const response = await fetch("/api/corrections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || "Odeslání selhalo");
-    }
+    await submitCorrectionRequest(payload);
 
     setStatus("Díky! Uloženo. Jdeme na další.", "success");
     closeCorrectionModal();
     setTimeout(() => pickRandom(), 400);
   } catch (error) {
     setStatus(error.message || "Odeslání selhalo", "error");
-    if (String(error.message || "").toLowerCase().includes("turnstile")) {
-      state.sessionVerified = false;
-      openVerifyModal();
-      setVerificationNote("Ověření vypršelo. Dokončete prosím ověření znovu.", "error");
-    }
     updateSubmitState();
   }
 }
 
-async function submitOk() {
-  console.log("submitOk started, state:", { group: state.currentGroup?.id, mode: state.mode, bypass: state.turnstileBypass });
-  if (!state.currentGroup || !state.currentFeature || state.mode !== "ok") return;
+async function submitFlag() {
+  if (!state.currentGroup || !state.currentFeature || state.mode !== "wrong") return;
 
   clearStatus();
 
-  if (!state.sessionVerified && !state.turnstileBypass) {
-    openVerifyModal();
-    return;
+  const payload = {
+    xid: state.currentFeature.properties.id,
+    group_id: state.currentGroup.id,
+    verdict: "flag",
+    message: (messageEl?.value || "").trim() || "Nahlášeno bez upřesnění polohy.",
+    email: (emailEl?.value || "").trim() || null,
+  };
+
+  if (submitFlagBtn) submitFlagBtn.disabled = true;
+
+  try {
+    await submitCorrectionRequest(payload);
+
+    setStatus("Díky! Hlášení uloženo. Jdeme na další.", "success");
+    closeCorrectionModal();
+    setTimeout(() => pickRandom(), 400);
+  } catch (error) {
+    setStatus(error.message || "Odeslání selhalo", "error");
+  } finally {
+    if (submitFlagBtn) submitFlagBtn.disabled = false;
   }
+}
+
+async function submitOk() {
+  if (!state.currentGroup || !state.currentFeature || state.mode !== "ok") return;
+
+  clearStatus();
 
   const payload = {
     xid: state.currentFeature.properties.id,
@@ -663,52 +542,25 @@ async function submitOk() {
     message: "Poloha potvrzena jako OK.",
   };
 
-  console.log("Submitting OK payload:", payload);
   try {
-    const response = await fetch("/api/corrections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || "Odeslání selhalo");
-    }
+    await submitCorrectionRequest(payload);
 
     setStatus("Díky! Potvrzeno. Jdeme na další.", "success");
     setTimeout(() => pickRandom(), 400);
   } catch (error) {
     setStatus(error.message || "Odeslání selhalo", "error");
-    if (String(error.message || "").toLowerCase().includes("turnstile")) {
-      state.sessionVerified = false;
-      openVerifyModal();
-      setVerificationNote("Ověření vypršelo. Dokončete prosím ověření znovu.", "error");
-    }
     updateSubmitState();
   }
 }
 
 async function bootstrap() {
   const config = await fetchJson("/api/config").catch(() => ({}));
-  state.turnstileSiteKey = config.turnstileSiteKey || "";
-  state.turnstileBypass = Boolean(config.turnstileBypass);
   state.archiveBaseUrl = config.archiveBaseUrl || state.archiveBaseUrl;
 
   initMap();
   loadSavedEmail();
   setControlsEnabled(false);
-
-  if (state.turnstileBypass) {
-    state.sessionVerified = true;
-    setVerificationNote("Turnstile je vypnutý pro lokální vývoj.");
-  } else {
-    openVerifyModal();
-    if (window.turnstile) {
-      renderVerifyTurnstile();
-    }
-  }
+  setVerificationNote("Při prvním odeslání může vyskočit ověření pro relaci.");
 
   const photos = await fetchJson("/data/photos.geojson");
   const features = photos.features || [];
@@ -733,20 +585,12 @@ async function bootstrap() {
 if (submitCorrectionBtn) {
   submitCorrectionBtn.addEventListener("click", submitCorrection);
 }
+if (submitFlagBtn) {
+  submitFlagBtn.addEventListener("click", submitFlag);
+}
 if (cancelCorrectionBtn) {
   cancelCorrectionBtn.addEventListener("click", () => {
     cancelCorrection();
-  });
-}
-if (verifyContinueBtn) {
-  verifyContinueBtn.addEventListener("click", submitVerification);
-}
-if (verifyEmailInput) {
-  verifyEmailInput.addEventListener("input", () => {
-    const value = verifyEmailInput.value.trim();
-    if (value) {
-      localStorage.setItem(EMAIL_STORAGE_KEY, value);
-    }
   });
 }
 if (emailEl) {
