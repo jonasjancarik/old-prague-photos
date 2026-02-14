@@ -9,6 +9,7 @@ The web app reads static data from `viewer/static/data/`:
 - `photos.geojson` (main dataset)
 - `similarity_candidates.json` (optional; duplicate review)
 - `series_version_clusters.json` (optional; version pills within a group)
+- `orphan_xids.json` (xids excluded from map/review UIs)
 
 Generate inputs:
 
@@ -16,6 +17,44 @@ Generate inputs:
 python viewer/build_geojson.py
 python build_similarity.py
 ```
+
+Generate/update orphan exclusions (readiness-gated, gentle):
+
+```bash
+RUN="$(date +%Y%m%d-%H%M%S)"
+RUN_DIR="output/recovery/orphans/$RUN"
+mkdir -p "$RUN_DIR"
+
+uv run python scripts/orphan_recovery.py probe \
+  --input viewer/static/data/orphan_xids.json \
+  --run-dir "$RUN_DIR" \
+  --min-interval 5 \
+  --timeout 12 \
+  --retries 2 \
+  --retry-sleep 5
+
+uv run python scripts/orphan_recovery.py finalize \
+  --run-dir "$RUN_DIR" \
+  --photos viewer/static/data/photos.geojson \
+  --raw-dir output/raw_records \
+  --downloads-root downloads/archive \
+  --output-orphans viewer/static/data/orphan_xids.json
+```
+
+`orphan_recovery.py` artifacts per run:
+- `probe_active.json`
+- `probe_not_found.json`
+- `probe_transient.json`
+- `probe_attempts.jsonl`
+- `probe_results.jsonl`
+- `eligible_unhide.json`
+- `excluded_after_recovery.json`
+- `summary.json`
+
+Notes:
+- Keep archive load gentle: one request every 5 seconds.
+- `viewer/static/data/orphan_xids.json` is driven by readiness outputs, not only by `available_record_ids` diff.
+- Legacy quick-diff method can over-hide valid records and is not the default recovery flow.
 
 Similarity generation contract:
 - `similarity_candidates.json`
@@ -60,7 +99,7 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `POST /api/merges` - submit merge decision
 - `GET /api/admin/review` - maintainer overview (pending corrections, flags, conflicts, recent merges)
 - `GET /api/admin/export?format=json|csv&since=...&limit=...` - maintainer export
-- `GET /api/preview-url?xid=...` - popup preview URL resolver (R2 -> local cache -> feature metadata)
+- `GET /api/preview-url?xid=...` - preview URL resolver (R2 tile probe -> feature preview/zoomify fallback)
 - `GET /api/preview-local?xid=...&scanIndex=0` - serve local preview file from `downloads/archive/previews`
 - `GET /api/zoomify?xid=...&scanIndex=0` - server-side Zoomify metadata
   - Uses R2 if `R2_TILES_BASE` is set and the scan exists there.
@@ -165,8 +204,9 @@ SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
 
 - `/api/zoomify` avoids browser CORS issues with `ImageProperties.xml`.
 - `/api/preview-url` is used by map hover popups and prefers R2 `0-0-0.jpg` tiles.
-- `/api/preview-url` falls back to local preview cache and finally `scan_previews[0]` metadata.
+- `/api/preview-url` falls back to `scan_previews[0]` or `scan_zoomify_paths[0]/TileGroup0/0-0-0.jpg`.
 - `/api/zoomify` only uses `R2_TILES_BASE` (tiles path), not preview thumbnails.
+- Frontend filters out xids listed in `viewer/static/data/orphan_xids.json` on `/`, `/pomoc.html`, `/dup-review.html`, and `/group-review.html`.
 - D1 stores corrections + merge decisions (see `migrations/*.sql`).
 - `review-state` includes consensus metadata per group:
   - `correction_state`: `none | pending | approved`

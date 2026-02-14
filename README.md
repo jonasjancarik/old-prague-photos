@@ -209,6 +209,133 @@ uv run python download_archive_images.py --previews-only
 - Re-scrape all current IDs: `uv run cli collect --no-fetch-ids --rescrape`
 - For a resumable full refresh, move `output/raw_records` aside and run without `--rescrape`.
 
+## Orphan recovery (gentle, readiness-gated)
+
+When records in `viewer/static/data/orphan_xids.json` need recovery, use
+`scripts/orphan_recovery.py` instead of rebuilding orphan lists from ID diff only.
+
+Hard safety rule for archive traffic:
+- one archive request every 5 seconds (`--min-interval 5`, `ARCHIVE_RECORD_DELAY_S=5`, `--sleep 5`)
+
+### 1) Create run directory
+
+```bash
+RUN="$(date +%Y%m%d-%H%M%S)"
+RUN_DIR="output/recovery/orphans/$RUN"
+mkdir -p "$RUN_DIR"
+```
+
+### 2) Probe orphan xids (resume-safe)
+
+```bash
+uv run python scripts/orphan_recovery.py probe \
+  --input viewer/static/data/orphan_xids.json \
+  --run-dir "$RUN_DIR" \
+  --min-interval 5 \
+  --timeout 12 \
+  --retries 2 \
+  --retry-sleep 5
+```
+
+Outputs:
+- `probe_active.json`
+- `probe_not_found.json`
+- `probe_transient.json`
+- `probe_attempts.jsonl`
+- `probe_results.jsonl`
+
+### 3) Seed retry list for targeted rescrape
+
+```bash
+uv run python scripts/orphan_recovery.py seed-retry \
+  --run-dir "$RUN_DIR" \
+  --failed-file output/failed_xids.jsonl
+```
+
+### 4) Targeted rescrape (2 passes)
+
+```bash
+ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli collect --retry-failed
+ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli collect --retry-failed
+```
+
+### 5) Rebuild viewer data
+
+```bash
+uv run python scripts/backfill_scan_metadata.py
+uv run cli export
+uv run python viewer/build_geojson.py
+```
+
+### 6) Build active subset for targeted downloads/similarity
+
+```bash
+uv run python scripts/orphan_recovery.py build-subset \
+  --run-dir "$RUN_DIR" \
+  --photos viewer/static/data/photos.geojson
+```
+
+### 7) Gentle preview recovery
+
+```bash
+uv run python download_archive_images.py \
+  --input "$RUN_DIR/active_subset.geojson" \
+  --previews-only \
+  --sleep 5 \
+  --resolve-timeout 12 \
+  --resolve-retries 1 \
+  --resolve-retry-sleep 5 \
+  --resolve-max-seconds 45
+```
+
+Optional gentle tiles:
+
+```bash
+uv run python download_archive_images.py \
+  --input "$RUN_DIR/active_subset.geojson" \
+  --sleep 5 \
+  --tile-sleep 0.5
+```
+
+### 8) Optional R2 sync
+
+```bash
+scripts/r2_sync.sh
+# Optional previews sync:
+# SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
+```
+
+### 9) Similarity two-phase
+
+```bash
+uv run python build_similarity.py \
+  --input "$RUN_DIR/active_subset.geojson" \
+  --output "$RUN_DIR/similarity_candidates_subset.json" \
+  --clusters-output "$RUN_DIR/series_clusters_subset.json" \
+  --r2-tiles-base "$R2_TILES_BASE"
+
+uv run python build_similarity.py --r2-tiles-base "$R2_TILES_BASE"
+```
+
+### 10) Finalize orphan list (readiness gate)
+
+```bash
+uv run python scripts/orphan_recovery.py finalize \
+  --run-dir "$RUN_DIR" \
+  --photos viewer/static/data/photos.geojson \
+  --raw-dir output/raw_records \
+  --downloads-root downloads/archive \
+  --output-orphans viewer/static/data/orphan_xids.json
+```
+
+`finalize` writes:
+- `eligible_unhide.json`
+- `excluded_after_recovery.json`
+- `summary.json`
+
+`viewer/static/data/orphan_xids.json` is overwritten with `excluded_after_recovery.json`.
+Only xids passing readiness are unhidden.
+
 ## Archive download cache (gentle, resumable)
 
 The archive is slow/fragile. Use this script to download previews + full Zoomify tiles with delay and resume support:

@@ -5,6 +5,7 @@ import { onRequest as correctionsOnRequest } from "../corrections.js";
 import { onRequest as adminExportOnRequest } from "../admin/export.js";
 import { onRequest as adminReviewOnRequest } from "../admin/review.js";
 import { onRequest as mergesOnRequest } from "../merges.js";
+import { onRequest as previewUrlOnRequest } from "../preview-url.js";
 import { onRequest as verifyOnRequest } from "../verify.js";
 import { FakeD1, makeRequest } from "./test-helpers.mjs";
 
@@ -280,4 +281,33 @@ test("GET /api/admin/export supports CSV output", async () => {
   const body = await response.text();
   assert.match(body, /record_type/u);
   assert.match(body, /correction/u);
+});
+
+test("GET /api/preview-url falls back to feature preview metadata", async () => {
+  const env = makeEnv({
+    ASSETS: {
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            features: [
+              {
+                properties: {
+                  id: "X1",
+                  scan_previews: ["https://images.example/X1.jpg"],
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    },
+  });
+
+  const request = makeRequest("/api/preview-url?xid=X1", { method: "GET" });
+  const response = await previewUrlOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.xid, "X1");
+  assert.equal(payload.url, "https://images.example/X1.jpg");
+  assert.equal(payload.source, "feature_preview");
 });
