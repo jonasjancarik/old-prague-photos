@@ -28,6 +28,13 @@ const state = {
   previewHoverToken: 0,
   previewHideTimer: null,
   previewActiveXid: "",
+  gridVisibleCount: 24,
+  gridPageSize: 24,
+  nearbyGroupIds: [],
+  nearbyIndex: -1,
+  nearbyAnchorGroupId: "",
+  detailMiniMap: null,
+  detailMiniMarker: null,
 };
 
 const detailContainer = document.getElementById("photo-details");
@@ -63,6 +70,15 @@ const yearUnknownToggle = document.getElementById("year-unknown-toggle");
 const yearUnknownCount = document.getElementById("year-unknown-count");
 const yearUnknownToggleWrap = yearUnknownToggle?.closest(".year-filter-toggle");
 const YEAR_SLIDER_EDGE_PX = 9;
+const photoGrid = document.getElementById("photo-grid");
+const photoGridCount = document.getElementById("photo-grid-count");
+const photoGridEmpty = document.getElementById("photo-grid-empty");
+const photoGridLoadMore = document.getElementById("photo-grid-load-more");
+const nearbyPrevBtn = document.getElementById("nearby-prev");
+const nearbyNextBtn = document.getElementById("nearby-next");
+const nearbyState = document.getElementById("nearby-state");
+const photoMinimapWrap = document.getElementById("photo-minimap-wrap");
+const photoMinimapEl = document.getElementById("photo-minimap");
 
 const infoModal = document.getElementById("info-modal");
 const infoOpenBtn = document.getElementById("info-open");
@@ -94,6 +110,103 @@ function updatePhotoCount(filteredCount) {
     return;
   }
   photoCount.textContent = `${visibleCount.toLocaleString()} / ${totalCount.toLocaleString()}`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function normalizeSearchText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function escapeSelectorValue(value) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(String(value));
+  }
+  return String(value).replace(/["\\]/g, "\\$&");
+}
+
+function getActiveGroups() {
+  return Array.isArray(state.filteredGroups) ? state.filteredGroups : state.groups;
+}
+
+function getMapVisibleGroups(groups = getActiveGroups()) {
+  const source = Array.isArray(groups) ? groups : [];
+  if (!state.map || typeof state.map.getBounds !== "function") return source;
+  const bounds = state.map.getBounds();
+  if (!bounds || typeof bounds.contains !== "function") return source;
+  return source.filter((group) => {
+    const lat = Number(group?.lat);
+    const lon = Number(group?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+    return bounds.contains([lat, lon]);
+  });
+}
+
+function getGroupTitle(group) {
+  const primary = group?.primary?.properties || {};
+  return (
+    primary.description ||
+    primary.title ||
+    primary.signature ||
+    group?.id ||
+    "Fotografie"
+  );
+}
+
+function getGroupSubtitle(group) {
+  const primary = group?.primary?.properties || {};
+  const parts = [];
+  if (primary.author) parts.push(primary.author);
+  if (primary.date_label) parts.push(primary.date_label);
+  if (group?.items?.length > 1) parts.push(`${group.items.length} verzí`);
+  return parts.join(" · ");
+}
+
+function buildGroupSearchDocument(group) {
+  const values = [];
+  if (group?.id) values.push(group.id);
+  (group?.items || []).forEach((feature) => {
+    const props = feature?.properties || {};
+    values.push(
+      props.id,
+      props.description,
+      props.author,
+      props.date_label,
+      props.signature,
+      props.note,
+      props.obsah,
+      props.autor,
+      props.datace,
+      props.geolocation_type,
+      props.location,
+      props.place,
+      props.street,
+      props.city,
+    );
+  });
+  return normalizeSearchText(values.filter(Boolean).join(" "));
+}
+
+function haversineDistanceKm(latA, lonA, latB, lonB) {
+  const r = 6371;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(latB - latA);
+  const dLon = toRad(lonB - lonA);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(latA)) * Math.cos(toRad(latB)) * Math.sin(dLon / 2) ** 2;
+  return 2 * r * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function parseYear(value) {
@@ -252,6 +365,8 @@ function applyYearFilter(options = {}) {
   if (!Array.isArray(state.groups) || !state.groups.length) {
     state.filteredGroups = [];
     updatePhotoCount(0);
+    renderPhotoGrid({ reset: true });
+    updateNearbyNavigation();
     return;
   }
   const minYear = state.yearFilterMin;
@@ -260,6 +375,8 @@ function applyYearFilter(options = {}) {
   state.filteredGroups = filtered;
   addMarkers(filtered, { fitBounds });
   updatePhotoCount(filtered.length);
+  renderPhotoGrid({ reset: true });
+  updateNearbyNavigation();
 }
 
 let yearFilterTimer = null;
@@ -330,6 +447,8 @@ function initYearFilter() {
   if (!yearMinInput || !yearMaxInput || !stats) {
     addMarkers(state.groups);
     updatePhotoCount(state.groups.length);
+    renderPhotoGrid({ reset: true });
+    updateNearbyNavigation();
     return;
   }
 
@@ -526,6 +645,63 @@ function getArchiveUrl(feature) {
   return `${state.archiveBaseUrl}/permalink?xid=${feature.properties.id}&scan=1#scan1`;
 }
 
+function invalidateDetailMiniMap() {
+  if (!state.detailMiniMap || !photoMinimapWrap) return;
+  if (photoMinimapWrap.classList.contains("is-hidden")) return;
+  setTimeout(() => {
+    state.detailMiniMap?.invalidateSize({ pan: false, animate: false });
+  }, 100);
+}
+
+function ensureDetailMiniMap() {
+  if (state.detailMiniMap) return state.detailMiniMap;
+  if (!photoMinimapEl || !window.L) return null;
+  state.detailMiniMap = L.map(photoMinimapEl, {
+    zoomControl: false,
+    attributionControl: false,
+    dragging: false,
+    touchZoom: false,
+    scrollWheelZoom: false,
+    doubleClickZoom: false,
+    boxZoom: false,
+    keyboard: false,
+    tap: false,
+  });
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+  }).addTo(state.detailMiniMap);
+  return state.detailMiniMap;
+}
+
+function renderDetailMiniMap(feature) {
+  if (!photoMinimapWrap || !photoMinimapEl) return;
+  const [lonRaw, latRaw] = feature?.geometry?.coordinates || [];
+  const lat = Number(latRaw);
+  const lon = Number(lonRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    photoMinimapWrap.classList.add("is-hidden");
+    return;
+  }
+
+  photoMinimapWrap.classList.remove("is-hidden");
+  const map = ensureDetailMiniMap();
+  if (!map) return;
+  const latlng = [lat, lon];
+  if (!state.detailMiniMarker) {
+    state.detailMiniMarker = L.circleMarker(latlng, {
+      radius: 7,
+      color: "#ffffff",
+      weight: 2,
+      fillColor: "#c34d2f",
+      fillOpacity: 0.96,
+    }).addTo(map);
+  } else {
+    state.detailMiniMarker.setLatLng(latlng);
+  }
+  map.setView(latlng, 15, { animate: false });
+  invalidateDetailMiniMap();
+}
+
 function setUrlXid(xid, mode = "push") {
   const current = new URLSearchParams(window.location.search).get("xid");
   if (xid === current) return;
@@ -577,6 +753,7 @@ function openArchiveModal(url, xid, options = {}) {
   if (xid) {
     loadZoomifyInto(zoomViewerEl, zoomWrap, archivePreview, xid);
   }
+  invalidateDetailMiniMap();
 }
 
 function closeArchiveModal(options = {}) {
@@ -676,6 +853,7 @@ function renderCorrectionScopeHint() {
 }
 
 function renderDetails(feature) {
+  renderDetailMiniMap(feature);
   if (!detailContainer) return;
   if (!window.OldPragueMeta?.renderDetails) return;
   const group = state.selectedGroup;
@@ -699,6 +877,200 @@ function renderDetails(feature) {
   renderCorrectionScopeHint();
 }
 
+function prepareGroupSearchIndex() {
+  state.groups.forEach((group) => {
+    group.searchDocument = buildGroupSearchDocument(group);
+  });
+}
+
+function buildNearbyGroupIds(group) {
+  const lat = Number(group?.lat);
+  const lon = Number(group?.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return [];
+  const groups = getActiveGroups();
+  return groups
+    .filter((item) => Number.isFinite(item?.lat) && Number.isFinite(item?.lon))
+    .map((item) => ({
+      id: item.id,
+      distanceKm: haversineDistanceKm(lat, lon, Number(item.lat), Number(item.lon)),
+    }))
+    .sort((a, b) => a.distanceKm - b.distanceKm)
+    .map((item) => item.id);
+}
+
+function updateNearbyNavigation(options = {}) {
+  const { preserveAnchor = false } = options;
+  if (!nearbyPrevBtn || !nearbyNextBtn || !nearbyState) return;
+  if (!state.selectedGroup) {
+    nearbyPrevBtn.disabled = true;
+    nearbyNextBtn.disabled = true;
+    nearbyState.textContent = "—";
+    state.nearbyGroupIds = [];
+    state.nearbyIndex = -1;
+    state.nearbyAnchorGroupId = "";
+    return;
+  }
+  const activeGroups = getActiveGroups();
+  const keepExistingList =
+    preserveAnchor &&
+    Array.isArray(state.nearbyGroupIds) &&
+    state.nearbyGroupIds.length === activeGroups.length &&
+    state.nearbyGroupIds.includes(state.selectedGroup.id) &&
+    state.nearbyAnchorGroupId;
+  const nearbyIds = keepExistingList
+    ? state.nearbyGroupIds
+    : buildNearbyGroupIds(state.selectedGroup);
+  if (!keepExistingList) {
+    state.nearbyAnchorGroupId = state.selectedGroup.id;
+  }
+  const currentIndex = nearbyIds.indexOf(state.selectedGroup.id);
+  state.nearbyGroupIds = nearbyIds;
+  state.nearbyIndex = currentIndex;
+  const total = nearbyIds.length;
+
+  nearbyPrevBtn.disabled = currentIndex <= 0;
+  nearbyNextBtn.disabled = currentIndex < 0 || currentIndex >= total - 1;
+  nearbyState.textContent =
+    currentIndex >= 0 && total > 0 ? `${currentIndex + 1}/${total}` : "—";
+}
+
+function goToNearbyGroup(delta) {
+  const index = state.nearbyIndex + delta;
+  if (index < 0 || index >= state.nearbyGroupIds.length) return;
+  const groupId = state.nearbyGroupIds[index];
+  if (!groupId) return;
+  const nextGroup = state.groupById.get(groupId);
+  if (!nextGroup) return;
+  selectGroup(nextGroup, {
+    openModal: true,
+    updateHistory: true,
+    panTo: true,
+    preserveNearby: true,
+  });
+}
+
+function renderPhotoGrid(options = {}) {
+  const { reset = false } = options;
+  if (!photoGrid || !photoGridLoadMore) return;
+
+  const groups = getMapVisibleGroups(getActiveGroups());
+  if (reset) {
+    state.gridVisibleCount = state.gridPageSize;
+  }
+  state.gridVisibleCount = Math.max(state.gridPageSize, state.gridVisibleCount);
+
+  if (!groups.length) {
+    photoGrid.innerHTML = "";
+    photoGridLoadMore.classList.add("is-hidden");
+    photoGridLoadMore.disabled = true;
+    if (photoGridCount) photoGridCount.textContent = "0";
+    if (photoGridEmpty) photoGridEmpty.classList.remove("is-hidden");
+    return;
+  }
+
+  if (photoGridEmpty) photoGridEmpty.classList.add("is-hidden");
+
+  const visibleCount = Math.min(state.gridVisibleCount, groups.length);
+  const visibleGroups = groups.slice(0, visibleCount);
+
+  const fallbackTitle = (group) => escapeHtml(getGroupTitle(group));
+  const fallbackSubtitle = (group) => escapeHtml(getGroupSubtitle(group));
+
+  photoGrid.innerHTML = visibleGroups
+    .map((group) => {
+      const feature = group?.primary;
+      const props = feature?.properties || {};
+      const xid = String(props.id || "");
+      const localPreview = getGridPreviewCandidate(feature);
+      const fallbackAttr = localPreview.fallback
+        ? ` data-fallback-src="${escapeHtml(localPreview.fallback)}"`
+        : "";
+      const isActive = state.selectedGroup?.id === group?.id;
+      return `
+        <button class="photo-card${isActive ? " is-active" : ""}" type="button" data-group-id="${escapeHtml(group.id)}" data-xid="${escapeHtml(xid)}">
+          <div class="photo-card-media">
+            <img
+              class="photo-card-image${localPreview.url ? "" : " is-hidden"}"
+              data-xid="${escapeHtml(xid)}"
+              src="${escapeHtml(localPreview.url)}"
+              alt="Náhled fotografie"
+              loading="lazy"
+              ${fallbackAttr}
+            />
+            <div class="photo-card-placeholder${localPreview.url ? " is-hidden" : ""}" data-placeholder-xid="${escapeHtml(xid)}">
+              Bez náhledu
+            </div>
+          </div>
+          <div class="photo-card-body">
+            <p class="photo-card-title">${fallbackTitle(group)}</p>
+            <p class="photo-card-meta">${fallbackSubtitle(group)}</p>
+          </div>
+        </button>
+      `;
+    })
+    .join("");
+
+  if (photoGridCount) {
+    photoGridCount.textContent = `Zobrazeno ${visibleCount.toLocaleString()} z ${groups.length.toLocaleString()}`;
+  }
+
+  const hasMore = visibleCount < groups.length;
+  photoGridLoadMore.classList.toggle("is-hidden", !hasMore);
+  photoGridLoadMore.disabled = !hasMore;
+
+  photoGrid.querySelectorAll(".photo-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const groupId = String(card.dataset.groupId || "").trim();
+      if (!groupId || !state.groupById.has(groupId)) return;
+      selectGroup(state.groupById.get(groupId), {
+        openModal: true,
+        updateHistory: true,
+        panTo: true,
+      });
+    });
+  });
+
+  photoGrid.querySelectorAll(".photo-card-image").forEach((image) => {
+    if (!(image instanceof HTMLImageElement)) return;
+    image.addEventListener("error", () => {
+      const fallback = String(image.dataset.fallbackSrc || "").trim();
+      if (!fallback || image.dataset.fallbackApplied === "1") return;
+      image.dataset.fallbackApplied = "1";
+      image.src = fallback;
+    });
+  });
+
+  visibleGroups.forEach((group) => {
+    const feature = group?.primary;
+    const xid = String(feature?.properties?.id || "").trim();
+    if (!xid) return;
+    if (getGridPreviewCandidate(feature).url) return;
+    resolvePreviewUrl(feature).then((url) => {
+      if (!photoGrid) return;
+      const resolvedPreview = getGridPreviewCandidateFromResolved(url);
+      if (!resolvedPreview.url) return;
+      const xidSelector = escapeSelectorValue(xid);
+      const image = photoGrid.querySelector(`img[data-xid="${xidSelector}"]`);
+      const placeholder = photoGrid.querySelector(
+        `[data-placeholder-xid="${xidSelector}"]`,
+      );
+      if (!(image instanceof HTMLImageElement)) return;
+      image.src = resolvedPreview.url;
+      if (resolvedPreview.fallback) {
+        image.dataset.fallbackSrc = resolvedPreview.fallback;
+        delete image.dataset.fallbackApplied;
+      } else {
+        delete image.dataset.fallbackSrc;
+        delete image.dataset.fallbackApplied;
+      }
+      image.classList.remove("is-hidden");
+      if (placeholder instanceof HTMLElement) {
+        placeholder.classList.add("is-hidden");
+      }
+    });
+  });
+}
+
 function buildMarkerIcon(markerState = "") {
   const className = markerState ? `marker-dot is-${markerState}` : "marker-dot";
   return L.divIcon({
@@ -715,6 +1087,48 @@ function getPreviewFromFeature(feature) {
     return String(previews[0]);
   }
   return "";
+}
+
+function getZoomifyPathFromFeature(feature) {
+  const props = feature?.properties || {};
+  const zoomifyPaths = props.scan_zoomify_paths;
+  if (!Array.isArray(zoomifyPaths)) return "";
+  const firstPath = zoomifyPaths.find(
+    (item) => typeof item === "string" && item.trim().length > 0,
+  );
+  return firstPath ? firstPath.trim().replace(/\/$/, "") : "";
+}
+
+function buildZoomifyTileUrl(zoomifyPath, level = 0) {
+  const base = String(zoomifyPath || "").trim().replace(/\/$/, "");
+  if (!base) return "";
+  const tileLevel =
+    Number.isInteger(level) && level >= 0 ? level : Math.max(0, Number(level) || 0);
+  return `${base}/TileGroup0/${tileLevel}-0-0.jpg`;
+}
+
+function getGridPreviewCandidate(feature) {
+  const zoomifyPath = getZoomifyPathFromFeature(feature);
+  if (zoomifyPath) {
+    return {
+      url: buildZoomifyTileUrl(zoomifyPath, 1),
+      fallback: buildZoomifyTileUrl(zoomifyPath, 0),
+    };
+  }
+  return { url: getPreviewFromFeature(feature), fallback: "" };
+}
+
+function getGridPreviewCandidateFromResolved(url) {
+  const fallback = String(url || "").trim();
+  if (!fallback) return { url: "", fallback: "" };
+  const upgraded = fallback.replace(
+    /\/TileGroup(\d+)\/0-0-0\.jpg(\?.*)?$/i,
+    "/TileGroup$1/1-0-0.jpg$2",
+  );
+  return {
+    url: upgraded,
+    fallback: upgraded === fallback ? "" : fallback,
+  };
 }
 
 function buildZoomifyTiers(width, height, tileSize) {
@@ -942,6 +1356,9 @@ function initMap() {
   } else {
     state.map.addLayer(state.overlapCluster);
   }
+  state.map.on("moveend", () => {
+    renderPhotoGrid();
+  });
 }
 
 function toggleClustering(enabled) {
@@ -1019,6 +1436,7 @@ function addMarkers(groups, options = {}) {
 function selectGroup(group, options = {}) {
   if (!group) return;
   state.selectedGroup = group;
+  updateNearbyNavigation({ preserveAnchor: options.preserveNearby === true });
   const selectedXid = options.selectedXid;
   let feature = group.primary;
   if (selectedXid && state.featuresById.has(selectedXid)) {
@@ -1035,6 +1453,7 @@ function selectFeature(feature, options = {}) {
   const { openModal = false, updateHistory = false, panTo = false } = options;
   state.selectedFeature = feature;
   renderDetails(feature);
+  renderPhotoGrid();
   clearStatus();
   updateSubmitState();
 
@@ -1058,6 +1477,7 @@ function rebuildGroupIndexes() {
   state.groupById = groupIndex.groupById;
   state.groupByXid = groupIndex.groupByXid;
   state.featuresById = groupIndex.featureById;
+  prepareGroupSearchIndex();
 }
 
 function applyReviewStatePayload(reviewState = {}) {
@@ -1090,6 +1510,8 @@ async function refreshReviewState(options = {}) {
     applyYearFilter({ fitBounds: false });
   } else {
     addMarkers(state.groups, { fitBounds: false });
+    renderPhotoGrid();
+    updateNearbyNavigation();
   }
 
   if (selectedXid && state.featuresById.has(selectedXid)) {
@@ -1216,11 +1638,13 @@ async function bootstrap() {
         if (metaView) metaView.classList.remove("is-hidden");
         if (correctionView) correctionView.classList.add("is-hidden");
         if (reportCtaWrap) reportCtaWrap.classList.remove("is-hidden");
+        invalidateDetailMiniMap();
         await refreshReviewState({ fresh: true });
       },
       onCancel: () => {
         if (metaView) metaView.classList.remove("is-hidden");
         if (correctionView) correctionView.classList.add("is-hidden");
+        invalidateDetailMiniMap();
       },
     });
   }
@@ -1231,26 +1655,53 @@ async function bootstrap() {
 function initSearch() {
   const searchInput = document.getElementById("map-search");
   const searchResults = document.getElementById("search-results");
+  const searchAddressToggle = document.getElementById("search-address-toggle");
   if (!searchInput || !searchResults) return;
 
   let debounceTimer;
-  searchInput.addEventListener("input", () => {
+  let searchToken = 0;
+
+  const triggerSearch = () => {
     clearTimeout(debounceTimer);
     const query = searchInput.value.trim();
-    if (query.length < 3) {
+    if (query.length < 2) {
       searchResults.classList.add("is-hidden");
+      searchResults.innerHTML = "";
       return;
     }
 
+    const currentToken = ++searchToken;
     debounceTimer = setTimeout(async () => {
       try {
-        const results = await fetchGeocode(query);
-        renderSearchResults(results, searchResults);
+        const metadataResults = findMetadataMatches(query, 14);
+        let addressResults = [];
+        if (searchAddressToggle?.checked && query.length >= 3) {
+          try {
+            addressResults = await fetchGeocode(query);
+          } catch (error) {
+            addressResults = [];
+          }
+        }
+        if (currentToken !== searchToken) return;
+        renderSearchResults(
+          {
+            query,
+            metadataResults,
+            addressResults,
+          },
+          searchResults,
+          searchInput,
+        );
       } catch (err) {
         console.error("Vyhledávání selhalo", err);
       }
-    }, 400);
-  });
+    }, 260);
+  };
+
+  searchInput.addEventListener("input", triggerSearch);
+  if (searchAddressToggle) {
+    searchAddressToggle.addEventListener("change", triggerSearch);
+  }
 
   document.addEventListener("click", (e) => {
     if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
@@ -1260,7 +1711,7 @@ function initSearch() {
 }
 
 async function fetchGeocode(query) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ", Praha")}&limit=5`;
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ", Praha")}&limit=6`;
   const response = await fetch(url, {
     headers: { "Accept-Language": "cs-CZ" }
   });
@@ -1268,27 +1719,133 @@ async function fetchGeocode(query) {
   return response.json();
 }
 
-function renderSearchResults(results, container) {
-  if (!results.length) {
-    container.classList.add("is-hidden");
+function findMetadataMatches(query, limit = 12) {
+  const normalizedQuery = normalizeSearchText(query);
+  const tokens = normalizedQuery.split(/\s+/).filter((token) => token.length >= 2);
+  if (!tokens.length) return [];
+
+  const groups = getActiveGroups();
+  const ranked = [];
+
+  groups.forEach((group) => {
+    const document = String(group?.searchDocument || "");
+    if (!document) return;
+
+    let score = 0;
+    for (const token of tokens) {
+      if (!document.includes(token)) return;
+      score += 10;
+    }
+
+    const phraseIndex = document.indexOf(normalizedQuery);
+    if (phraseIndex >= 0) {
+      score += 40 - Math.min(30, phraseIndex / 15);
+    }
+
+    const groupId = normalizeSearchText(group?.id || "");
+    if (groupId && groupId.includes(normalizedQuery)) score += 25;
+
+    const title = normalizeSearchText(getGroupTitle(group));
+    if (title && title.includes(normalizedQuery)) score += 15;
+
+    ranked.push({ group, score, phraseIndex });
+  });
+
+  ranked.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const aIndex = a.phraseIndex >= 0 ? a.phraseIndex : Number.MAX_SAFE_INTEGER;
+    const bIndex = b.phraseIndex >= 0 ? b.phraseIndex : Number.MAX_SAFE_INTEGER;
+    if (aIndex !== bIndex) return aIndex - bIndex;
+    return String(a.group?.id || "").localeCompare(String(b.group?.id || ""), "cs");
+  });
+
+  return ranked.slice(0, limit).map((entry) => entry.group);
+}
+
+function renderSearchResults(payload, container, searchInput) {
+  const metadataResults = Array.isArray(payload?.metadataResults)
+    ? payload.metadataResults
+    : [];
+  const addressResults = Array.isArray(payload?.addressResults)
+    ? payload.addressResults
+    : [];
+
+  if (!metadataResults.length && !addressResults.length) {
+    container.innerHTML = `
+      <div class="search-section-title">Výsledky</div>
+      <div class="search-empty">Nic nenalezeno.</div>
+    `;
+    container.classList.remove("is-hidden");
     return;
   }
 
-  container.innerHTML = results.map(res => `
-    <div class="search-item" data-lat="${res.lat}" data-lon="${res.lon}">
-      ${res.display_name.split(",").slice(0, 3).join(",")}
-    </div>
-  `).join("");
+  const metadataSection = metadataResults.length
+    ? `
+      <div class="search-section-title">Fotografie (metadata)</div>
+      ${metadataResults
+        .map((group) => {
+          const feature = group?.primary;
+          const xid = String(feature?.properties?.id || "");
+          return `
+            <div class="search-item search-item-kind-meta" data-type="metadata" data-group-id="${escapeHtml(group.id)}" data-xid="${escapeHtml(xid)}">
+              <p class="search-item-title">${escapeHtml(getGroupTitle(group))}</p>
+              <p class="search-item-meta">${escapeHtml(getGroupSubtitle(group) || group.id)}</p>
+            </div>
+          `;
+        })
+        .join("")}
+    `
+    : "";
 
+  const addressSection = addressResults.length
+    ? `
+      <div class="search-section-title">Adresy (OSM)</div>
+      ${addressResults
+        .map(
+          (result) => `
+            <div class="search-item search-item-kind-address" data-type="address" data-lat="${escapeHtml(result.lat)}" data-lon="${escapeHtml(result.lon)}">
+              <p class="search-item-title">${escapeHtml(
+                String(result.display_name || "")
+                  .split(",")
+                  .slice(0, 3)
+                  .join(","),
+              )}</p>
+              <p class="search-item-meta">Adresní výsledek</p>
+            </div>
+          `,
+        )
+        .join("")}
+    `
+    : "";
+
+  container.innerHTML = `${metadataSection}${addressSection}`;
   container.classList.remove("is-hidden");
 
-  container.querySelectorAll(".search-item").forEach(item => {
+  container.querySelectorAll(".search-item").forEach((item) => {
     item.addEventListener("click", () => {
-      const lat = parseFloat(item.dataset.lat);
-      const lon = parseFloat(item.dataset.lon);
-      state.map.setView([lat, lon], 16, { animate: true });
+      const type = String(item.dataset.type || "");
+      if (type === "metadata") {
+        const groupId = String(item.dataset.groupId || "").trim();
+        const xid = String(item.dataset.xid || "").trim();
+        if (!groupId || !state.groupById.has(groupId)) return;
+        const group = state.groupById.get(groupId);
+        selectGroup(group, {
+          openModal: true,
+          updateHistory: true,
+          panTo: true,
+          selectedXid: xid || undefined,
+        });
+        searchInput.value = getGroupTitle(group);
+      } else {
+        const lat = parseFloat(item.dataset.lat);
+        const lon = parseFloat(item.dataset.lon);
+        if (Number.isFinite(lat) && Number.isFinite(lon) && state.map) {
+          state.map.setView([lat, lon], 16, { animate: true });
+        }
+        const titleEl = item.querySelector(".search-item-title");
+        searchInput.value = titleEl?.textContent?.trim() || item.textContent.trim();
+      }
       container.classList.add("is-hidden");
-      document.getElementById("map-search").value = item.textContent.trim();
     });
   });
 }
@@ -1334,6 +1891,21 @@ if (confirmCta) {
       if (consensusBanner) consensusBanner.classList.remove("is-hidden");
     }
   });
+}
+
+if (photoGridLoadMore) {
+  photoGridLoadMore.addEventListener("click", () => {
+    state.gridVisibleCount += state.gridPageSize;
+    renderPhotoGrid();
+  });
+}
+
+if (nearbyPrevBtn) {
+  nearbyPrevBtn.addEventListener("click", () => goToNearbyGroup(-1));
+}
+
+if (nearbyNextBtn) {
+  nearbyNextBtn.addEventListener("click", () => goToNearbyGroup(1));
 }
 
 // Cancel button is now handled by CorrectionUI

@@ -1,4 +1,4 @@
-import{u as n,j as a,c as e}from"./useLegacyScripts-BrGdT6RB.js";const s=`  <div class="page">
+import{u as n,j as a,c as e}from"./useLegacyScripts-CXtpnk8r.js";const s=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Archivní prohlížeč</p>
@@ -27,7 +27,11 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-BrGdT6RB.js";const s=`  <div
     <main class="content">
       <div class="map-toolbar">
         <div class="search-container">
-          <input type="text" id="map-search" placeholder="Hledat adresu nebo místo..." aria-label="Hledat na mapě" />
+          <input type="text" id="map-search" placeholder="Hledat v metadatech fotek..." aria-label="Hledat v metadatech" />
+          <label class="search-toggle" for="search-address-toggle">
+            <input type="checkbox" id="search-address-toggle" />
+            <span>Zahrnout i adresy (OSM)</span>
+          </label>
           <div id="search-results" class="search-results is-hidden"></div>
         </div>
         <div class="map-controls">
@@ -65,6 +69,22 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-BrGdT6RB.js";const s=`  <div
         <div id="map" aria-label="Mapa s polohami fotografií"></div>
         <div class="map-overlay">
           <div class="chip">Klikněte na bod pro fotografii</div>
+        </div>
+      </section>
+
+      <section class="card photo-grid-section" aria-label="Galerie fotografií">
+        <div class="photo-grid-head">
+          <p class="eyebrow">Galerie ve výřezu mapy</p>
+          <p class="helper photo-grid-count" id="photo-grid-count">—</p>
+        </div>
+        <div class="photo-grid" id="photo-grid"></div>
+        <p class="helper photo-grid-empty is-hidden" id="photo-grid-empty">
+          V aktuálním výřezu mapy nejsou dostupné žádné fotografie.
+        </p>
+        <div class="photo-grid-actions">
+          <button class="secondary" type="button" id="photo-grid-load-more">
+            Načíst další
+          </button>
         </div>
       </section>
     </main>
@@ -136,6 +156,10 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-BrGdT6RB.js";const s=`  <div
                   <h3 class="modal-meta-title">Informace o fotografii</h3>
                 </div>
                 <div id="photo-details" class="detail-list"></div>
+                <div class="photo-minimap is-hidden" id="photo-minimap-wrap">
+                  <p class="detail-label">Poloha na mapě</p>
+                  <div id="photo-minimap" aria-label="Mini mapa polohy fotografie"></div>
+                </div>
 
                 <div class="report-cta-container">
                   <div class="consensus-banner is-hidden" id="consensus-banner">
@@ -213,6 +237,15 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-BrGdT6RB.js";const s=`  <div
             </aside>
           </div>
           <div class="modal-footer">
+            <div class="modal-nearby-nav">
+              <button class="secondary modal-nearby-btn" type="button" id="nearby-prev">
+                Předchozí v okolí
+              </button>
+              <span class="helper modal-nearby-state" id="nearby-state">—</span>
+              <button class="secondary modal-nearby-btn" type="button" id="nearby-next">
+                Další v okolí
+              </button>
+            </div>
             <a id="archive-fallback" href="#" target="_blank" rel="noopener">
               Otevřít v archivu
             </a>
@@ -221,5 +254,4 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-BrGdT6RB.js";const s=`  <div
       </div>
     </div>
   </div>
-
-`,i=["https://unpkg.com/leaflet@1.9.4/dist/leaflet.js","https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js","https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./app.js"];function o(){return n(i),a.jsx("div",{dangerouslySetInnerHTML:{__html:s}})}e(document.getElementById("root")).render(a.jsx(o,{}));
+`,o=["https://unpkg.com/leaflet@1.9.4/dist/leaflet.js","https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js","https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./app.js"];function i(){return n(o),a.jsx("div",{dangerouslySetInnerHTML:{__html:s}})}e(document.getElementById("root")).render(a.jsx(i,{}));
