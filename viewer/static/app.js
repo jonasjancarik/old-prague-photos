@@ -37,6 +37,8 @@ const formStatus = document.getElementById("form-status");
 const turnstileNote = document.getElementById("turnstile-note");
 const archiveModal = document.getElementById("archive-modal");
 const archiveIframe = document.getElementById("archive-iframe");
+const archivePreview = document.getElementById("archive-preview");
+const archiveUnavailable = document.getElementById("archive-unavailable");
 const archiveFallback = document.getElementById("archive-fallback");
 const zoomWrap = archiveIframe?.closest(".zoom-wrap");
 const zoomViewerEl = document.getElementById("zoom-viewer");
@@ -441,12 +443,33 @@ async function loadPreviewUrl(xid) {
   return String(payload?.url || "");
 }
 
-async function loadZoomifyInto(viewerEl, wrapEl, fallbackIframe, xid) {
+function getUnavailablePreviewMessage(error) {
+  const message = String(error?.message || "");
+  if (
+    /Zoomify link not found|Zoomify odkaz nenalezen|Záznam nenalezen|search page/i.test(
+      message,
+    )
+  ) {
+    return "Záznam už v archivu AHMP není dostupný (xid nenalezen).";
+  }
+  if (/zoomifyImgPath/i.test(message)) {
+    return "Archivní záznam existuje, ale náhled není dostupný.";
+  }
+  return "Náhled pro tento záznam teď není dostupný.";
+}
+
+async function loadZoomifyInto(viewerEl, wrapEl, previewImgEl, xid) {
   if (!viewerEl || !wrapEl) return;
   if (zoomLastXid === xid) return;
 
   zoomLastXid = xid;
-  wrapEl.classList.remove("is-fallback");
+  wrapEl.classList.remove("is-fallback", "is-unavailable");
+  if (previewImgEl) {
+    previewImgEl.src = "";
+  }
+  if (archiveUnavailable) {
+    archiveUnavailable.textContent = "";
+  }
 
   try {
     if (!window.OpenSeadragon) {
@@ -472,7 +495,25 @@ async function loadZoomifyInto(viewerEl, wrapEl, fallbackIframe, xid) {
     zoomViewer.open(window.OldPragueZoomify.createTileSource(meta));
   } catch (error) {
     console.warn("Zoom náhled selhal", error);
-    wrapEl.classList.add("is-fallback");
+    let previewUrl = "";
+    try {
+      previewUrl = await loadPreviewUrl(xid);
+    } catch (previewError) {
+      previewUrl = "";
+    }
+
+    if (previewUrl) {
+      if (previewImgEl) {
+        previewImgEl.src = previewUrl;
+      }
+      wrapEl.classList.add("is-fallback");
+      return;
+    }
+
+    wrapEl.classList.add("is-unavailable");
+    if (archiveUnavailable) {
+      archiveUnavailable.textContent = getUnavailablePreviewMessage(error);
+    }
   }
 }
 
@@ -507,9 +548,9 @@ function openArchiveModal(url, xid, options = {}) {
   if (!archiveModal || !archiveIframe || !archiveFallback) return;
   const { updateHistory = true } = options;
   archiveModal.style.display = "grid";
-  archiveIframe.style.pointerEvents = "";
+  archiveIframe.style.pointerEvents = "none";
+  archiveIframe.src = "";
   if (url) {
-    archiveIframe.src = url;
     archiveFallback.href = url;
     archiveFallback.style.display = "inline-flex";
   } else {
@@ -534,7 +575,7 @@ function openArchiveModal(url, xid, options = {}) {
   }
 
   if (xid) {
-    loadZoomifyInto(zoomViewerEl, zoomWrap, archiveIframe, xid);
+    loadZoomifyInto(zoomViewerEl, zoomWrap, archivePreview, xid);
   }
 }
 
@@ -545,6 +586,9 @@ function closeArchiveModal(options = {}) {
   archiveModal.setAttribute("aria-hidden", "true");
   archiveIframe.src = "";
   archiveIframe.style.pointerEvents = "none";
+  if (archivePreview) archivePreview.src = "";
+  if (archiveUnavailable) archiveUnavailable.textContent = "";
+  if (zoomWrap) zoomWrap.classList.remove("is-fallback", "is-unavailable");
   zoomLastXid = null;
   document.body.style.overflow = "";
   if (window.CorrectionUI) {
@@ -1102,7 +1146,17 @@ async function submitModalVerdict(verdict) {
 async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Požadavek selhal: ${response.status}`);
+    let detail = "";
+    try {
+      const payload = await response.json();
+      detail = String(payload?.detail || payload?.message || "");
+    } catch (error) {
+      detail = "";
+    }
+    const withDetail = detail
+      ? `Požadavek selhal: ${response.status} (${detail})`
+      : `Požadavek selhal: ${response.status}`;
+    throw new Error(withDetail);
   }
   return response.json();
 }
@@ -1116,6 +1170,10 @@ async function bootstrap() {
     photos = await fetchJson("/data/photos.geojson");
   } catch (error) {
     photos = await fetchJson("/api/photos");
+  }
+  const mediaFilter = window.OldPragueMediaFilter;
+  if (mediaFilter?.filterPhotoCollection) {
+    photos = await mediaFilter.filterPhotoCollection(photos);
   }
 
   initMap();

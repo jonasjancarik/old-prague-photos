@@ -1254,6 +1254,33 @@ textarea {
   height: 100%;
 }
 
+.zoom-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #101010;
+  display: none;
+}
+
+.zoom-unavailable {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #f5eee0;
+  background:
+    radial-gradient(circle at 16% 14%, rgba(195, 77, 47, 0.28), transparent 52%),
+    linear-gradient(160deg, #22201d 0%, #2a2521 45%, #1a1918 100%);
+}
+
 .zoom-wrap iframe {
   position: absolute;
   inset: 0;
@@ -1263,12 +1290,30 @@ textarea {
   display: none;
 }
 
+.zoom-wrap.zoom-wrap-preview-fallback iframe {
+  display: none !important;
+}
+
 .zoom-wrap.is-fallback iframe {
+  display: block;
+}
+
+.zoom-wrap.is-fallback .zoom-preview {
   display: block;
 }
 
 .zoom-wrap.is-fallback .zoom-viewer {
   display: none;
+}
+
+.zoom-wrap.is-unavailable iframe,
+.zoom-wrap.is-unavailable .zoom-preview,
+.zoom-wrap.is-unavailable .zoom-viewer {
+  display: none;
+}
+
+.zoom-wrap.is-unavailable .zoom-unavailable {
+  display: flex;
 }
 
 .openseadragon-container .openseadragon-controls,
@@ -1393,6 +1438,36 @@ textarea {
 .review-source {
   text-align: center;
   margin-bottom: 16px;
+}
+
+.group-actions {
+  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(31, 30, 28, 0.12);
+  background: rgba(255, 255, 255, 0.62);
+  display: grid;
+  gap: 10px;
+}
+
+.group-actions-title {
+  margin: 0;
+}
+
+.group-actions-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.group-archive-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.group-archive-link.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 .review-grid {

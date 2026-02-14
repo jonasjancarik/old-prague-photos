@@ -7,6 +7,8 @@ zoomify_tiles
 .wrangler/
 .dev.vars
 viewer/data/*.jsonl
+node_modules/
+**/node_modules/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

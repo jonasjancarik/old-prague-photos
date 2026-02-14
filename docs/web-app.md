@@ -2,6 +2,25 @@
 
 The viewer is a static frontend (Leaflet map + review UIs) with an optional backend for corrections. It can run locally via FastAPI or be deployed to Cloudflare Pages + D1.
 
+## Frontend source + build
+
+- React source: `viewer/react/`
+- Static output: `viewer/static/`
+- Runtime UI logic (legacy modules): `viewer/static/*.js`
+
+Build once before serving/deploying:
+
+```bash
+npm --prefix viewer/react install
+npm --prefix viewer/react run build
+```
+
+For iterative frontend work, run watch mode in another terminal:
+
+```bash
+npm --prefix viewer/react run dev
+```
+
 ## Data inputs
 
 The web app reads static data from `viewer/static/data/`:
@@ -122,6 +141,7 @@ FastAPI serves the static app and stores corrections locally in JSONL files:
 Run:
 
 ```bash
+npm --prefix viewer/react run build
 uv run uvicorn viewer.app:app --reload \
   --reload-dir viewer \
   --reload-dir viewer/static \
@@ -156,12 +176,14 @@ npx wrangler d1 migrations apply CORRECTIONS_DB
 ### 3) Local Pages dev
 
 ```bash
+npm --prefix viewer/react run build
 TURNSTILE_BYPASS=1 npx wrangler pages dev viewer/static --local
 ```
 
 ### 4) Deploy
 
 ```bash
+npm --prefix viewer/react run build
 npx wrangler pages deploy viewer/static --project-name <project-name>
 ```
 
@@ -212,4 +234,4 @@ SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
   - `correction_state`: `none | pending | approved`
   - `anchor_type`: `none | flag | correction`
   - `ok_votes`, `required_ok_votes`, `done`, `needs_confirmation`
-- UI copy is Czech-only (see `viewer/static/*.html` + `viewer/static/*.js`).
+- UI copy is Czech-only (React templates in `viewer/react/src/templates/*.html` + runtime logic in `viewer/static/*.js`).

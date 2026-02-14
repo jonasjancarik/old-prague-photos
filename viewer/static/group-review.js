@@ -18,17 +18,21 @@ const groupSummaryEl = document.getElementById("group-summary");
 const statusEl = document.getElementById("group-status");
 const prevBtn = document.getElementById("prev-group");
 const nextBtn = document.getElementById("next-group");
+const actionTextEl = document.getElementById("group-action-text");
+const markOkBtn = document.getElementById("group-mark-ok");
+const openDedupeBtn = document.getElementById("group-open-dedupe");
+const archiveLinkEl = document.getElementById("group-archive-link");
 const detailsEl = document.getElementById("group-details");
-const zoomWrap = document.getElementById("group-iframe")?.closest(".zoom-wrap");
+const zoomWrap = document.getElementById("group-zoom")?.closest(".zoom-wrap");
 const zoomViewerEl = document.getElementById("group-zoom");
-const iframeEl = document.getElementById("group-iframe");
+const previewImgEl = document.getElementById("group-preview");
 
 const zoomState = {
   viewer: null,
   lastKey: null,
   viewerEl: zoomViewerEl,
   wrapEl: zoomWrap,
-  iframeEl,
+  previewImgEl,
 };
 
 function normalizeGroupValue(value) {
@@ -66,6 +70,15 @@ function shortId(value) {
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
+function buildDedupeUrl(groupId) {
+  const url = new URL("./dup-review.html", window.location.href);
+  url.searchParams.set("mode", "dedupe");
+  if (groupId) {
+    url.searchParams.set("group_id", groupId);
+  }
+  return url.toString();
+}
+
 function updateCounts() {
   const total = state.groups.length;
   const remaining = Math.max(0, total - state.currentIndex - 1);
@@ -83,6 +96,9 @@ function updateCounts() {
   }
   if (prevBtn) prevBtn.disabled = state.currentIndex <= 0;
   if (nextBtn) nextBtn.disabled = state.currentIndex >= total - 1;
+  if (markOkBtn) markOkBtn.disabled = !state.currentGroup;
+  if (openDedupeBtn) openDedupeBtn.disabled = !state.currentGroup;
+  if (archiveLinkEl) archiveLinkEl.classList.toggle("is-disabled", !state.currentFeature);
 }
 
 async function fetchJson(url) {
@@ -96,6 +112,12 @@ async function loadZoomifyMeta(xid, scanIndex) {
     String(scanIndex || 0),
   )}`;
   return fetchJson(url);
+}
+
+async function loadPreviewUrl(xid) {
+  if (!xid) return "";
+  const payload = await fetchJson(`/api/preview-url?xid=${encodeURIComponent(xid)}`);
+  return String(payload?.url || "");
 }
 
 function getArchiveUrl(xid, scanIndex) {
@@ -116,6 +138,9 @@ async function loadZoomifyInto(target, xid, scanIndex) {
   if (target.lastKey === key) return;
   target.lastKey = key;
   target.wrapEl.classList.remove("is-fallback");
+  if (target.previewImgEl) {
+    target.previewImgEl.src = "";
+  }
 
   try {
     if (!window.OpenSeadragon) {
@@ -141,6 +166,13 @@ async function loadZoomifyInto(target, xid, scanIndex) {
     target.viewer.open(window.OldPragueZoomify.createTileSource(meta));
   } catch (error) {
     console.warn("Zoom náhled selhal", error);
+    if (target.previewImgEl) {
+      try {
+        target.previewImgEl.src = await loadPreviewUrl(xid);
+      } catch (previewError) {
+        target.previewImgEl.src = "";
+      }
+    }
     target.wrapEl.classList.add("is-fallback");
   }
 }
@@ -185,6 +217,17 @@ function setScanIndex(xid, scanIndex) {
   state.scanIndexByXid.set(xid, scanIndex);
 }
 
+function renderActionHint(group) {
+  if (!actionTextEl) return;
+  if (!group?.id) {
+    actionTextEl.textContent = "Zkontrolujte verze/skeny této série a zvolte další krok.";
+    return;
+  }
+  actionTextEl.textContent = `Pokud série míchá různé záběry, otevřete párové porovnání jen pro sérii ${shortId(
+    group.id,
+  )}.`;
+}
+
 function setFeature(group, feature) {
   if (!group || !feature) return;
   const xid = feature.properties?.id;
@@ -194,7 +237,10 @@ function setFeature(group, feature) {
 
   const scanIndex = getScanIndex(xid);
   const url = getArchiveUrl(xid, scanIndex);
-  if (iframeEl) iframeEl.src = url;
+  if (archiveLinkEl) {
+    archiveLinkEl.href = url || "#";
+    archiveLinkEl.classList.toggle("is-disabled", !url);
+  }
   loadZoomifyInto(zoomState, xid, scanIndex);
   renderDetails(group, feature);
 
@@ -220,6 +266,7 @@ function setFeature(group, feature) {
     groupSummaryEl.title = group.id;
   }
 
+  renderActionHint(group);
   updateCounts();
 }
 
@@ -236,11 +283,30 @@ function showGroup(index) {
   setFeature(group, feature);
 }
 
+function markCurrentGroupOk() {
+  if (!state.currentGroup) return;
+  if (state.currentIndex >= state.groups.length - 1) {
+    setStatus("Série označena jako zkontrolovaná. Jste na konci seznamu.", "success");
+    return;
+  }
+  setStatus("Série označena jako zkontrolovaná. Přecházím na další.", "success");
+  setTimeout(() => showGroup(state.currentIndex + 1), 180);
+}
+
+function openCurrentGroupInDedupe() {
+  if (!state.currentGroup?.id) return;
+  window.location.href = buildDedupeUrl(state.currentGroup.id);
+}
+
 async function bootstrap() {
   const config = await fetchJson("/api/config").catch(() => ({}));
   state.archiveBaseUrl = config.archiveBaseUrl || "";
 
-  const photos = await fetchJson("/data/photos.geojson");
+  const rawPhotos = await fetchJson("/data/photos.geojson");
+  const mediaFilter = window.OldPragueMediaFilter;
+  const photos = mediaFilter?.filterPhotoCollection
+    ? await mediaFilter.filterPhotoCollection(rawPhotos)
+    : rawPhotos;
   state.features = photos.features || [];
   state.features.forEach((feature) => ensureGroupId(feature));
 
@@ -294,6 +360,8 @@ async function bootstrap() {
 
 if (prevBtn) prevBtn.addEventListener("click", () => showGroup(state.currentIndex - 1));
 if (nextBtn) nextBtn.addEventListener("click", () => showGroup(state.currentIndex + 1));
+if (markOkBtn) markOkBtn.addEventListener("click", markCurrentGroupOk);
+if (openDedupeBtn) openDedupeBtn.addEventListener("click", openCurrentGroupInDedupe);
 
 bootstrap().catch((error) => {
   setStatus("Nepodařilo se načíst data.", "error");

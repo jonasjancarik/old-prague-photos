@@ -17,6 +17,8 @@ const state = {
   rightFeature: null,
   archiveBaseUrl: "",
   scanIndexByXid: new Map(),
+  lastPickedSource: "",
+  focusGroupId: "",
 };
 
 const candidateCountEl = document.getElementById("candidate-count");
@@ -28,6 +30,7 @@ const differentBtn = document.getElementById("mark-different");
 const statusEl = document.getElementById("review-status");
 const turnstileNote = document.getElementById("turnstile-note");
 const pairSourceEl = document.getElementById("pair-source");
+const pairFilterEl = document.getElementById("pair-filter");
 
 const leftDetails = document.getElementById("left-details");
 const rightDetails = document.getElementById("right-details");
@@ -206,6 +209,18 @@ function setScanIndex(xid, scanIndex) {
   state.scanIndexByXid.set(xid, scanIndex);
 }
 
+function renderFocusFilter() {
+  if (!pairFilterEl) return;
+  const focusId = resolveGroupRoot(state.focusGroupId) || state.focusGroupId;
+  if (!focusId) {
+    pairFilterEl.classList.add("is-hidden");
+    pairFilterEl.textContent = "";
+    return;
+  }
+  pairFilterEl.textContent = `Filtr: jen páry ze série ${shortId(focusId)}`;
+  pairFilterEl.classList.remove("is-hidden");
+}
+
 function setSideFeature(side, group, feature) {
   if (!group || !feature) return;
   const xid = feature.properties.id;
@@ -271,8 +286,16 @@ function buildCandidates() {
   const coordMap = new Map();
   const candidates = [];
   const candidateKeys = new Set();
+  const focusGroupId = resolveGroupRoot(state.focusGroupId);
   const addCandidate = (groupA, groupB, source) => {
     if (!groupA || !groupB) return;
+    if (
+      focusGroupId &&
+      groupA.id !== focusGroupId &&
+      groupB.id !== focusGroupId
+    ) {
+      return;
+    }
     const key = pairKey(groupA.id, groupB.id);
     if (!key || state.decisionsByPair.has(key) || candidateKeys.has(key)) return;
     candidateKeys.add(key);
@@ -316,12 +339,33 @@ function buildCandidates() {
   updateCounts();
 }
 
+function randomItem(items) {
+  if (!Array.isArray(items) || !items.length) return null;
+  const idx = Math.floor(Math.random() * items.length);
+  return items[idx];
+}
+
+function removeRandomRemaining(source = "") {
+  const sourceFilter = String(source || "").trim();
+  const pool = sourceFilter
+    ? state.remaining.filter((item) => item?.source === sourceFilter)
+    : state.remaining;
+  const picked = randomItem(pool);
+  if (!picked) return null;
+  const idx = state.remaining.indexOf(picked);
+  if (idx >= 0) {
+    state.remaining.splice(idx, 1);
+  }
+  return picked;
+}
+
 function pickNext() {
   if (!state.remaining.length) {
     state.remaining = [...state.candidates];
   }
   if (!state.remaining.length) {
-    setStatus("Žádné další páry k porovnání.", "success");
+    const suffix = state.focusGroupId ? " pro vybranou sérii." : ".";
+    setStatus(`Žádné další páry k porovnání${suffix}`, "success");
     state.currentPair = null;
     if (pairSourceEl) pairSourceEl.textContent = "Zdroj páru: —";
     updateActionState();
@@ -329,8 +373,29 @@ function pickNext() {
     return;
   }
 
-  const idx = Math.floor(Math.random() * state.remaining.length);
-  const pair = state.remaining.splice(idx, 1)[0];
+  const sources = Array.from(
+    new Set(
+      state.remaining
+        .map((item) => String(item?.source || "").trim())
+        .filter(Boolean),
+    ),
+  );
+  let preferredSource = "";
+  if (sources.length > 1 && state.lastPickedSource) {
+    const alternatives = sources.filter((source) => source !== state.lastPickedSource);
+    preferredSource = randomItem(alternatives) || "";
+  } else if (sources.length > 0) {
+    preferredSource = randomItem(sources) || "";
+  }
+
+  const pair = removeRandomRemaining(preferredSource) || removeRandomRemaining();
+  if (!pair) {
+    updateActionState();
+    updateCounts();
+    return;
+  }
+  state.lastPickedSource = String(pair.source || "").trim();
+
   if (state.currentPair) {
     state.history.push(state.currentPair);
   }
@@ -349,6 +414,7 @@ function pickPrev() {
 function rebuildPairs() {
   state.history = [];
   state.currentPair = null;
+  state.lastPickedSource = "";
   buildDecisionMap();
   buildCandidates();
   pickNext();
@@ -397,10 +463,17 @@ async function submitDecision(verdict) {
 }
 
 async function bootstrap() {
+  const params = new URLSearchParams(window.location.search);
+  state.focusGroupId = String(params.get("group_id") || "").trim();
+
   const config = await fetchJson("/api/config").catch(() => ({}));
   state.archiveBaseUrl = config.archiveBaseUrl || "";
 
-  const photos = await fetchJson("/data/photos.geojson");
+  const rawPhotos = await fetchJson("/data/photos.geojson");
+  const mediaFilter = window.OldPragueMediaFilter;
+  const photos = mediaFilter?.filterPhotoCollection
+    ? await mediaFilter.filterPhotoCollection(rawPhotos)
+    : rawPhotos;
   state.features = photos.features || [];
 
   const reviewState = await fetchJson("/api/review-state").catch(() => ({}));
@@ -412,6 +485,7 @@ async function bootstrap() {
   state.similarityPairs = similarityData.pairs || [];
 
   buildDecisionMap();
+  renderFocusFilter();
   buildCandidates();
   pickNext();
   if (turnstileNote) {

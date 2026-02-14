@@ -27,6 +27,7 @@ STATIC_DIR = ROOT / "static"
 STATIC_DATA_DIR = STATIC_DIR / "data"
 DATA_DIR = ROOT / "data"
 PHOTOS_PATH = STATIC_DATA_DIR / "photos.geojson"
+ORPHAN_IDS_PATH = STATIC_DATA_DIR / "orphan_xids.json"
 FEEDBACK_PATH = DATA_DIR / "feedback.jsonl"
 CORRECTIONS_PATH = DATA_DIR / "corrections.jsonl"
 MERGES_PATH = DATA_DIR / "merges.jsonl"
@@ -48,6 +49,8 @@ app = FastAPI(title="Prohlížeč historických fotografií Prahy")
 
 _photos_cache: dict[str, Any] | None = None
 _photos_cache_mtime: float | None = None
+_orphan_ids_cache: set[str] | None = None
+_orphan_ids_cache_mtime: float | None = None
 _feedback_lock = Lock()
 _zoomify_cache: dict[str, dict[str, Any]] = {}
 _preview_url_cache: dict[str, dict[str, Any]] = {}
@@ -106,6 +109,46 @@ def load_photos() -> dict[str, Any]:
         _feature_preview_cache = None
         _preview_url_cache = {}
     return _photos_cache
+
+
+def load_orphan_ids() -> set[str]:
+    global _orphan_ids_cache, _orphan_ids_cache_mtime
+    if not ORPHAN_IDS_PATH.exists():
+        return set()
+    mtime = ORPHAN_IDS_PATH.stat().st_mtime
+    if _orphan_ids_cache is None or _orphan_ids_cache_mtime != mtime:
+        with ORPHAN_IDS_PATH.open(encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if isinstance(payload, list):
+            values = payload
+        elif isinstance(payload, dict):
+            values = payload.get("xids", [])
+        else:
+            values = []
+        _orphan_ids_cache = {
+            str(value).strip() for value in values if str(value).strip()
+        }
+        _orphan_ids_cache_mtime = mtime
+    return _orphan_ids_cache
+
+
+def load_photos_filtered() -> dict[str, Any]:
+    photos = load_photos()
+    orphan_ids = load_orphan_ids()
+    if not orphan_ids:
+        return photos
+
+    features = photos.get("features", [])
+    filtered_features = [
+        feature
+        for feature in features
+        if str((feature.get("properties") or {}).get("id") or "").strip()
+        not in orphan_ids
+    ]
+    return {
+        "type": photos.get("type", "FeatureCollection"),
+        "features": filtered_features,
+    }
 
 
 def build_xid_group_cache() -> dict[str, str]:
@@ -770,7 +813,7 @@ def get_config() -> JSONResponse:
 
 @app.get("/api/photos")
 def get_photos() -> JSONResponse:
-    return JSONResponse(load_photos())
+    return JSONResponse(load_photos_filtered())
 
 
 @app.post("/api/verify")

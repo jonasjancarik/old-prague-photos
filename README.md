@@ -422,11 +422,28 @@ Useful flags:
 
 The viewer is a static web app with optional Cloudflare Pages + D1 backend for corrections.
 
+Frontend source now lives in `viewer/react/` (React + Vite multi-page app).
+Build output stays in `viewer/static/` (served by FastAPI / Wrangler Pages).
+
+### Build frontend
+
+```bash
+npm --prefix viewer/react install
+npm --prefix viewer/react run build
+```
+
+For iterative UI work, run watch mode in a second terminal:
+
+```bash
+npm --prefix viewer/react run dev
+```
+
 ### Run locally
 
 Preferred (Cloudflare Pages Functions + local D1, closest to production):
 
 ```bash
+npm --prefix viewer/react run build
 bunx wrangler d1 migrations apply CORRECTIONS_DB --local
 TURNSTILE_BYPASS=1 bunx wrangler pages dev viewer/static --local
 ```
@@ -436,6 +453,7 @@ Open the URL printed by Wrangler (typically `http://127.0.0.1:8788`).
 FastAPI fallback (quick local app server):
 
 ```bash
+npm --prefix viewer/react run build
 uv run uvicorn viewer.app:app --reload \
   --reload-dir viewer \
   --reload-dir viewer/static \

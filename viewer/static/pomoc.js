@@ -562,7 +562,11 @@ async function bootstrap() {
   setControlsEnabled(false);
   setVerificationNote("Při prvním odeslání může vyskočit ověření pro relaci.");
 
-  const photos = await fetchJson("/data/photos.geojson");
+  const rawPhotos = await fetchJson("/data/photos.geojson");
+  const mediaFilter = window.OldPragueMediaFilter;
+  const photos = mediaFilter?.filterPhotoCollection
+    ? await mediaFilter.filterPhotoCollection(rawPhotos)
+    : rawPhotos;
   const features = photos.features || [];
   state.features = features;
 
