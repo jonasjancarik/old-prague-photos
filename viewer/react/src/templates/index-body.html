@@ -27,11 +27,16 @@
     <main class="content">
       <div class="map-toolbar">
         <div class="search-container">
-          <input type="text" id="map-search" placeholder="Hledat v metadatech fotek..." aria-label="Hledat v metadatech" />
-          <label class="search-toggle" for="search-address-toggle">
-            <input type="checkbox" id="search-address-toggle" />
-            <span>Zahrnout i adresy (OSM)</span>
-          </label>
+          <div class="search-input-row">
+            <input type="text" id="map-search" placeholder="Hledat v metadatech fotek..." aria-label="Hledat" />
+            <label class="search-mode-toggle" for="search-address-toggle">
+              <span class="toggle-switch">
+                <input type="checkbox" id="search-address-toggle" />
+                <span class="toggle-slider"></span>
+              </span>
+              <span>Hledat adresy</span>
+            </label>
+          </div>
           <div id="search-results" class="search-results is-hidden"></div>
         </div>
         <div class="map-controls">
@@ -53,6 +58,12 @@
               <input type="checkbox" id="year-unknown-toggle" checked />
               <span class="year-filter-toggle-text">
                 Bez datace <span id="year-unknown-count">—</span>
+              </span>
+            </label>
+            <label class="year-filter-toggle">
+              <input type="checkbox" id="year-imprecise-toggle" checked />
+              <span class="year-filter-toggle-text">
+                Nepřesná datace <span id="year-imprecise-count">—</span>
               </span>
             </label>
           </div>
