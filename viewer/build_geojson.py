@@ -4,6 +4,10 @@ import json
 import hashlib
 from pathlib import Path
 
+DATE_PLACEHOLDER_START = "1800-01-01"
+DATE_PLACEHOLDER_END = "2000-12-31"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build GeoJSON from old_prague_photos.csv")
     parser.add_argument(
@@ -64,6 +68,30 @@ def parse_int(value: str | None) -> int:
         return 0
 
 
+def parse_bool(value: str | None) -> bool | None:
+    if value is None:
+        return None
+    normalized = str(value).strip().lower()
+    if not normalized:
+        return None
+    if normalized in {"true", "1", "yes"}:
+        return True
+    if normalized in {"false", "0", "no"}:
+        return False
+    return None
+
+
+def compute_date_imprecise(
+    start_date: str | None,
+    end_date: str | None,
+) -> bool:
+    start = str(start_date or "").strip()
+    end = str(end_date or "").strip()
+
+    # Open-ended placeholder bounds represent uncertain lower/upper limits.
+    return start == DATE_PLACEHOLDER_START or end == DATE_PLACEHOLDER_END
+
+
 def main() -> None:
     args = parse_args()
     input_path = Path(args.input)
@@ -85,6 +113,15 @@ def main() -> None:
                 scan_count = max(len(scan_previews), len(scan_zoomify_paths))
 
             group_id = row.get("group_id", "").strip() or build_group_id(row)
+            csv_imprecise = parse_bool(row.get("date_imprecise"))
+            date_imprecise = (
+                csv_imprecise
+                if csv_imprecise is not None
+                else compute_date_imprecise(
+                    row.get("start_date"),
+                    row.get("end_date"),
+                )
+            )
 
             properties = {
                 "id": row.get("xid", "").strip(),
@@ -99,6 +136,8 @@ def main() -> None:
                 "note": row.get("poznámka", "").strip(),
                 "views": row.get("zobrazeno", "").strip(),
                 "geolocation_type": row.get("geolocation_type", "").strip(),
+                "date_precision": row.get("date_precision", "").strip(),
+                "date_imprecise": date_imprecise,
                 "scan_count": scan_count,
                 "scan_previews": scan_previews,
                 "scan_zoomify_paths": scan_zoomify_paths,

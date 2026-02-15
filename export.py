@@ -8,6 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
 EXPORT_MINIMAL_FILE = True
+DATE_PLACEHOLDER_START = "1800-01-01"
+DATE_PLACEHOLDER_END = "2000-12-31"
 
 # Pre-compile regular expressions for efficiency
 year_regex = re.compile(r"\d{4}")
@@ -27,8 +29,24 @@ lock = Lock()
 
 
 def parse_date(date_str):
+    def date_result(
+        start_date=None,
+        end_date=None,
+        precision="unknown",
+    ):
+        return {
+            "start_date": start_date,
+            "end_date": end_date,
+            "date_precision": precision,
+            "date_imprecise": (
+                start_date == DATE_PLACEHOLDER_START
+                or end_date == DATE_PLACEHOLDER_END
+            ),
+        }
+
     if not date_str:
-        return {"start_date": None, "end_date": None}
+        return date_result()
+    date_str = str(date_str).strip()
 
     # Czech month mapping
     months_cz = {
@@ -48,12 +66,20 @@ def parse_date(date_str):
 
     # Year only
     if year_only_regex.match(date_str):
-        return {"start_date": f"{date_str}-01-01", "end_date": f"{date_str}-12-31"}
+        return date_result(
+            start_date=f"{date_str}-01-01",
+            end_date=f"{date_str}-12-31",
+            precision="year",
+        )
 
     # Year range
     elif year_range_regex.match(date_str):
         start_year, end_year = date_str.split("-")
-        return {"start_date": f"{start_year}-01-01", "end_date": f"{end_year}-12-31"}
+        return date_result(
+            start_date=f"{start_year}-01-01",
+            end_date=f"{end_year}-12-31",
+            precision="year_range",
+        )
 
     # Czech month
     elif any(month in date_str for month in months_cz):
@@ -77,15 +103,20 @@ def parse_date(date_str):
                     11: 30,
                     12: 31,
                 }[num]
-                return {
-                    "start_date": f"{year}-{num:02d}-01",
-                    "end_date": f"{year}-{num:02d}-{last_day}",
-                }
+                return date_result(
+                    start_date=f"{year}-{num:02d}-01",
+                    end_date=f"{year}-{num:02d}-{last_day}",
+                    precision="month",
+                )
 
     # Spring
     elif "jaro" in date_str:
         year = year_regex.search(date_str).group()
-        return {"start_date": f"{year}-03-21", "end_date": f"{year}-06-20"}
+        return date_result(
+            start_date=f"{year}-03-21",
+            end_date=f"{year}-06-20",
+            precision="season",
+        )
 
     # only spring seems to be mentioned in the data
 
@@ -107,36 +138,53 @@ def parse_date(date_str):
     # Before year
     elif before_year_regex.match(date_str):
         year = int(year_regex.search(date_str).group())
-        return {"start_date": "1800-01-01", "end_date": f"{year - 1}-12-31"}
+        return date_result(
+            start_date=DATE_PLACEHOLDER_START,
+            end_date=f"{year - 1}-12-31",
+            precision="before_year",
+        )
 
     # After year
     elif after_year_regex.match(date_str):
         year = int(year_regex.search(date_str).group())
-        return {"start_date": f"{year + 1}-01-01", "end_date": "2000-12-31"}
+        return date_result(
+            start_date=f"{year + 1}-01-01",
+            end_date=DATE_PLACEHOLDER_END,
+            precision="after_year",
+        )
 
     # Specific date
     elif specific_date_regex.match(date_str):
         try:
             parsed = datetime.strptime(date_str, "%d.%m.%Y").strftime("%Y-%m-%d")
         except ValueError:
-            return {"start_date": None, "end_date": None}
-        return {
-            "start_date": parsed,
-            "end_date": parsed,
-        }
+            return date_result()
+        return date_result(
+            start_date=parsed,
+            end_date=parsed,
+            precision="day",
+        )
 
     # Year with question mark
     elif year_question_regex.match(date_str):
         year = year_regex.search(date_str).group()
-        return {"start_date": f"{year}-01-01", "end_date": f"{year}-12-31"}
+        return date_result(
+            start_date=f"{year}-01-01",
+            end_date=f"{year}-12-31",
+            precision="year_uncertain",
+        )
 
     # Kol. year
     elif kol_year_regex.match(date_str):
         year = year_regex.search(date_str).group()
-        return {"start_date": f"{year}-01-01", "end_date": f"{year}-12-31"}
+        return date_result(
+            start_date=f"{year}-01-01",
+            end_date=f"{year}-12-31",
+            precision="year_approx",
+        )
 
     else:
-        return {"start_date": None, "end_date": None}
+        return date_result()
 
 
 def process_file(filepath):
@@ -149,11 +197,12 @@ def process_file(filepath):
             # Parse date
             if "datace" in file_data:
                 date = parse_date(file_data["datace"])
-                file_data["start_date"] = date["start_date"]
-                file_data["end_date"] = date["end_date"]
             else:
-                file_data["start_date"] = None
-                file_data["end_date"] = None
+                date = parse_date(None)
+            file_data["start_date"] = date["start_date"]
+            file_data["end_date"] = date["end_date"]
+            file_data["date_precision"] = date["date_precision"]
+            file_data["date_imprecise"] = date["date_imprecise"]
 
             # Flatten JSON data
             return pd.json_normalize(file_data, sep="_")
@@ -243,7 +292,7 @@ else:
     print("Warning: typ záznamu missing; no filter applied.")
 
 if EXPORT_MINIMAL_FILE:
-    # keep only druh,obsah,datace,zobrazeno,xid,start_date,end_date,geolocation_position_lon,geolocation_position_lat,geolocation_type,geolocation_endpoint,autor,poznámka columns
+    # keep only selected columns required by the viewer
     columns_to_keep = [
         "druh",
         "obsah",
@@ -253,6 +302,8 @@ if EXPORT_MINIMAL_FILE:
         "signatura",
         "start_date",
         "end_date",
+        "date_precision",
+        "date_imprecise",
         "geolocation_position_lon",
         "geolocation_position_lat",
         "geolocation_type",

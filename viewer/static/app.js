@@ -22,6 +22,8 @@ const state = {
   yearFilterMax: null,
   yearUnknownGroups: 0,
   yearIncludeUnknown: true,
+  yearImpreciseGroups: 0,
+  yearIncludeImprecise: true,
   previewPopup: null,
   previewByXid: new Map(),
   previewPromiseByXid: new Map(),
@@ -69,6 +71,10 @@ const yearSliderWrap = document.getElementById("year-slider-wrap");
 const yearUnknownToggle = document.getElementById("year-unknown-toggle");
 const yearUnknownCount = document.getElementById("year-unknown-count");
 const yearUnknownToggleWrap = yearUnknownToggle?.closest(".year-filter-toggle");
+const yearImpreciseToggle = document.getElementById("year-imprecise-toggle");
+const yearImpreciseCount = document.getElementById("year-imprecise-count");
+const yearImpreciseToggleWrap =
+  yearImpreciseToggle?.closest(".year-filter-toggle");
 const YEAR_SLIDER_EDGE_PX = 9;
 const photoGrid = document.getElementById("photo-grid");
 const photoGridCount = document.getElementById("photo-grid-count");
@@ -84,6 +90,9 @@ const infoModal = document.getElementById("info-modal");
 const infoOpenBtn = document.getElementById("info-open");
 
 const pragueFallback = [50.0755, 14.4378];
+const OSM_ATTR =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> přispěvatelé';
+const MAPY_ATTR = '&copy; <a href="https://www.mapy.cz">Mapy.cz</a>';
 
 function setStatus(message, tone = "") {
   formStatus.textContent = message;
@@ -217,6 +226,22 @@ function parseYear(value) {
   return Number.isFinite(year) ? year : null;
 }
 
+function isFeatureDateImprecise(feature) {
+  const props = feature?.properties || {};
+  if (typeof props.date_imprecise === "boolean") {
+    return props.date_imprecise;
+  }
+  if (typeof props.date_imprecise === "string") {
+    const normalized = props.date_imprecise.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") return true;
+    if (normalized === "false" || normalized === "0") return false;
+  }
+
+  const start = String(props.start_date || "").trim();
+  const end = String(props.end_date || "").trim();
+  return start === "1800-01-01" || end === "2000-12-31";
+}
+
 function getFeatureYearRange(feature) {
   const props = feature?.properties || {};
   const years = [];
@@ -268,17 +293,23 @@ function computeGroupYearStats(groups) {
   let minYear = Infinity;
   let maxYear = -Infinity;
   let unknownGroups = 0;
+  let impreciseGroups = 0;
 
   (groups || []).forEach((group) => {
     const range = getGroupYearRange(group);
     if (!range) {
       group.yearMin = null;
       group.yearMax = null;
+      group.yearImprecise = false;
       unknownGroups += 1;
       return;
     }
     group.yearMin = range.min;
     group.yearMax = range.max;
+    group.yearImprecise = (group.items || []).some((feature) =>
+      isFeatureDateImprecise(feature),
+    );
+    if (group.yearImprecise) impreciseGroups += 1;
     if (range.min < minYear) minYear = range.min;
     if (range.max > maxYear) maxYear = range.max;
   });
@@ -286,7 +317,7 @@ function computeGroupYearStats(groups) {
   if (!Number.isFinite(minYear) || !Number.isFinite(maxYear)) {
     return null;
   }
-  return { minYear, maxYear, unknownGroups };
+  return { minYear, maxYear, unknownGroups, impreciseGroups };
 }
 
 function updateYearRangeUi() {
@@ -355,6 +386,9 @@ function filterGroupsByYear(groups, minYear, maxYear) {
     const groupMax = group?.yearMax;
     if (!Number.isFinite(groupMin) || !Number.isFinite(groupMax)) {
       return state.yearIncludeUnknown;
+    }
+    if (!state.yearIncludeImprecise && group?.yearImprecise) {
+      return false;
     }
     return groupMax >= minYear && groupMin <= maxYear;
   });
@@ -457,6 +491,7 @@ function initYearFilter() {
   state.yearFilterMin = stats.minYear;
   state.yearFilterMax = stats.maxYear;
   state.yearUnknownGroups = stats.unknownGroups;
+  state.yearImpreciseGroups = stats.impreciseGroups;
 
   yearMinInput.min = String(stats.minYear);
   yearMinInput.max = String(stats.maxYear);
@@ -481,6 +516,20 @@ function initYearFilter() {
   if (yearUnknownCount) {
     yearUnknownCount.textContent = stats.unknownGroups
       ? `(${stats.unknownGroups.toLocaleString()})`
+      : "";
+  }
+  if (yearImpreciseToggle) {
+    const hasImprecise = stats.impreciseGroups > 0;
+    yearImpreciseToggle.checked = hasImprecise;
+    yearImpreciseToggle.disabled = !hasImprecise;
+    state.yearIncludeImprecise = hasImprecise;
+    if (yearImpreciseToggleWrap) {
+      yearImpreciseToggleWrap.classList.toggle("is-hidden", !hasImprecise);
+    }
+  }
+  if (yearImpreciseCount) {
+    yearImpreciseCount.textContent = stats.impreciseGroups
+      ? `(${stats.impreciseGroups.toLocaleString()})`
       : "";
   }
 
@@ -541,6 +590,12 @@ function initYearFilter() {
   if (yearUnknownToggle) {
     yearUnknownToggle.addEventListener("change", () => {
       state.yearIncludeUnknown = yearUnknownToggle.checked;
+      applyYearFilter({ fitBounds: false });
+    });
+  }
+  if (yearImpreciseToggle) {
+    yearImpreciseToggle.addEventListener("change", () => {
+      state.yearIncludeImprecise = yearImpreciseToggle.checked;
       applyYearFilter({ fitBounds: false });
     });
   }
@@ -645,6 +700,41 @@ function getArchiveUrl(feature) {
   return `${state.archiveBaseUrl}/permalink?xid=${feature.properties.id}&scan=1#scan1`;
 }
 
+function attachBaseTiles(map, options = {}) {
+  if (!map || !window.L) return;
+  const { showAttribution = true, logPrefix = "Map" } = options;
+  const osmAttribution = showAttribution ? OSM_ATTR : "";
+  if (MAPY_CZ_API_KEY) {
+    const mapyLayer = L.tileLayer(
+      `https://api.mapy.cz/v1/maptiles/basic/256/{z}/{x}/{y}?apikey=${MAPY_CZ_API_KEY}`,
+      {
+        maxZoom: 19,
+        attribution: showAttribution ? `${MAPY_ATTR}, ${OSM_ATTR}` : "",
+      },
+    );
+    mapyLayer.addTo(map);
+
+    let fallbackActive = false;
+    mapyLayer.on("tileerror", () => {
+      if (fallbackActive) return;
+      fallbackActive = true;
+      console.warn(`${logPrefix}: Mapy.cz tiles failed, falling back to OSM`);
+      if (map.hasLayer(mapyLayer)) {
+        map.removeLayer(mapyLayer);
+      }
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: osmAttribution,
+      }).addTo(map);
+    });
+    return;
+  }
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: osmAttribution,
+  }).addTo(map);
+}
+
 function invalidateDetailMiniMap() {
   if (!state.detailMiniMap || !photoMinimapWrap) return;
   if (photoMinimapWrap.classList.contains("is-hidden")) return;
@@ -657,19 +747,20 @@ function ensureDetailMiniMap() {
   if (state.detailMiniMap) return state.detailMiniMap;
   if (!photoMinimapEl || !window.L) return null;
   state.detailMiniMap = L.map(photoMinimapEl, {
-    zoomControl: false,
-    attributionControl: false,
-    dragging: false,
-    touchZoom: false,
-    scrollWheelZoom: false,
-    doubleClickZoom: false,
-    boxZoom: false,
+    zoomControl: true,
+    attributionControl: true,
+    dragging: true,
+    touchZoom: true,
+    scrollWheelZoom: true,
+    doubleClickZoom: true,
+    boxZoom: true,
     keyboard: false,
     tap: false,
   });
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-  }).addTo(state.detailMiniMap);
+  attachBaseTiles(state.detailMiniMap, {
+    showAttribution: true,
+    logPrefix: "Minimap",
+  });
   return state.detailMiniMap;
 }
 
@@ -1289,36 +1380,7 @@ function initMap() {
     zoomControl: true,
     scrollWheelZoom: true,
   }).setView(pragueFallback, 12);
-
-  const osmAttr = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> přispěvatelé';
-  const mapyAttr = '&copy; <a href="https://www.mapy.cz">Mapy.cz</a>';
-
-  if (MAPY_CZ_API_KEY) {
-    const mapyLayer = L.tileLayer(`https://api.mapy.cz/v1/maptiles/basic/256/{z}/{x}/{y}?apikey=${MAPY_CZ_API_KEY}`, {
-      maxZoom: 19,
-      attribution: `${mapyAttr}, ${osmAttr}`
-    });
-    mapyLayer.addTo(state.map);
-
-    // Fallback: If mapy.cz tiles fail to load, we could add OSM under it or handle errors, 
-    // but usually we just add OSM as a backup layer in case the key is invalid
-    let fallbackActive = false;
-    mapyLayer.on('tileerror', () => {
-      if (fallbackActive) return;
-      fallbackActive = true;
-      console.warn("Mapy.cz tiles failed, falling back to OSM");
-      state.map.removeLayer(mapyLayer);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: osmAttr,
-      }).addTo(state.map);
-    });
-  } else {
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: osmAttr,
-    }).addTo(state.map);
-  }
+  attachBaseTiles(state.map, { showAttribution: true, logPrefix: "Main map" });
 
   const clusterToggle = document.getElementById("cluster-toggle");
   if (clusterToggle) {
@@ -1660,6 +1722,12 @@ function initSearch() {
 
   let debounceTimer;
   let searchToken = 0;
+  const syncSearchModeLabel = () => {
+    const addressMode = Boolean(searchAddressToggle?.checked);
+    searchInput.placeholder = addressMode
+      ? "Hledat adresu v Praze..."
+      : "Hledat v metadatech fotek...";
+  };
 
   const triggerSearch = () => {
     clearTimeout(debounceTimer);
@@ -1673,14 +1741,31 @@ function initSearch() {
     const currentToken = ++searchToken;
     debounceTimer = setTimeout(async () => {
       try {
-        const metadataResults = findMetadataMatches(query, 14);
+        const addressMode = Boolean(searchAddressToggle?.checked);
+        let metadataResults = [];
         let addressResults = [];
-        if (searchAddressToggle?.checked && query.length >= 3) {
+        if (addressMode) {
+          if (query.length < 3) {
+            if (currentToken !== searchToken) return;
+            renderSearchResults(
+              {
+                query,
+                metadataResults: [],
+                addressResults: [],
+                addressMode: true,
+              },
+              searchResults,
+              searchInput,
+            );
+            return;
+          }
           try {
             addressResults = await fetchGeocode(query);
           } catch (error) {
             addressResults = [];
           }
+        } else {
+          metadataResults = findMetadataMatches(query, 14);
         }
         if (currentToken !== searchToken) return;
         renderSearchResults(
@@ -1688,6 +1773,7 @@ function initSearch() {
             query,
             metadataResults,
             addressResults,
+            addressMode,
           },
           searchResults,
           searchInput,
@@ -1700,7 +1786,13 @@ function initSearch() {
 
   searchInput.addEventListener("input", triggerSearch);
   if (searchAddressToggle) {
-    searchAddressToggle.addEventListener("change", triggerSearch);
+    syncSearchModeLabel();
+    searchAddressToggle.addEventListener("change", () => {
+      syncSearchModeLabel();
+      triggerSearch();
+    });
+  } else {
+    syncSearchModeLabel();
   }
 
   document.addEventListener("click", (e) => {
@@ -1769,11 +1861,15 @@ function renderSearchResults(payload, container, searchInput) {
   const addressResults = Array.isArray(payload?.addressResults)
     ? payload.addressResults
     : [];
+  const addressMode = Boolean(payload?.addressMode);
 
   if (!metadataResults.length && !addressResults.length) {
+    const emptyText = addressMode
+      ? "Napište aspoň 3 znaky nebo zkuste jinou adresu."
+      : "Nic nenalezeno.";
     container.innerHTML = `
       <div class="search-section-title">Výsledky</div>
-      <div class="search-empty">Nic nenalezeno.</div>
+      <div class="search-empty">${emptyText}</div>
     `;
     container.classList.remove("is-hidden");
     return;
@@ -1781,7 +1877,7 @@ function renderSearchResults(payload, container, searchInput) {
 
   const metadataSection = metadataResults.length
     ? `
-      <div class="search-section-title">Fotografie (metadata)</div>
+      <div class="search-section-title">Fotografie</div>
       ${metadataResults
         .map((group) => {
           const feature = group?.primary;
@@ -1799,7 +1895,7 @@ function renderSearchResults(payload, container, searchInput) {
 
   const addressSection = addressResults.length
     ? `
-      <div class="search-section-title">Adresy (OSM)</div>
+      <div class="search-section-title">Adresy</div>
       ${addressResults
         .map(
           (result) => `
