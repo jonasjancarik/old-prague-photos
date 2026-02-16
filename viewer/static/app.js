@@ -667,9 +667,6 @@ async function loadZoomifyInto(viewerEl, wrapEl, previewImgEl, xid, feature = nu
   const previewFeature = feature || state.featuresById.get(xid) || null;
   wrapEl.classList.remove("is-fallback", "is-unavailable");
   wrapEl.classList.add("is-loading");
-  if (previewImgEl) {
-    previewImgEl.src = "";
-  }
   if (archiveUnavailable) {
     archiveUnavailable.textContent = "";
   }
@@ -718,9 +715,6 @@ async function loadZoomifyInto(viewerEl, wrapEl, previewImgEl, xid, feature = nu
     const revealReadyImage = () => {
       if (requestToken !== zoomLoadToken || zoomLastXid !== xid) return;
       wrapEl.classList.remove("is-loading");
-      if (previewImgEl) {
-        previewImgEl.src = "";
-      }
     };
 
     let revealTimer = null;

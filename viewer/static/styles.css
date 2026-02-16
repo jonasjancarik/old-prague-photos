@@ -1440,6 +1440,18 @@ textarea {
   background: #101010;
 }
 
+.zoom-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(20, 20, 20, 0.2), rgba(10, 10, 10, 0.62));
+  z-index: 2;
+}
+
 .zoom-viewer {
   position: absolute;
   inset: 0;
@@ -1525,9 +1537,13 @@ textarea {
 .zoom-wrap.is-loading .zoom-preview {
   display: block;
   object-fit: cover;
-  opacity: 0.92;
-  filter: blur(18px) saturate(0.85);
-  transform: scale(1.1);
+  opacity: 0.96;
+  filter: blur(26px) saturate(0.82);
+  transform: scale(1.14);
+}
+
+.zoom-wrap.is-loading::before {
+  opacity: 1;
 }
 
 .zoom-wrap.is-unavailable iframe,
