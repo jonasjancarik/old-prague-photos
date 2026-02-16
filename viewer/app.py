@@ -5,6 +5,7 @@ import html
 import time
 import hmac
 import hashlib
+from io import BytesIO
 from urllib.parse import urljoin
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,10 +13,12 @@ from threading import Lock
 from typing import Any
 
 import requests
+import dezoomify
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from PIL import Image
 from pydantic import BaseModel, Field
 
 # Load .env for local development
@@ -44,6 +47,7 @@ SQLITE_DATETIME_PATTERN = re.compile(
 )
 SESSION_COOKIE_NAME = "opp_turnstile_session"
 SESSION_TTL_SECONDS = 6 * 60 * 60
+FULL_RES_MAX_PIXELS_DEFAULT = 80_000_000
 
 app = FastAPI(title="Prohlížeč historických fotografií Prahy")
 
@@ -712,6 +716,25 @@ def _sanitize_xid(raw_xid: str) -> str:
     return xid
 
 
+def _sanitize_scan_index(scan_index: int) -> int:
+    if scan_index < 0 or scan_index > 1000:
+        raise HTTPException(status_code=400, detail="Neplatný scanIndex")
+    return scan_index
+
+
+def _full_res_max_pixels() -> int:
+    raw = os.environ.get("FULLRES_MAX_PIXELS", "").strip()
+    if not raw:
+        return FULL_RES_MAX_PIXELS_DEFAULT
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return FULL_RES_MAX_PIXELS_DEFAULT
+    if parsed <= 0:
+        return FULL_RES_MAX_PIXELS_DEFAULT
+    return parsed
+
+
 def _r2_preview_url(xid: str, scan_index: int = 0) -> str:
     base = _get_r2_zoomify_base()
     if not base:
@@ -807,6 +830,7 @@ def get_config() -> JSONResponse:
             "turnstileBypass": is_turnstile_bypass(),
             "archiveBaseUrl": archive_base_url,
             "r2TilesBase": os.environ.get("R2_TILES_BASE", "").rstrip("/"),
+            "fullResDownloadMode": "server",
             "totalPhotos": len(photos.get("features", [])),
         }
     )
@@ -844,8 +868,7 @@ def verify_session(payload: VerifyPayload, request: Request) -> JSONResponse:
 @app.get("/api/preview-local")
 def get_preview_local(xid: str, scanIndex: int = 0) -> FileResponse:
     xid = _sanitize_xid(xid)
-    if scanIndex < 0 or scanIndex > 1000:
-        raise HTTPException(status_code=400, detail="Neplatný scanIndex")
+    scanIndex = _sanitize_scan_index(scanIndex)
     local_path = _find_local_preview_file(xid, scanIndex)
     if not local_path:
         raise HTTPException(status_code=404, detail="Náhled nenalezen")
@@ -954,6 +977,99 @@ def get_zoomify(xid: str) -> JSONResponse:
         raise HTTPException(
             status_code=502, detail="Nepodařilo se načíst zoomify"
         ) from exc
+
+
+@app.get("/api/dezoomify")
+def get_dezoomified_image(xid: str, scanIndex: int = 0) -> Response:
+    xid = _sanitize_xid(xid)
+    scanIndex = _sanitize_scan_index(scanIndex)
+    max_pixels = _full_res_max_pixels()
+    scan_param = scanIndex + 1
+    archive_base_url = os.environ.get(
+        "ARCHIVE_BASE_URL", "https://katalog.ahmp.cz/pragapublica"
+    ).rstrip("/")
+    permalink_url = f"{archive_base_url}/permalink?xid={xid}&scan={scan_param}"
+
+    session = requests.Session()
+    session.headers.update(
+        {
+            "User-Agent": "old-prague-photos/dezoomify-download",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        }
+    )
+
+    try:
+        zoomify_html = dezoomify.resolve_zoomify(session, permalink_url)
+        zoomify_img_path = dezoomify.extract_zoomify_img_path(zoomify_html)
+        if not zoomify_img_path:
+            raise HTTPException(status_code=502, detail="zoomifyImgPath nenalezen")
+        zoomify_img_path = zoomify_img_path.rstrip("/")
+
+        props = dezoomify.fetch_image_properties(session, zoomify_img_path)
+        width = int(props["width"])
+        height = int(props["height"])
+        tile_size = int(props["tile_size"])
+
+        pixel_count = width * height
+        if pixel_count > max_pixels:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"Plné rozlišení je příliš velké "
+                    f"({pixel_count:,} px > limit {max_pixels:,} px)"
+                ),
+            )
+
+        tiers = dezoomify.build_tiers(width, height, tile_size)
+        level = len(tiers) - 1
+        tiles_x, tiles_y = dezoomify.tiles_for(tiers[level], tile_size)
+        final_image = Image.new("RGB", (width, height))
+
+        for tile_y in range(tiles_y):
+            for tile_x in range(tiles_x):
+                group = dezoomify.tile_group_index(tiers, tile_size, level, tile_x, tile_y)
+                tile_url = (
+                    f"{zoomify_img_path}/TileGroup{group}/{level}-{tile_x}-{tile_y}.jpg"
+                )
+                tile_response = session.get(tile_url, timeout=20)
+                tile_response.raise_for_status()
+                with Image.open(BytesIO(tile_response.content)) as tile_image:
+                    final_image.paste(
+                        tile_image.convert("RGB"),
+                        (tile_x * tile_size, tile_y * tile_size),
+                    )
+
+        output = BytesIO()
+        try:
+            final_image.save(output, format="JPEG", quality=92, optimize=True)
+            image_bytes = output.getvalue()
+        finally:
+            output.close()
+            final_image.close()
+
+        filename = f"{xid}_scan_{scan_param}_full.jpg"
+        return Response(
+            content=image_bytes,
+            media_type="image/jpeg",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Cache-Control": "no-store",
+            },
+        )
+    except HTTPException:
+        raise
+    except dezoomify.ZoomifyNotFoundError as exc:
+        raise HTTPException(status_code=502, detail="Zoomify odkaz nenalezen") from exc
+    except requests.RequestException as exc:
+        raise HTTPException(
+            status_code=502, detail="Nepodařilo se stáhnout plné rozlišení"
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=502, detail="Nepodařilo se vytvořit plné rozlišení"
+        ) from exc
+    finally:
+        session.close()
 
 
 @app.get("/api/corrections")

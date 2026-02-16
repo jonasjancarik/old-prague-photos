@@ -108,7 +108,7 @@ Grouping rules:
 
 All endpoints live under `/api/*` (see `functions/api/*.js`).
 
-- `GET /api/config` - Turnstile + archive base URL config
+- `GET /api/config` - Turnstile + archive base URL config + `fullResDownloadMode` (`client` on Pages Functions)
 - `POST /api/verify` - Turnstile verification, sets session cookie
 - `GET /api/review-state` - backend-resolved group roots + latest corrections + done groups
   - `?fresh=1` bypasses edge cache for immediate post-submit refresh
@@ -122,6 +122,7 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `GET /api/preview-local?xid=...&scanIndex=0` - serve local preview file from `downloads/archive/previews`
 - `GET /api/zoomify?xid=...&scanIndex=0` - server-side Zoomify metadata
   - Uses R2 if `R2_TILES_BASE` is set and the scan exists there.
+- `GET /api/dezoomify?xid=...&scanIndex=0` - FastAPI-only full-resolution JPEG download (tile stitch on server)
 
 Write API hardening:
 - `POST /api/verify`, `POST /api/corrections`, `POST /api/merges` require same-origin (`Origin`/`Referer` match).
@@ -203,6 +204,8 @@ For Pages (set in the Cloudflare dashboard or `wrangler.toml`):
 - `API_RATE_LIMIT_SECRET` (optional; falls back to Turnstile/session secret)
 - `ARCHIVE_BASE_URL` (optional)
 - `R2_TILES_BASE` (optional; points to public R2 prefix with tiles)
+- `ALLOW_ARCHIVE_FALLBACK` (optional; default `0`. When `1`, `/api/preview-url` and `/api/zoomify` may use archive-host URLs as a last resort)
+- `FULLRES_MAX_PIXELS` (FastAPI-only; optional; default `80000000` for `/api/dezoomify`)
 
 ## Sync to R2
 
@@ -225,9 +228,13 @@ SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
 ## Notes
 
 - `/api/zoomify` avoids browser CORS issues with `ImageProperties.xml`.
+- Full-resolution download mode is advertised via `/api/config`:
+  - `server` (FastAPI) -> frontend uses `/api/dezoomify`.
+  - `client` (Pages Functions) -> frontend stitches tiles in browser.
 - `/api/preview-url` is used by map hover popups and prefers R2 `0-0-0.jpg` tiles.
-- `/api/preview-url` falls back to `scan_previews[0]` or `scan_zoomify_paths[0]/TileGroup0/0-0-0.jpg`.
-- `/api/zoomify` only uses `R2_TILES_BASE` (tiles path), not preview thumbnails.
+- `/api/preview-url` falls back to `scan_previews` / `scan_zoomify_paths` only for non-archive URLs by default; archive-host fallbacks require `ALLOW_ARCHIVE_FALLBACK=1`.
+- `/api/zoomify` resolves in this order: `R2_TILES_BASE` -> feature `scan_zoomify_paths` -> archive permalink (only when `ALLOW_ARCHIVE_FALLBACK=1`).
+- In client mode, full-res download is disabled when Zoomify source is archive-host/CORS-blocked or image area exceeds `80,000,000` pixels.
 - Frontend filters out xids listed in `viewer/static/data/orphan_xids.json` on `/`, `/pomoc.html`, `/dup-review.html`, and `/group-review.html`.
 - D1 stores corrections + merge decisions (see `migrations/*.sql`).
 - `review-state` includes consensus metadata per group:

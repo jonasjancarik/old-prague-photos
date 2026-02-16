@@ -7,6 +7,7 @@ const state = {
   selectedFeature: null,
   archiveBaseUrl: "",
   r2TilesBase: "",
+  fullResDownloadMode: "server",
   featuresById: new Map(),
   groupById: new Map(),
   groupByXid: new Map(),
@@ -40,6 +41,7 @@ const state = {
   nearbyAnchorGroupId: "",
   detailMiniMap: null,
   detailMiniMarker: null,
+  scanIndexByXid: new Map(),
 };
 
 const detailContainer = document.getElementById("photo-details");
@@ -52,6 +54,8 @@ const archiveIframe = document.getElementById("archive-iframe");
 const archivePreview = document.getElementById("archive-preview");
 const archiveUnavailable = document.getElementById("archive-unavailable");
 const archiveFallback = document.getElementById("archive-fallback");
+const downloadFullResBtn = document.getElementById("download-fullres");
+const downloadFullResStatus = document.getElementById("download-fullres-status");
 const zoomWrap = archiveIframe?.closest(".zoom-wrap");
 const zoomViewerEl = document.getElementById("zoom-viewer");
 const reportCta = document.getElementById("report-cta");
@@ -96,6 +100,9 @@ const pragueFallback = [50.0755, 14.4378];
 const OSM_ATTR =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> přispěvatelé';
 const MAPY_ATTR = '&copy; <a href="https://www.mapy.cz">Mapy.cz</a>';
+const FULL_RES_CLIENT_MAX_PIXELS = 80_000_000;
+const FULL_RES_MODE_SERVER = "server";
+const FULL_RES_MODE_CLIENT = "client";
 
 function setStatus(message, tone = "") {
   formStatus.textContent = message;
@@ -607,16 +614,43 @@ function initYearFilter() {
 }
 
 let zoomViewer = null;
-let zoomLastXid = null;
+let zoomLastKey = "";
 let zoomLoadToken = 0;
+let fullResAvailabilityToken = 0;
+let fullResDownloadBusy = false;
+const fullResMetaByKey = new Map();
 
-async function loadZoomifyMeta(xid) {
-  const url = `/api/zoomify?xid=${encodeURIComponent(xid)}`;
+function buildZoomKey(xid, scanIndex = 0) {
+  const normalizedScanIndex =
+    Number.isInteger(scanIndex) && scanIndex >= 0 ? scanIndex : 0;
+  return `${String(xid || "").trim()}::${normalizedScanIndex}`;
+}
+
+function getScanIndex(xid) {
+  if (!xid) return 0;
+  return state.scanIndexByXid.get(xid) ?? 0;
+}
+
+function setScanIndex(xid, scanIndex) {
+  if (!xid || !Number.isFinite(scanIndex)) return;
+  state.scanIndexByXid.set(xid, Math.max(0, Number(scanIndex)));
+}
+
+async function loadZoomifyMeta(xid, scanIndex = 0) {
+  const normalizedScanIndex =
+    Number.isInteger(scanIndex) && scanIndex >= 0 ? scanIndex : 0;
+  const url = `/api/zoomify?xid=${encodeURIComponent(xid)}&scanIndex=${encodeURIComponent(
+    String(normalizedScanIndex),
+  )}`;
   return fetchJson(url);
 }
 
-async function loadPreviewUrl(xid) {
-  const url = `/api/preview-url?xid=${encodeURIComponent(xid)}`;
+async function loadPreviewUrl(xid, scanIndex = 0) {
+  const normalizedScanIndex =
+    Number.isInteger(scanIndex) && scanIndex >= 0 ? scanIndex : 0;
+  const url = `/api/preview-url?xid=${encodeURIComponent(xid)}&scanIndex=${encodeURIComponent(
+    String(normalizedScanIndex),
+  )}`;
   const payload = await fetchJson(url);
   return String(payload?.url || "");
 }
@@ -636,11 +670,14 @@ function getUnavailablePreviewMessage(error) {
   return "Náhled pro tento záznam teď není dostupný.";
 }
 
-function getLocalPreviewForFeature(feature, scanIndex = 0) {
+function getLocalPreviewForFeature(feature, scanIndex = 0, options = {}) {
+  const { allowR2Guess = true } = options;
   if (!feature) return "";
   const xid = String(feature?.properties?.id || "").trim();
-  const r2Preview = buildR2PreviewTileUrl(xid, scanIndex);
-  if (r2Preview) return r2Preview;
+  if (allowR2Guess) {
+    const r2Preview = buildR2PreviewTileUrl(xid, scanIndex);
+    if (r2Preview) return r2Preview;
+  }
 
   const props = feature?.properties || {};
   const previews = Array.isArray(props.scan_previews) ? props.scan_previews : [];
@@ -658,12 +695,22 @@ function getLocalPreviewForFeature(feature, scanIndex = 0) {
   return buildZoomifyTileUrl(getZoomifyPathFromFeature(feature, scanIndex), 0);
 }
 
-async function loadZoomifyInto(viewerEl, wrapEl, previewImgEl, xid, feature = null) {
+async function loadZoomifyInto(
+  viewerEl,
+  wrapEl,
+  previewImgEl,
+  xid,
+  feature = null,
+  scanIndex = 0,
+) {
   if (!viewerEl || !wrapEl) return;
-  if (zoomLastXid === xid) return;
+  const normalizedScanIndex =
+    Number.isInteger(scanIndex) && scanIndex >= 0 ? scanIndex : 0;
+  const requestKey = buildZoomKey(xid, normalizedScanIndex);
+  if (zoomLastKey === requestKey) return;
 
   const requestToken = ++zoomLoadToken;
-  zoomLastXid = xid;
+  zoomLastKey = requestKey;
   const previewFeature = feature || state.featuresById.get(xid) || null;
   wrapEl.classList.remove("is-fallback", "is-unavailable");
   wrapEl.classList.add("is-loading");
@@ -671,21 +718,39 @@ async function loadZoomifyInto(viewerEl, wrapEl, previewImgEl, xid, feature = nu
     archiveUnavailable.textContent = "";
   }
 
-  const localPreviewUrl = getLocalPreviewForFeature(previewFeature);
+  const localPreviewUrl = getLocalPreviewForFeature(
+    previewFeature,
+    normalizedScanIndex,
+    { allowR2Guess: normalizedScanIndex === 0 },
+  );
   if (previewImgEl && localPreviewUrl) {
     previewImgEl.src = localPreviewUrl;
   }
   const shouldUseRevealTimer = !localPreviewUrl;
 
   const previewUrlPromise = previewImgEl
-    ? (previewFeature ? resolvePreviewUrl(previewFeature) : loadPreviewUrl(xid)).catch(
-        () => "",
-      )
+    ? (async () => {
+        if (previewFeature) {
+          if (normalizedScanIndex === 0) {
+            const resolved = await resolvePreviewUrl(previewFeature).catch(
+              () => "",
+            );
+            if (resolved) return resolved;
+          }
+          const local = getLocalPreviewForFeature(
+            previewFeature,
+            normalizedScanIndex,
+            { allowR2Guess: false },
+          );
+          if (local) return local;
+        }
+        return loadPreviewUrl(xid, normalizedScanIndex).catch(() => "");
+      })()
     : Promise.resolve("");
   if (previewImgEl) {
     previewUrlPromise.then((previewUrl) => {
       if (!previewUrl) return;
-      if (requestToken !== zoomLoadToken || zoomLastXid !== xid) return;
+      if (requestToken !== zoomLoadToken || zoomLastKey !== requestKey) return;
       previewImgEl.src = previewUrl;
     });
   }
@@ -695,8 +760,8 @@ async function loadZoomifyInto(viewerEl, wrapEl, previewImgEl, xid, feature = nu
       throw new Error("OpenSeadragon chybí");
     }
 
-    const meta = await loadZoomifyMeta(xid);
-    if (requestToken !== zoomLoadToken || zoomLastXid !== xid) return;
+    const meta = await loadZoomifyMeta(xid, normalizedScanIndex);
+    if (requestToken !== zoomLoadToken || zoomLastKey !== requestKey) return;
 
     if (!zoomViewer) {
       zoomViewer = window.OpenSeadragon({
@@ -713,7 +778,7 @@ async function loadZoomifyInto(viewerEl, wrapEl, previewImgEl, xid, feature = nu
       throw new Error("Chybí helper pro Zoomify");
     }
     const revealReadyImage = () => {
-      if (requestToken !== zoomLoadToken || zoomLastXid !== xid) return;
+      if (requestToken !== zoomLoadToken || zoomLastKey !== requestKey) return;
       wrapEl.classList.remove("is-loading");
     };
 
@@ -744,10 +809,10 @@ async function loadZoomifyInto(viewerEl, wrapEl, previewImgEl, xid, feature = nu
       }, 1400);
     }
   } catch (error) {
-    if (requestToken !== zoomLoadToken || zoomLastXid !== xid) return;
+    if (requestToken !== zoomLoadToken || zoomLastKey !== requestKey) return;
     console.warn("Zoom náhled selhal", error);
     const previewUrl = await previewUrlPromise;
-    if (requestToken !== zoomLoadToken || zoomLastXid !== xid) return;
+    if (requestToken !== zoomLoadToken || zoomLastKey !== requestKey) return;
     wrapEl.classList.remove("is-loading");
 
     if (previewUrl) {
@@ -769,9 +834,301 @@ function updateSubmitState() {
   window.CorrectionUI?.updateSubmitState();
 }
 
-function getArchiveUrl(feature) {
+function getArchiveUrl(feature, scanIndex = 0) {
   if (!feature || !state.archiveBaseUrl) return "";
-  return `${state.archiveBaseUrl}/permalink?xid=${feature.properties.id}&scan=1#scan1`;
+  const normalizedScanIndex =
+    Number.isInteger(scanIndex) && scanIndex >= 0 ? scanIndex : 0;
+  const scanParam = normalizedScanIndex + 1;
+  return `${state.archiveBaseUrl}/permalink?xid=${feature.properties.id}&scan=${scanParam}#scan${scanParam}`;
+}
+
+function setFullResStatus(message = "", tone = "") {
+  if (!downloadFullResStatus) return;
+  downloadFullResStatus.textContent = String(message || "");
+  downloadFullResStatus.dataset.tone = String(tone || "");
+}
+
+function setFullResButtonEnabled(enabled) {
+  if (!downloadFullResBtn) return;
+  downloadFullResBtn.disabled = !enabled;
+}
+
+function setFullResUnavailable(reason) {
+  setFullResButtonEnabled(false);
+  setFullResStatus(reason, "error");
+}
+
+function getCurrentFullResSelection(featureOverride = null) {
+  const feature = featureOverride || state.selectedFeature;
+  const xid = String(feature?.properties?.id || "").trim();
+  if (!feature || !xid) return null;
+  const scanIndex = getScanIndex(xid);
+  return {
+    feature,
+    xid,
+    scanIndex,
+    key: buildZoomKey(xid, scanIndex),
+  };
+}
+
+function buildFullResServerUrl(xid, scanIndex) {
+  return `/api/dezoomify?xid=${encodeURIComponent(xid)}&scanIndex=${encodeURIComponent(
+    String(scanIndex),
+  )}`;
+}
+
+function isArchiveHostUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return false;
+  try {
+    const parsed = new URL(raw, window.location.href);
+    const host = String(parsed.hostname || "").toLowerCase();
+    return host === "ahmp.cz" || host.endsWith(".ahmp.cz");
+  } catch {
+    return false;
+  }
+}
+
+function getClientFullResUnavailableMessage(error) {
+  const message = String(error?.message || "");
+  if (/cors|failed to fetch|networkerror/i.test(message)) {
+    return "Plné rozlišení zde nelze stáhnout kvůli omezení zdroje (CORS).";
+  }
+  if (/příliš velké|too large|limit/i.test(message)) {
+    return "Plné rozlišení je pro prohlížeč příliš velké.";
+  }
+  if (/zoomify|nenalezen|nedostupn/i.test(message)) {
+    return "Plné rozlišení není pro tento záznam dostupné.";
+  }
+  return "Plné rozlišení teď není dostupné.";
+}
+
+async function probeClientTileAccess(meta) {
+  const width = Number(meta?.width);
+  const height = Number(meta?.height);
+  const tileSize = Number(meta?.tileSize || 256);
+  const base = String(meta?.zoomifyImgPath || "").trim().replace(/\/$/, "");
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    throw new Error("Chybí rozměry");
+  }
+  if (!Number.isFinite(tileSize) || tileSize <= 0) {
+    throw new Error("Chybí tileSize");
+  }
+  if (!base) {
+    throw new Error("Chybí zoomifyImgPath");
+  }
+  const tiers = buildZoomifyTiers(width, height, tileSize);
+  const level = tiers.length - 1;
+  const group = zoomifyTileGroupIndex(tiers, tileSize, level, 0, 0);
+  const tileUrl = `${base}/TileGroup${group}/${level}-0-0.jpg`;
+  const response = await fetch(tileUrl, { mode: "cors", cache: "default" });
+  if (!response.ok) {
+    throw new Error(`Tile access failed: ${response.status}`);
+  }
+}
+
+async function evaluateClientFullResAvailability(xid, scanIndex) {
+  try {
+    const meta = await loadZoomifyMeta(xid, scanIndex);
+    const width = Number(meta?.width);
+    const height = Number(meta?.height);
+    const pixelCount = width * height;
+    if (!Number.isFinite(width) || !Number.isFinite(height)) {
+      throw new Error("Chybí rozměry");
+    }
+    if (pixelCount > FULL_RES_CLIENT_MAX_PIXELS) {
+      throw new Error("Plné rozlišení je příliš velké");
+    }
+    if (isArchiveHostUrl(meta?.zoomifyImgPath)) {
+      throw new Error("CORS");
+    }
+    await probeClientTileAccess(meta);
+    return { available: true, meta };
+  } catch (error) {
+    return {
+      available: false,
+      reason: getClientFullResUnavailableMessage(error),
+    };
+  }
+}
+
+function triggerBlobDownload(blob, filename) {
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = filename;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(href), 1000);
+}
+
+function sanitizeDownloadName(value) {
+  return String(value || "").replace(/[^A-Za-z0-9_-]+/g, "_");
+}
+
+async function stitchZoomifyToJpegBlob(meta, options = {}) {
+  const { onProgress } = options;
+  const width = Number(meta?.width);
+  const height = Number(meta?.height);
+  const tileSize = Number(meta?.tileSize || 256);
+  const base = String(meta?.zoomifyImgPath || "").trim().replace(/\/$/, "");
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    throw new Error("Chybí rozměry");
+  }
+  if (!Number.isFinite(tileSize) || tileSize <= 0) {
+    throw new Error("Chybí tileSize");
+  }
+  if (!base) {
+    throw new Error("Chybí zoomifyImgPath");
+  }
+  if (width * height > FULL_RES_CLIENT_MAX_PIXELS) {
+    throw new Error("Plné rozlišení je příliš velké");
+  }
+
+  const tiers = buildZoomifyTiers(width, height, tileSize);
+  const level = tiers.length - 1;
+  const [tilesX, tilesY] = zoomifyTilesFor(tiers[level], tileSize);
+  const totalTiles = tilesX * tilesY;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Canvas není dostupný");
+  }
+
+  let doneTiles = 0;
+  for (let tileY = 0; tileY < tilesY; tileY += 1) {
+    for (let tileX = 0; tileX < tilesX; tileX += 1) {
+      const group = zoomifyTileGroupIndex(tiers, tileSize, level, tileX, tileY);
+      const tileUrl = `${base}/TileGroup${group}/${level}-${tileX}-${tileY}.jpg`;
+      const response = await fetch(tileUrl, { mode: "cors", cache: "force-cache" });
+      if (!response.ok) {
+        throw new Error(`Tile ${tileX},${tileY} nelze načíst (${response.status})`);
+      }
+      const tileBlob = await response.blob();
+      const bitmap = await createImageBitmap(tileBlob);
+      try {
+        context.drawImage(bitmap, tileX * tileSize, tileY * tileSize);
+      } finally {
+        bitmap.close();
+      }
+      doneTiles += 1;
+      if (
+        typeof onProgress === "function" &&
+        (doneTiles === totalTiles ||
+          doneTiles === 1 ||
+          doneTiles % Math.max(1, Math.floor(totalTiles / 8)) === 0)
+      ) {
+        onProgress(doneTiles, totalTiles);
+      }
+      if (doneTiles % 12 === 0) {
+        await new Promise((resolve) => window.requestAnimationFrame(resolve));
+      }
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Export se nezdařil"));
+          return;
+        }
+        resolve(blob);
+      },
+      "image/jpeg",
+      0.92,
+    );
+  });
+}
+
+async function refreshFullResDownloadAvailability(featureOverride = null) {
+  if (!downloadFullResBtn) return;
+  if (!archiveModal?.classList.contains("is-open")) {
+    setFullResButtonEnabled(false);
+    setFullResStatus("");
+    return;
+  }
+  if (fullResDownloadBusy) return;
+  const selection = getCurrentFullResSelection(featureOverride);
+  if (!selection) {
+    setFullResUnavailable("Vyberte fotografii.");
+    return;
+  }
+  if (state.fullResDownloadMode === FULL_RES_MODE_SERVER) {
+    setFullResButtonEnabled(true);
+    setFullResStatus("");
+    return;
+  }
+  const token = ++fullResAvailabilityToken;
+  setFullResButtonEnabled(false);
+  setFullResStatus("Kontroluji dostupnost…");
+  const availability = await evaluateClientFullResAvailability(
+    selection.xid,
+    selection.scanIndex,
+  );
+  if (token !== fullResAvailabilityToken) return;
+  if (!availability.available) {
+    fullResMetaByKey.delete(selection.key);
+    setFullResUnavailable(availability.reason);
+    return;
+  }
+  fullResMetaByKey.set(selection.key, availability.meta);
+  setFullResButtonEnabled(true);
+  setFullResStatus("");
+}
+
+async function handleFullResDownloadClick() {
+  if (!downloadFullResBtn) return;
+  if (fullResDownloadBusy) return;
+  const selection = getCurrentFullResSelection();
+  if (!selection) {
+    setFullResUnavailable("Vyberte fotografii.");
+    return;
+  }
+  if (state.fullResDownloadMode === FULL_RES_MODE_SERVER) {
+    window.location.href = buildFullResServerUrl(selection.xid, selection.scanIndex);
+    return;
+  }
+
+  fullResDownloadBusy = true;
+  setFullResButtonEnabled(false);
+  setFullResStatus("Skládám plné rozlišení…");
+
+  try {
+    let meta = fullResMetaByKey.get(selection.key);
+    if (!meta) {
+      const availability = await evaluateClientFullResAvailability(
+        selection.xid,
+        selection.scanIndex,
+      );
+      if (!availability.available) {
+        setFullResUnavailable(availability.reason);
+        return;
+      }
+      meta = availability.meta;
+      fullResMetaByKey.set(selection.key, meta);
+    }
+
+    const blob = await stitchZoomifyToJpegBlob(meta, {
+      onProgress: (done, total) => {
+        setFullResStatus(`Skládám plné rozlišení… ${done}/${total}`);
+      },
+    });
+    const filename = `${sanitizeDownloadName(selection.xid)}_scan_${selection.scanIndex + 1}_full.jpg`;
+    triggerBlobDownload(blob, filename);
+    setFullResButtonEnabled(true);
+    setFullResStatus("Soubor stažen.", "success");
+  } catch (error) {
+    console.warn("Full-res download selhal", error);
+    setFullResUnavailable(getClientFullResUnavailableMessage(error));
+  } finally {
+    fullResDownloadBusy = false;
+  }
 }
 
 function attachBaseTiles(map, options = {}) {
@@ -920,8 +1277,17 @@ function openArchiveModal(url, xid, options = {}) {
       state.selectedFeature?.properties?.id === xid
         ? state.selectedFeature
         : state.featuresById.get(xid);
-    loadZoomifyInto(zoomViewerEl, zoomWrap, archivePreview, xid, currentFeature);
+    const selectedScanIndex = getScanIndex(xid);
+    loadZoomifyInto(
+      zoomViewerEl,
+      zoomWrap,
+      archivePreview,
+      xid,
+      currentFeature,
+      selectedScanIndex,
+    );
     prefetchModalPreviewContext(currentFeature);
+    refreshFullResDownloadAvailability(currentFeature);
   }
   invalidateDetailMiniMap();
 }
@@ -939,7 +1305,11 @@ function closeArchiveModal(options = {}) {
   if (zoomWrap) {
     zoomWrap.classList.remove("is-fallback", "is-unavailable", "is-loading");
   }
-  zoomLastXid = null;
+  fullResAvailabilityToken += 1;
+  fullResDownloadBusy = false;
+  setFullResButtonEnabled(false);
+  setFullResStatus("");
+  zoomLastKey = "";
   document.body.style.overflow = "";
   if (window.CorrectionUI) {
     window.CorrectionUI.close();
@@ -1034,6 +1404,7 @@ function renderDetails(feature) {
   window.OldPragueMeta.renderDetails(detailContainer, feature, state.archiveBaseUrl, {
     groupItems: group?.items || [],
     selectedId: feature?.properties?.id || "",
+    selectedScanIndex: getScanIndex(feature?.properties?.id || ""),
     correctionStatus: correction,
     onSelectVersion: (xid) => {
       if (!xid || !state.featuresById.has(xid)) return;
@@ -1044,6 +1415,30 @@ function renderDetails(feature) {
         updateHistory: true,
         panTo: false,
       });
+    },
+    onSelectScan: (nextScan) => {
+      const selectedXid = String(feature?.properties?.id || "").trim();
+      if (!selectedXid) return;
+      setScanIndex(selectedXid, nextScan);
+      const selectedScanIndex = getScanIndex(selectedXid);
+      const nextFeature = state.featuresById.get(selectedXid) || feature;
+      renderDetails(nextFeature);
+      if (archiveModal?.classList.contains("is-open")) {
+        const url = getArchiveUrl(nextFeature, selectedScanIndex);
+        if (archiveFallback) {
+          archiveFallback.href = url || "#";
+          archiveFallback.style.display = url ? "inline-flex" : "none";
+        }
+        loadZoomifyInto(
+          zoomViewerEl,
+          zoomWrap,
+          archivePreview,
+          selectedXid,
+          nextFeature,
+          selectedScanIndex,
+        );
+        refreshFullResDownloadAvailability(nextFeature);
+      }
     },
   });
   renderConsensusStatus(feature);
@@ -1755,7 +2150,8 @@ function selectFeature(feature, options = {}) {
   }
 
   if (openModal) {
-    const url = getArchiveUrl(feature);
+    const scanIndex = getScanIndex(feature?.properties?.id || "");
+    const url = getArchiveUrl(feature, scanIndex);
     openArchiveModal(url, feature.properties.id, { updateHistory });
   }
 }
@@ -1879,6 +2275,10 @@ async function bootstrap() {
   state.r2TilesBase = String(config.r2TilesBase || "")
     .trim()
     .replace(/\/$/, "");
+  state.fullResDownloadMode =
+    config.fullResDownloadMode === FULL_RES_MODE_CLIENT
+      ? FULL_RES_MODE_CLIENT
+      : FULL_RES_MODE_SERVER;
 
   let photos;
   try {
@@ -2233,6 +2633,15 @@ if (nearbyPrevBtn) {
 
 if (nearbyNextBtn) {
   nearbyNextBtn.addEventListener("click", () => goToNearbyGroup(1));
+}
+
+if (downloadFullResBtn) {
+  downloadFullResBtn.addEventListener("click", () => {
+    handleFullResDownloadClick().catch((error) => {
+      console.warn("Full-res download selhal", error);
+      setFullResUnavailable(getClientFullResUnavailableMessage(error));
+    });
+  });
 }
 
 // Cancel button is now handled by CorrectionUI

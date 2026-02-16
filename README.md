@@ -61,6 +61,8 @@ TURNSTILE_BYPASS="1"
 
 # Optional: override archive base URL used for links
 ARCHIVE_BASE_URL="https://katalog.ahmp.cz/pragapublica"
+# Optional: allow API fallback to archive hosts (default: 0/off)
+# ALLOW_ARCHIVE_FALLBACK="0"
 
 # Optional: use nav-tree partitioning to bypass the 10k cap (default true)
 USE_NAV_PARTITION="1"
@@ -369,12 +371,13 @@ Notes for preview-only runs:
 R2 hosting (optional):
 - Upload `downloads/archive/zoomify/` to an R2 bucket prefix (e.g. `tiles/`).
 - Set `R2_TILES_BASE=https://<r2-public-domain>/tiles`.
-- The app will use R2 if `ImageProperties.xml` exists there; otherwise it falls back to the archive.
+- The app uses R2/own infra first.
+- Archive hosts are disabled by default in API routes; enable only if needed with `ALLOW_ARCHIVE_FALLBACK=1`.
 - Sync helper: `scripts/r2_sync.sh` (requires `aws` CLI).
 - Map popup previews resolve in this order:
   1) R2 `TileGroup0/0-0-0.jpg` via `/api/preview-url`
   2) local cache `downloads/archive/previews/<xid>/scan_0.*` via `/api/preview-local`
-  3) `scan_previews[0]` from `photos.geojson`
+  3) feature metadata URLs from `photos.geojson` (non-archive URLs always; archive URLs only when `ALLOW_ARCHIVE_FALLBACK=1`)
 
 Sync previews to R2 (optional; storage/backup, not used by `/api/zoomify`):
 
@@ -400,7 +403,7 @@ Outputs:
 - Stitched cache: `output/similarity/stitched/<xid>/scan_<n>.jpg`
 
 Notes:
-- Source order per scan: local stitched cache -> R2 Zoomify -> feature `scan_zoomify_paths` -> archive permalink -> preview fallback
+- Source order per scan: local stitched cache -> R2 Zoomify -> feature `scan_zoomify_paths` -> archive permalink (only if `ALLOW_ARCHIVE_FALLBACK=1`) -> preview fallback
 - Uses local cache from `downloads/archive/` for previews by default
 - Disable cache with `--no-download-cache`
 - Override cache root with `--download-root <path>`
@@ -464,6 +467,11 @@ uv run uvicorn viewer.app:app --reload \
 ```
 
 Open `http://127.0.0.1:8000`.
+
+Full-resolution download (map modal):
+- FastAPI runtime exposes server-side stitch via `GET /api/dezoomify?xid=...&scanIndex=...`.
+- Pages runtime exposes `fullResDownloadMode=client` and stitches tiles in browser.
+- Client mode auto-disables full-res download for archive-host/CORS-blocked sources or scans over `80,000,000` pixels.
 
 See `docs/web-app.md` for full setup, API endpoints, and deployment.
 

@@ -113,6 +113,12 @@ class ViewerPreviewApiTests(unittest.TestCase):
                 self.assertEqual(response_cached.json()["source"], "r2")
                 self.assertEqual(exists.call_count, 1)
 
+    def test_config_exposes_server_fullres_mode(self) -> None:
+        response = self.client.get("/api/config")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload.get("fullResDownloadMode"), "server")
+
     def test_preview_url_falls_back_to_local_cache(self) -> None:
         local_dir = self.previews_dir / "LOCALONLY"
         local_dir.mkdir(parents=True, exist_ok=True)

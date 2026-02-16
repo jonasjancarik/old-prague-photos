@@ -1989,13 +1989,46 @@ textarea {
   text-align: center;
 }
 
-.modal-footer a {
+.modal-footer-right {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+
+.modal-footer-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.modal-download-status {
+  min-height: 1.1rem;
+  margin: 0;
+  text-align: right;
+}
+
+.modal-download-status[data-tone="error"] {
+  color: var(--accent);
+}
+
+.modal-download-status[data-tone="success"] {
+  color: var(--accent-2);
+}
+
+#download-fullres[disabled] {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.modal-footer-actions a {
   color: var(--accent-2);
   font-weight: 600;
   text-decoration: none;
 }
 
-.modal-footer a:hover {
+.modal-footer-actions a:hover {
   text-decoration: underline;
 }
 
@@ -2032,6 +2065,19 @@ textarea {
 
   .stat {
     min-width: unset;
+  }
+
+  .modal-footer-right {
+    justify-items: start;
+    width: 100%;
+  }
+
+  .modal-footer-actions {
+    justify-content: flex-start;
+  }
+
+  .modal-download-status {
+    text-align: left;
   }
 
   .photo-grid {

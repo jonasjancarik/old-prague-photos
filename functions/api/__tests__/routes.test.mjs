@@ -4,8 +4,10 @@ import test from "node:test";
 import { onRequest as correctionsOnRequest } from "../corrections.js";
 import { onRequest as adminExportOnRequest } from "../admin/export.js";
 import { onRequest as adminReviewOnRequest } from "../admin/review.js";
+import { onRequest as configOnRequest } from "../config.js";
 import { onRequest as mergesOnRequest } from "../merges.js";
 import { onRequest as previewUrlOnRequest } from "../preview-url.js";
+import { onRequest as zoomifyOnRequest } from "../zoomify.js";
 import { onRequest as verifyOnRequest } from "../verify.js";
 import { FakeD1, makeRequest } from "./test-helpers.mjs";
 
@@ -283,6 +285,15 @@ test("GET /api/admin/export supports CSV output", async () => {
   assert.match(body, /correction/u);
 });
 
+test("GET /api/config exposes client full-res download mode", async () => {
+  const env = makeEnv();
+  const request = makeRequest("/api/config", { method: "GET" });
+  const response = await configOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.fullResDownloadMode, "client");
+});
+
 test("GET /api/preview-url falls back to feature preview metadata", async () => {
   const env = makeEnv({
     ASSETS: {
@@ -310,4 +321,245 @@ test("GET /api/preview-url falls back to feature preview metadata", async () => 
   assert.equal(payload.xid, "X1");
   assert.equal(payload.url, "https://images.example/X1.jpg");
   assert.equal(payload.source, "feature_preview");
+});
+
+test("GET /api/preview-url skips archive URLs when archive fallback is disabled", async () => {
+  const env = makeEnv({
+    ASSETS: {
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            features: [
+              {
+                properties: {
+                  id: "XA",
+                  scan_previews: ["https://images.ahmp.cz/preview/XA.jpg"],
+                  scan_zoomify_paths: ["https://images.ahmp.cz/zoomify/XA"],
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    },
+  });
+
+  const request = makeRequest("/api/preview-url?xid=XA&scanIndex=0", {
+    method: "GET",
+  });
+  const response = await previewUrlOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.xid, "XA");
+  assert.equal(payload.scan_index, 0);
+  assert.equal(payload.url, "");
+  assert.equal(payload.source, "none");
+});
+
+test("GET /api/preview-url allows archive URLs when archive fallback is enabled", async () => {
+  const env = makeEnv({
+    ALLOW_ARCHIVE_FALLBACK: "1",
+    ASSETS: {
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            features: [
+              {
+                properties: {
+                  id: "XB",
+                  scan_previews: ["https://images.ahmp.cz/preview/XB.jpg"],
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    },
+  });
+
+  const request = makeRequest("/api/preview-url?xid=XB", { method: "GET" });
+  const response = await previewUrlOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.url, "https://images.ahmp.cz/preview/XB.jpg");
+  assert.equal(payload.source, "feature_preview");
+});
+
+test("GET /api/preview-url respects scanIndex for feature preview metadata", async () => {
+  const env = makeEnv({
+    ASSETS: {
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            features: [
+              {
+                properties: {
+                  id: "X2",
+                  scan_previews: [
+                    "https://images.example/X2-scan1.jpg",
+                    "https://images.example/X2-scan2.jpg",
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    },
+  });
+
+  const request = makeRequest("/api/preview-url?xid=X2&scanIndex=1", {
+    method: "GET",
+  });
+  const response = await previewUrlOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.xid, "X2");
+  assert.equal(payload.scan_index, 1);
+  assert.equal(payload.url, "https://images.example/X2-scan2.jpg");
+  assert.equal(payload.source, "feature_preview");
+});
+
+test("GET /api/zoomify resolves scanIndex from feature metadata", async () => {
+  const env = makeEnv({
+    ASSETS: {
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            features: [
+              {
+                properties: {
+                  id: "Z1",
+                  scan_zoomify_paths: [
+                    "https://images.example/z1-scan1",
+                    "https://images.example/z1-scan2",
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    },
+  });
+
+  const request = makeRequest("/api/zoomify?xid=Z1&scanIndex=1", { method: "GET" });
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url === "https://images.example/z1-scan2/ImageProperties.xml") {
+        return new Response(
+          '<IMAGE_PROPERTIES WIDTH="1000" HEIGHT="800" TILESIZE="256" />',
+          { status: 200, headers: { "Content-Type": "application/xml" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    };
+
+    const response = await zoomifyOnRequest({ request, env });
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.xid, "Z1");
+    assert.equal(payload.scanIndex, 1);
+    assert.equal(payload.zoomifyImgPath, "https://images.example/z1-scan2");
+    assert.equal(payload.source, "feature_zoomify");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("GET /api/zoomify avoids archive requests when archive fallback is disabled", async () => {
+  const env = makeEnv({
+    ASSETS: {
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            features: [
+              {
+                properties: {
+                  id: "ZA",
+                  scan_zoomify_paths: ["https://images.ahmp.cz/zoomify/ZA"],
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    },
+  });
+
+  const request = makeRequest("/api/zoomify?xid=ZA&scanIndex=0", { method: "GET" });
+  const originalFetch = globalThis.fetch;
+  let archiveTouched = false;
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("ahmp.cz")) {
+        archiveTouched = true;
+      }
+      return new Response("not found", { status: 404 });
+    };
+
+    const response = await zoomifyOnRequest({ request, env });
+    assert.equal(response.status, 502);
+    const payload = await response.json();
+    assert.match(String(payload.detail || ""), /naší infrastruktuře/u);
+    assert.equal(archiveTouched, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("GET /api/zoomify archive fallback resolves scan from permalink page", async () => {
+  const env = makeEnv({
+    ALLOW_ARCHIVE_FALLBACK: "1",
+    ASSETS: {
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            features: [{ properties: { id: "ZB", scan_zoomify_paths: [] } }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    },
+  });
+
+  const request = makeRequest("/api/zoomify?xid=ZB&scanIndex=1", { method: "GET" });
+  const originalFetch = globalThis.fetch;
+  let zoomifyActionTouched = false;
+  const scan2Path = "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/ZB/scan2";
+
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("Zoomify.action")) {
+        zoomifyActionTouched = true;
+        return new Response("unexpected", { status: 500 });
+      }
+      if (url === "https://katalog.ahmp.cz/pragapublica/permalink?xid=ZB&scan=2") {
+        return new Response(
+          `<html><script>var zoomifyImgPath = "${scan2Path}";</script></html>`,
+          { status: 200, headers: { "Content-Type": "text/html" } },
+        );
+      }
+      if (url === `${scan2Path}/ImageProperties.xml`) {
+        return new Response(
+          '<IMAGE_PROPERTIES WIDTH="1200" HEIGHT="900" TILESIZE="256" />',
+          { status: 200, headers: { "Content-Type": "application/xml" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    };
+
+    const response = await zoomifyOnRequest({ request, env });
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.source, "archive");
+    assert.equal(payload.scanIndex, 1);
+    assert.equal(payload.zoomifyImgPath, scan2Path);
+    assert.equal(zoomifyActionTouched, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
