@@ -7,6 +7,7 @@ export async function onRequest({ request, env }) {
     turnstileSiteKey: env.TURNSTILE_SITE_KEY || "",
     turnstileBypass: isLocalBypassAllowed(request, env),
     archiveBaseUrl: (env.ARCHIVE_BASE_URL || ARCHIVE_DEFAULT).replace(/\/$/, ""),
+    r2TilesBase: (env.R2_TILES_BASE || "").replace(/\/$/, ""),
   };
 
   return new Response(JSON.stringify(payload), {

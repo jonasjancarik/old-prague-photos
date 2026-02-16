@@ -6,6 +6,7 @@ const state = {
   selectedGroup: null,
   selectedFeature: null,
   archiveBaseUrl: "",
+  r2TilesBase: "",
   featuresById: new Map(),
   groupById: new Map(),
   groupByXid: new Map(),
@@ -27,6 +28,8 @@ const state = {
   previewPopup: null,
   previewByXid: new Map(),
   previewPromiseByXid: new Map(),
+  previewPrefetchByUrl: new Map(),
+  prefetchedPreviewUrls: new Set(),
   previewHoverToken: 0,
   previewHideTimer: null,
   previewActiveXid: "",
@@ -605,6 +608,7 @@ function initYearFilter() {
 
 let zoomViewer = null;
 let zoomLastXid = null;
+let zoomLoadToken = 0;
 
 async function loadZoomifyMeta(xid) {
   const url = `/api/zoomify?xid=${encodeURIComponent(xid)}`;
@@ -632,17 +636,61 @@ function getUnavailablePreviewMessage(error) {
   return "Náhled pro tento záznam teď není dostupný.";
 }
 
-async function loadZoomifyInto(viewerEl, wrapEl, previewImgEl, xid) {
+function getLocalPreviewForFeature(feature, scanIndex = 0) {
+  if (!feature) return "";
+  const xid = String(feature?.properties?.id || "").trim();
+  const r2Preview = buildR2PreviewTileUrl(xid, scanIndex);
+  if (r2Preview) return r2Preview;
+
+  const props = feature?.properties || {};
+  const previews = Array.isArray(props.scan_previews) ? props.scan_previews : [];
+  if (
+    Number.isInteger(scanIndex) &&
+    scanIndex >= 0 &&
+    scanIndex < previews.length
+  ) {
+    const indexedPreview = String(previews[scanIndex] || "").trim();
+    if (indexedPreview) return indexedPreview;
+  }
+
+  const preview = getPreviewFromFeature(feature);
+  if (preview) return preview;
+  return buildZoomifyTileUrl(getZoomifyPathFromFeature(feature, scanIndex), 0);
+}
+
+async function loadZoomifyInto(viewerEl, wrapEl, previewImgEl, xid, feature = null) {
   if (!viewerEl || !wrapEl) return;
   if (zoomLastXid === xid) return;
 
+  const requestToken = ++zoomLoadToken;
   zoomLastXid = xid;
+  const previewFeature = feature || state.featuresById.get(xid) || null;
   wrapEl.classList.remove("is-fallback", "is-unavailable");
+  wrapEl.classList.add("is-loading");
   if (previewImgEl) {
     previewImgEl.src = "";
   }
   if (archiveUnavailable) {
     archiveUnavailable.textContent = "";
+  }
+
+  const localPreviewUrl = getLocalPreviewForFeature(previewFeature);
+  if (previewImgEl && localPreviewUrl) {
+    previewImgEl.src = localPreviewUrl;
+  }
+  const shouldUseRevealTimer = !localPreviewUrl;
+
+  const previewUrlPromise = previewImgEl
+    ? (previewFeature ? resolvePreviewUrl(previewFeature) : loadPreviewUrl(xid)).catch(
+        () => "",
+      )
+    : Promise.resolve("");
+  if (previewImgEl) {
+    previewUrlPromise.then((previewUrl) => {
+      if (!previewUrl) return;
+      if (requestToken !== zoomLoadToken || zoomLastXid !== xid) return;
+      previewImgEl.src = previewUrl;
+    });
   }
 
   try {
@@ -651,6 +699,7 @@ async function loadZoomifyInto(viewerEl, wrapEl, previewImgEl, xid) {
     }
 
     const meta = await loadZoomifyMeta(xid);
+    if (requestToken !== zoomLoadToken || zoomLastXid !== xid) return;
 
     if (!zoomViewer) {
       zoomViewer = window.OpenSeadragon({
@@ -666,15 +715,46 @@ async function loadZoomifyInto(viewerEl, wrapEl, previewImgEl, xid) {
     if (!window.OldPragueZoomify?.createTileSource) {
       throw new Error("Chybí helper pro Zoomify");
     }
-    zoomViewer.open(window.OldPragueZoomify.createTileSource(meta));
-  } catch (error) {
-    console.warn("Zoom náhled selhal", error);
-    let previewUrl = "";
-    try {
-      previewUrl = await loadPreviewUrl(xid);
-    } catch (previewError) {
-      previewUrl = "";
+    const revealReadyImage = () => {
+      if (requestToken !== zoomLoadToken || zoomLastXid !== xid) return;
+      wrapEl.classList.remove("is-loading");
+      if (previewImgEl) {
+        previewImgEl.src = "";
+      }
+    };
+
+    let revealTimer = null;
+    const clearRevealTimer = () => {
+      if (!revealTimer) return;
+      window.clearTimeout(revealTimer);
+      revealTimer = null;
+    };
+
+    if (typeof zoomViewer.addOnceHandler === "function") {
+      zoomViewer.addOnceHandler("tile-drawn", () => {
+        clearRevealTimer();
+        revealReadyImage();
+      });
+      zoomViewer.addOnceHandler("open-failed", () => {
+        clearRevealTimer();
+        revealReadyImage();
+      });
     }
+
+    zoomViewer.open(window.OldPragueZoomify.createTileSource(meta));
+
+    if (shouldUseRevealTimer) {
+      revealTimer = window.setTimeout(() => {
+        revealTimer = null;
+        revealReadyImage();
+      }, 1400);
+    }
+  } catch (error) {
+    if (requestToken !== zoomLoadToken || zoomLastXid !== xid) return;
+    console.warn("Zoom náhled selhal", error);
+    const previewUrl = await previewUrlPromise;
+    if (requestToken !== zoomLoadToken || zoomLastXid !== xid) return;
+    wrapEl.classList.remove("is-loading");
 
     if (previewUrl) {
       if (previewImgEl) {
@@ -842,7 +922,12 @@ function openArchiveModal(url, xid, options = {}) {
   }
 
   if (xid) {
-    loadZoomifyInto(zoomViewerEl, zoomWrap, archivePreview, xid);
+    const currentFeature =
+      state.selectedFeature?.properties?.id === xid
+        ? state.selectedFeature
+        : state.featuresById.get(xid);
+    loadZoomifyInto(zoomViewerEl, zoomWrap, archivePreview, xid, currentFeature);
+    prefetchModalPreviewContext(currentFeature);
   }
   invalidateDetailMiniMap();
 }
@@ -850,13 +935,16 @@ function openArchiveModal(url, xid, options = {}) {
 function closeArchiveModal(options = {}) {
   if (!archiveModal || !archiveIframe) return;
   const { updateHistory = true } = options;
+  zoomLoadToken += 1;
   archiveModal.classList.remove("is-open");
   archiveModal.setAttribute("aria-hidden", "true");
   archiveIframe.src = "";
   archiveIframe.style.pointerEvents = "none";
   if (archivePreview) archivePreview.src = "";
   if (archiveUnavailable) archiveUnavailable.textContent = "";
-  if (zoomWrap) zoomWrap.classList.remove("is-fallback", "is-unavailable");
+  if (zoomWrap) {
+    zoomWrap.classList.remove("is-fallback", "is-unavailable", "is-loading");
+  }
   zoomLastXid = null;
   document.body.style.overflow = "";
   if (window.CorrectionUI) {
@@ -1180,10 +1268,27 @@ function getPreviewFromFeature(feature) {
   return "";
 }
 
-function getZoomifyPathFromFeature(feature) {
+function buildR2PreviewTileUrl(xid, scanIndex = 0) {
+  const base = String(state.r2TilesBase || "").trim().replace(/\/$/, "");
+  const normalizedXid = String(xid || "").trim();
+  const normalizedScan =
+    Number.isInteger(scanIndex) && scanIndex >= 0 ? scanIndex : 0;
+  if (!base || !normalizedXid) return "";
+  return `${base}/${encodeURIComponent(normalizedXid)}/scan_${normalizedScan}/TileGroup0/0-0-0.jpg`;
+}
+
+function getZoomifyPathFromFeature(feature, scanIndex = 0) {
   const props = feature?.properties || {};
   const zoomifyPaths = props.scan_zoomify_paths;
   if (!Array.isArray(zoomifyPaths)) return "";
+  if (
+    Number.isInteger(scanIndex) &&
+    scanIndex >= 0 &&
+    scanIndex < zoomifyPaths.length
+  ) {
+    const indexedPath = String(zoomifyPaths[scanIndex] || "").trim();
+    if (indexedPath) return indexedPath.replace(/\/$/, "");
+  }
   const firstPath = zoomifyPaths.find(
     (item) => typeof item === "string" && item.trim().length > 0,
   );
@@ -1199,7 +1304,16 @@ function buildZoomifyTileUrl(zoomifyPath, level = 0) {
 }
 
 function getGridPreviewCandidate(feature) {
-  const zoomifyPath = getZoomifyPathFromFeature(feature);
+  const xid = String(feature?.properties?.id || "").trim();
+  const r2Preview = buildR2PreviewTileUrl(xid, 0);
+  if (r2Preview) {
+    return {
+      url: r2Preview,
+      fallback: "",
+    };
+  }
+
+  const zoomifyPath = getZoomifyPathFromFeature(feature, 0);
   if (zoomifyPath) {
     return {
       url: buildZoomifyTileUrl(zoomifyPath, 1),
@@ -1220,6 +1334,117 @@ function getGridPreviewCandidateFromResolved(url) {
     url: upgraded,
     fallback: upgraded === fallback ? "" : fallback,
   };
+}
+
+function prefetchPreviewAsset(url) {
+  const normalized = String(url || "").trim();
+  if (!normalized) return Promise.resolve();
+
+  if (state.prefetchedPreviewUrls.has(normalized)) {
+    return Promise.resolve();
+  }
+  if (state.previewPrefetchByUrl.has(normalized)) {
+    return state.previewPrefetchByUrl.get(normalized);
+  }
+
+  const promise = new Promise((resolve) => {
+    const image = new Image();
+    const finish = () => {
+      image.onload = null;
+      image.onerror = null;
+      resolve();
+    };
+    image.decoding = "async";
+    image.onload = finish;
+    image.onerror = finish;
+    image.src = normalized;
+  }).finally(() => {
+    state.previewPrefetchByUrl.delete(normalized);
+    state.prefetchedPreviewUrls.add(normalized);
+  });
+
+  state.previewPrefetchByUrl.set(normalized, promise);
+  return promise;
+}
+
+function getOtherScanPreviewCandidates(feature) {
+  const props = feature?.properties || {};
+  const xid = String(props.id || "").trim();
+  const urls = [];
+
+  const scanPreviews = Array.isArray(props.scan_previews) ? props.scan_previews : [];
+  const scanZoomifyPaths = Array.isArray(props.scan_zoomify_paths)
+    ? props.scan_zoomify_paths
+    : [];
+  const scanCount = Math.max(
+    Number(props.scan_count) || 0,
+    scanPreviews.length,
+    scanZoomifyPaths.length,
+  );
+
+  if (state.r2TilesBase && xid && scanCount > 1) {
+    for (let i = 1; i < scanCount; i += 1) {
+      const tileUrl = buildR2PreviewTileUrl(xid, i);
+      if (!tileUrl) continue;
+      urls.push(tileUrl);
+    }
+    return Array.from(new Set(urls));
+  }
+
+  for (let i = 1; i < scanPreviews.length; i += 1) {
+    const url = String(scanPreviews[i] || "").trim();
+    if (!url) continue;
+    urls.push(url);
+  }
+
+  for (let i = 1; i < scanZoomifyPaths.length; i += 1) {
+    const tileUrl = buildZoomifyTileUrl(scanZoomifyPaths[i], 0);
+    if (!tileUrl) continue;
+    urls.push(tileUrl);
+  }
+
+  return Array.from(new Set(urls));
+}
+
+function prefetchOtherScanPreviews(feature) {
+  const candidates = getOtherScanPreviewCandidates(feature);
+  for (let i = 0; i < candidates.length; i += 1) {
+    prefetchPreviewAsset(candidates[i]);
+  }
+}
+
+function prefetchPrimaryPreview(feature) {
+  if (!feature) return;
+
+  const localPreview = getLocalPreviewForFeature(feature, 0);
+  if (localPreview) {
+    prefetchPreviewAsset(localPreview);
+  }
+
+  if (!state.r2TilesBase) {
+    resolvePreviewUrl(feature)
+      .then((resolvedUrl) => {
+        prefetchPreviewAsset(resolvedUrl);
+      })
+      .catch(() => {});
+  }
+}
+
+function prefetchNextNearbyPreview() {
+  const nearbyIds = Array.isArray(state.nearbyGroupIds) ? state.nearbyGroupIds : [];
+  const nextIndex = Number(state.nearbyIndex) + 1;
+  if (nextIndex < 0 || nextIndex >= nearbyIds.length) return;
+  const nextId = nearbyIds[nextIndex];
+  if (!nextId) return;
+  const nextGroup = state.groupById.get(nextId);
+  if (!nextGroup?.primary) return;
+  prefetchPrimaryPreview(nextGroup.primary);
+}
+
+function prefetchModalPreviewContext(feature) {
+  if (!feature) return;
+  prefetchOtherScanPreviews(feature);
+  prefetchNextNearbyPreview();
 }
 
 function buildZoomifyTiers(width, height, tileSize) {
@@ -1270,6 +1495,12 @@ async function resolvePreviewUrl(feature) {
   const xid = String(props.id || "").trim();
   if (!xid) return "";
 
+  const r2Preview = buildR2PreviewTileUrl(xid, 0);
+  if (r2Preview) {
+    state.previewByXid.set(xid, r2Preview);
+    return r2Preview;
+  }
+
   const cached = state.previewByXid.get(xid);
   if (cached !== undefined) {
     return cached || "";
@@ -1285,7 +1516,7 @@ async function resolvePreviewUrl(feature) {
       state.previewByXid.set(xid, url || null);
       return url || "";
     } catch (error) {
-      const local = getPreviewFromFeature(feature);
+      const local = getLocalPreviewForFeature(feature);
       state.previewByXid.set(xid, local || null);
       return local || "";
     } finally {
@@ -1648,6 +1879,9 @@ async function fetchJson(url) {
 async function bootstrap() {
   const config = await fetchJson("/api/config").catch(() => ({}));
   state.archiveBaseUrl = config.archiveBaseUrl || "";
+  state.r2TilesBase = String(config.r2TilesBase || "")
+    .trim()
+    .replace(/\/$/, "");
 
   let photos;
   try {
@@ -2031,9 +2265,33 @@ document.querySelectorAll("[data-modal-close]").forEach((el) => {
   el.addEventListener("click", () => closeArchiveModal({ updateHistory: true }));
 });
 
+function shouldIgnoreModalArrowNavigation(event) {
+  if (event.altKey || event.ctrlKey || event.metaKey) return true;
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tagName = target.tagName;
+  return tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
+}
+
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && archiveModal?.classList.contains("is-open")) {
+  const modalOpen = archiveModal?.classList.contains("is-open");
+  if (!modalOpen) return;
+
+  if (event.key === "Escape") {
     closeArchiveModal({ updateHistory: true });
+    return;
+  }
+  if (shouldIgnoreModalArrowNavigation(event)) return;
+
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    goToNearbyGroup(-1);
+    return;
+  }
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    goToNearbyGroup(1);
   }
 });
 

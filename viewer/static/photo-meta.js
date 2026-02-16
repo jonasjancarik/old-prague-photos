@@ -1,4 +1,35 @@
 (() => {
+  const GEOLOCATION_TYPE_LABELS = {
+    "regional.address": "Adresa",
+    "regional.street": "Ulice",
+    "regional.municipality": "Město / obec",
+    "regional.municipality_part": "Část města",
+    poi: "Bod zájmu",
+  };
+
+  function formatLabel(text) {
+    return String(text)
+      .toLowerCase()
+      .replace(/\b\w/g, (match) => match.toUpperCase())
+      .replace(/\./g, " ")
+      .replace(/_/g, " ");
+  }
+
+  function formatGeolocationType(value) {
+    const raw = value == null ? "" : String(value).trim();
+    if (!raw) return "";
+    return GEOLOCATION_TYPE_LABELS[raw] || formatLabel(raw);
+  }
+
+  function getCommunityGeolocationLabel(correctionStatus) {
+    const state = String(correctionStatus?.correction_state || "").toLowerCase();
+    const anchorType = String(correctionStatus?.anchor_type || "").toLowerCase();
+    if (anchorType !== "correction") return "";
+    if (state === "approved") return " (komunitně potvrzeno)";
+    if (state === "pending") return " (komunitně navrženo)";
+    return "";
+  }
+
   function escapeText(value) {
     const div = document.createElement("div");
     div.textContent = value == null ? "" : String(value);
@@ -33,12 +64,15 @@
       ? options.versionClusters
       : [];
     const selectedVersionId = String(options.selectedVersionId || "");
+    const correctionStatus = options.correctionStatus || null;
     const onSelectVersion =
       typeof options.onSelectVersion === "function"
         ? options.onSelectVersion
         : null;
     const onSelectScan =
       typeof options.onSelectScan === "function" ? options.onSelectScan : null;
+    const geolocationType = formatGeolocationType(props.geolocation_type);
+    const communityGeolocation = getCommunityGeolocationLabel(correctionStatus);
 
     const items = [
       ["Popis", props.description],
@@ -46,7 +80,7 @@
       ["Autor", props.author],
       ["Signatura", props.signature],
       ["Poznámka", props.note],
-      ["Geolokace", props.geolocation_type],
+      ["Způsob geolokace", `${geolocationType}${communityGeolocation}`],
     ];
 
     const selectedScanIndex = Number.isFinite(options.selectedScanIndex)

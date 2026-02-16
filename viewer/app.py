@@ -806,6 +806,7 @@ def get_config() -> JSONResponse:
             "turnstileSiteKey": os.environ.get("TURNSTILE_SITE_KEY", ""),
             "turnstileBypass": is_turnstile_bypass(),
             "archiveBaseUrl": archive_base_url,
+            "r2TilesBase": os.environ.get("R2_TILES_BASE", "").rstrip("/"),
             "totalPhotos": len(photos.get("features", [])),
         }
     )
