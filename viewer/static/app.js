@@ -1262,13 +1262,15 @@ function getPreviewFromFeature(feature) {
   return "";
 }
 
-function buildR2PreviewTileUrl(xid, scanIndex = 0) {
+function buildR2PreviewTileUrl(xid, scanIndex = 0, level = 0) {
   const base = String(state.r2TilesBase || "").trim().replace(/\/$/, "");
   const normalizedXid = String(xid || "").trim();
   const normalizedScan =
     Number.isInteger(scanIndex) && scanIndex >= 0 ? scanIndex : 0;
+  const tileLevel =
+    Number.isInteger(level) && level >= 0 ? level : Math.max(0, Number(level) || 0);
   if (!base || !normalizedXid) return "";
-  return `${base}/${encodeURIComponent(normalizedXid)}/scan_${normalizedScan}/TileGroup0/0-0-0.jpg`;
+  return `${base}/${encodeURIComponent(normalizedXid)}/scan_${normalizedScan}/TileGroup0/${tileLevel}-0-0.jpg`;
 }
 
 function getZoomifyPathFromFeature(feature, scanIndex = 0) {
@@ -1299,11 +1301,12 @@ function buildZoomifyTileUrl(zoomifyPath, level = 0) {
 
 function getGridPreviewCandidate(feature) {
   const xid = String(feature?.properties?.id || "").trim();
-  const r2Preview = buildR2PreviewTileUrl(xid, 0);
+  const r2Preview = buildR2PreviewTileUrl(xid, 0, 1);
   if (r2Preview) {
+    const fallback = buildR2PreviewTileUrl(xid, 0, 0);
     return {
       url: r2Preview,
-      fallback: "",
+      fallback: fallback && fallback !== r2Preview ? fallback : "",
     };
   }
 
