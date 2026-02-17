@@ -1438,6 +1438,7 @@ textarea {
   height: 100%;
   position: relative;
   background: #101010;
+  overflow: hidden;
 }
 
 .zoom-wrap::before {
