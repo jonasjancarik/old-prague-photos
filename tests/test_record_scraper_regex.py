@@ -6,6 +6,7 @@ from src.scraper.record_scraper import (
     extract_scan_count,
     extract_zoomify_img_path,
     extract_zoomify_url,
+    with_scan_number,
 )
 
 
@@ -41,6 +42,13 @@ class RecordScraperRegexTests(unittest.TestCase):
         self.assertEqual(
             extract_xid_from_url(url),
             "A1186FFAB67611DF820F00166F1163D4",
+        )
+
+    def test_with_scan_number(self) -> None:
+        url = "https://katalog.ahmp.cz/pragapublica/permalink?xid=ABC123"
+        self.assertEqual(
+            with_scan_number(url, 2),
+            "https://katalog.ahmp.cz/pragapublica/permalink?xid=ABC123&scan=2#scan2",
         )
 
 

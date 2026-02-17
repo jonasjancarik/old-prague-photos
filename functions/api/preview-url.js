@@ -23,9 +23,50 @@ function jsonResponse(payload, status = 200) {
   });
 }
 
-function previewFromFeatureProps(props) {
+function normalizeScanIndex(value) {
+  const parsed = Number.parseInt(String(value ?? "0"), 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function parseBool(value, fallback = false) {
+  if (value == null || value === "") return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+}
+
+function isArchiveUrl(value) {
+  const raw = normalizeId(value);
+  if (!raw) return false;
+  try {
+    const parsed = new URL(raw, "http://local.invalid");
+    const host = String(parsed.hostname || "").toLowerCase();
+    return host === "ahmp.cz" || host.endsWith(".ahmp.cz");
+  } catch {
+    return false;
+  }
+}
+
+function pickCandidate(candidates, options = {}) {
+  const { allowArchiveFallback = true } = options;
+  for (let index = 0; index < candidates.length; index += 1) {
+    const value = normalizeId(candidates[index]);
+    if (!value) continue;
+    if (!allowArchiveFallback && isArchiveUrl(value)) continue;
+    return value;
+  }
+  return "";
+}
+
+function previewFromFeatureProps(props, scanIndex = 0, options = {}) {
+  const { allowArchiveFallback = true } = options;
+  const normalizedScanIndex = normalizeScanIndex(scanIndex);
   const previews = Array.isArray(props?.scan_previews) ? props.scan_previews : [];
-  const previewUrl = normalizeId(previews[0]);
+  const previewUrl = pickCandidate(
+    [previews[normalizedScanIndex], previews[0]],
+    { allowArchiveFallback },
+  );
   if (previewUrl) {
     return { url: previewUrl, source: "feature_preview" };
   }
@@ -33,7 +74,10 @@ function previewFromFeatureProps(props) {
   const zoomifyPaths = Array.isArray(props?.scan_zoomify_paths)
     ? props.scan_zoomify_paths
     : [];
-  const zoomifyPath = normalizeId(zoomifyPaths[0]);
+  const zoomifyPath = pickCandidate(
+    [zoomifyPaths[normalizedScanIndex], zoomifyPaths[0]],
+    { allowArchiveFallback },
+  );
   if (zoomifyPath) {
     return {
       url: `${zoomifyPath.replace(/\/$/, "")}/TileGroup0/0-0-0.jpg`,
@@ -54,9 +98,10 @@ async function fetchPhotosJson(request, env) {
   return response.json();
 }
 
-async function loadFeaturePreviewMap(request, env) {
+async function loadFeaturePreviewMap(request, env, options = {}) {
+  const { forceRefresh = false } = options;
   const now = Date.now();
-  if (now < featurePreviewCacheExpiresAt) {
+  if (!forceRefresh && now < featurePreviewCacheExpiresAt) {
     return featurePreviewCache;
   }
 
@@ -68,8 +113,7 @@ async function loadFeaturePreviewMap(request, env) {
       const props = feature?.properties || {};
       const xid = normalizeId(props.id);
       if (!xid) return;
-      const preview = previewFromFeatureProps(props);
-      mapping.set(xid, preview);
+      mapping.set(xid, props);
     });
   } catch (error) {
     // keep empty map on read failures
@@ -122,23 +166,32 @@ export async function onRequest({ request, env }) {
 
   const url = new URL(request.url);
   const xid = normalizeId(url.searchParams.get("xid"));
+  const scanIndex = normalizeScanIndex(url.searchParams.get("scanIndex"));
+  const allowArchiveFallback = parseBool(env.ALLOW_ARCHIVE_FALLBACK, false);
   if (!xid) {
     return jsonResponse({ detail: "Chybí xid" }, 400);
   }
 
-  const r2Candidate = r2PreviewUrl(env.R2_TILES_BASE || "", xid, 0);
+  const r2Candidate = r2PreviewUrl(env.R2_TILES_BASE || "", xid, scanIndex);
   if (r2Candidate && (await probeUrlExists(r2Candidate))) {
     return jsonResponse({
       xid,
+      scan_index: scanIndex,
       url: r2Candidate,
       source: "r2_tile",
     });
   }
 
-  const previewMap = await loadFeaturePreviewMap(request, env);
-  const preview = previewMap.get(xid) || { url: "", source: "none" };
+  let previewMap = await loadFeaturePreviewMap(request, env);
+  if (!previewMap.has(xid)) {
+    previewMap = await loadFeaturePreviewMap(request, env, { forceRefresh: true });
+  }
+  const preview = previewFromFeatureProps(previewMap.get(xid) || {}, scanIndex, {
+    allowArchiveFallback,
+  });
   return jsonResponse({
     xid,
+    scan_index: scanIndex,
     url: normalizeId(preview.url),
     source: normalizeId(preview.source) || "none",
   });

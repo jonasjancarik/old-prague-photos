@@ -23,6 +23,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Report what would change without writing files",
     )
+    parser.add_argument(
+        "--sync-all",
+        action="store_true",
+        help="Overwrite scan metadata in geolocation files to match raw records",
+    )
     return parser.parse_args()
 
 
@@ -98,20 +103,34 @@ def main() -> None:
         raw_zoomify = as_list(raw.get("scan_zoomify_paths"))
 
         touched = False
-        if geo_scan_count <= 0 and raw_scan_count > 0:
-            geo["scan_count"] = raw_scan_count
-            changed_scan_count += 1
-            touched = True
+        if args.sync_all:
+            if geo_scan_count != raw_scan_count:
+                geo["scan_count"] = raw_scan_count
+                changed_scan_count += 1
+                touched = True
+            if geo_previews != raw_previews:
+                geo["scan_previews"] = raw_previews
+                changed_previews += 1
+                touched = True
+            if geo_zoomify != raw_zoomify:
+                geo["scan_zoomify_paths"] = raw_zoomify
+                changed_zoomify += 1
+                touched = True
+        else:
+            if geo_scan_count <= 0 and raw_scan_count > 0:
+                geo["scan_count"] = raw_scan_count
+                changed_scan_count += 1
+                touched = True
 
-        if not has_nonempty(geo_previews) and has_nonempty(raw_previews):
-            geo["scan_previews"] = raw_previews
-            changed_previews += 1
-            touched = True
+            if not has_nonempty(geo_previews) and has_nonempty(raw_previews):
+                geo["scan_previews"] = raw_previews
+                changed_previews += 1
+                touched = True
 
-        if not has_nonempty(geo_zoomify) and has_nonempty(raw_zoomify):
-            geo["scan_zoomify_paths"] = raw_zoomify
-            changed_zoomify += 1
-            touched = True
+            if not has_nonempty(geo_zoomify) and has_nonempty(raw_zoomify):
+                geo["scan_zoomify_paths"] = raw_zoomify
+                changed_zoomify += 1
+                touched = True
 
         if touched:
             changed += 1
