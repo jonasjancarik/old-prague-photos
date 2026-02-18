@@ -99,6 +99,12 @@ Hashing source order in `build_similarity.py`:
 - `/dup-review.html` - visual duplicate review (merge decisions)
 - `/pomoc.html` - help page
 
+Index page filtering behavior:
+- Year slider + toggles filter the active dataset.
+- Metadata search (`Hledat v metadatech fotek…`) further filters the same active dataset.
+- Map markers, total count, and photo grid use the combined filter result.
+- Address search mode (`Hledat adresu v Praze…`) does not filter photos; it only navigates the map.
+
 Grouping rules:
 - Groups are based on identical `obsah + autor + datace`
 - Corrections apply to the group_id

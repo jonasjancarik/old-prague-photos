@@ -17,7 +17,10 @@ const state = {
   clusteringEnabled: true,
   features: [],
   groups: [],
+  yearFilteredGroups: [],
   filteredGroups: [],
+  searchQuery: "",
+  searchQueryNormalized: "",
   yearMin: null,
   yearMax: null,
   yearFilterMin: null,
@@ -157,6 +160,12 @@ function escapeSelectorValue(value) {
 
 function getActiveGroups() {
   return Array.isArray(state.filteredGroups) ? state.filteredGroups : state.groups;
+}
+
+function getSearchBaseGroups() {
+  return Array.isArray(state.yearFilteredGroups)
+    ? state.yearFilteredGroups
+    : state.groups;
 }
 
 function getMapVisibleGroups(groups = getActiveGroups()) {
@@ -404,9 +413,40 @@ function filterGroupsByYear(groups, minYear, maxYear) {
   });
 }
 
+function filterGroupsByMetadataQuery(groups, query) {
+  if (!Array.isArray(groups)) return [];
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery || normalizedQuery.length < 2) {
+    return groups;
+  }
+  const tokens = normalizedQuery
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2);
+  if (!tokens.length) {
+    return groups;
+  }
+  return groups.filter((group) => {
+    const document = String(group?.searchDocument || "");
+    if (!document) return false;
+    return tokens.every((token) => document.includes(token));
+  });
+}
+
+function setSearchFilter(query, options = {}) {
+  const { enabled = true } = options;
+  state.searchQuery = String(query || "");
+  const normalizedQuery = enabled ? normalizeSearchText(query) : "";
+  const next = normalizedQuery.length >= 2 ? normalizedQuery : "";
+  const changed = next !== state.searchQueryNormalized;
+  state.searchQueryNormalized = next;
+  return changed;
+}
+
 function applyYearFilter(options = {}) {
   const { fitBounds = false } = options;
   if (!Array.isArray(state.groups) || !state.groups.length) {
+    state.yearFilteredGroups = [];
     state.filteredGroups = [];
     updatePhotoCount(0);
     renderPhotoGrid({ reset: true });
@@ -415,7 +455,12 @@ function applyYearFilter(options = {}) {
   }
   const minYear = state.yearFilterMin;
   const maxYear = state.yearFilterMax;
-  const filtered = filterGroupsByYear(state.groups, minYear, maxYear);
+  const yearFiltered = filterGroupsByYear(state.groups, minYear, maxYear);
+  state.yearFilteredGroups = yearFiltered;
+  const filtered = filterGroupsByMetadataQuery(
+    yearFiltered,
+    state.searchQueryNormalized,
+  );
   state.filteredGroups = filtered;
   addMarkers(filtered, { fitBounds });
   updatePhotoCount(filtered.length);
@@ -487,12 +532,10 @@ function getYearFromClientX(clientX) {
 
 function initYearFilter() {
   state.filteredGroups = state.groups;
+  state.yearFilteredGroups = state.groups;
   const stats = computeGroupYearStats(state.groups);
   if (!yearMinInput || !yearMaxInput || !stats) {
-    addMarkers(state.groups);
-    updatePhotoCount(state.groups.length);
-    renderPhotoGrid({ reset: true });
-    updateNearbyNavigation();
+    applyYearFilter({ fitBounds: true });
     return;
   }
 
@@ -2192,13 +2235,7 @@ async function refreshReviewState(options = {}) {
   );
   applyReviewStatePayload(reviewState);
   updateVerifiedCount(reviewState);
-  if (Number.isFinite(state.yearFilterMin) && Number.isFinite(state.yearFilterMax)) {
-    applyYearFilter({ fitBounds: false });
-  } else {
-    addMarkers(state.groups, { fitBounds: false });
-    renderPhotoGrid();
-    updateNearbyNavigation();
-  }
+  applyYearFilter({ fitBounds: false });
 
   if (selectedXid && state.featuresById.has(selectedXid)) {
     const group = state.groupByXid.get(selectedXid);
@@ -2363,6 +2400,11 @@ function initSearch() {
   const triggerSearch = () => {
     clearTimeout(debounceTimer);
     const query = searchInput.value.trim();
+    const addressMode = Boolean(searchAddressToggle?.checked);
+    const filtersChanged = setSearchFilter(query, { enabled: !addressMode });
+    if (filtersChanged) {
+      applyYearFilter({ fitBounds: false });
+    }
     if (query.length < 2) {
       searchResults.classList.add("is-hidden");
       searchResults.innerHTML = "";
@@ -2447,7 +2489,7 @@ function findMetadataMatches(query, limit = 12) {
   const tokens = normalizedQuery.split(/\s+/).filter((token) => token.length >= 2);
   if (!tokens.length) return [];
 
-  const groups = getActiveGroups();
+  const groups = getSearchBaseGroups();
   const ranked = [];
 
   groups.forEach((group) => {
@@ -2563,6 +2605,9 @@ function renderSearchResults(payload, container, searchInput) {
           selectedXid: xid || undefined,
         });
         searchInput.value = getGroupTitle(group);
+        if (setSearchFilter(searchInput.value, { enabled: true })) {
+          applyYearFilter({ fitBounds: false });
+        }
       } else {
         const lat = parseFloat(item.dataset.lat);
         const lon = parseFloat(item.dataset.lon);
@@ -2571,6 +2616,9 @@ function renderSearchResults(payload, container, searchInput) {
         }
         const titleEl = item.querySelector(".search-item-title");
         searchInput.value = titleEl?.textContent?.trim() || item.textContent.trim();
+        if (setSearchFilter(searchInput.value, { enabled: false })) {
+          applyYearFilter({ fitBounds: false });
+        }
       }
       container.classList.add("is-hidden");
     });
