@@ -233,6 +233,58 @@ test("POST /api/merges accepts same-origin with valid session cookie", async () 
 
     const mergeResponse = await mergesOnRequest({ request: mergeRequest, env });
     assert.equal(mergeResponse.status, 200);
+    assert.equal(env.CORRECTIONS_DB.merges.length, 1);
+    assert.equal(env.CORRECTIONS_DB.merges[0].verdict, "same");
+    assert.equal(
+      typeof env.CORRECTIONS_DB.merges[0].voter_key,
+      "string",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("POST /api/merges accepts undo verdict", async () => {
+  const env = makeEnv();
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          hostname: "example.com",
+          action: "session_verify",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+
+    const verifyRequest = makeRequest("/api/verify", {
+      headers: { Origin: "https://example.com" },
+      jsonBody: { token: "ok" },
+    });
+    const verifyResponse = await verifyOnRequest({ request: verifyRequest, env });
+    assert.equal(verifyResponse.status, 200);
+
+    const cookie = String(verifyResponse.headers.get("Set-Cookie") || "").split(";")[0];
+    const mergeRequest = makeRequest("/api/merges", {
+      headers: {
+        Origin: "https://example.com",
+        Cookie: cookie,
+        "User-Agent": "route-test-agent",
+      },
+      jsonBody: {
+        group_id_a: "group-a",
+        group_id_b: "group-b",
+        verdict: "undo",
+      },
+    });
+
+    const mergeResponse = await mergesOnRequest({ request: mergeRequest, env });
+    assert.equal(mergeResponse.status, 200);
+    assert.equal(env.CORRECTIONS_DB.merges.length, 1);
+    assert.equal(env.CORRECTIONS_DB.merges[0].verdict, "undo");
+    assert.equal(env.CORRECTIONS_DB.merges[0].user_agent, "route-test-agent");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -257,6 +309,39 @@ test("GET /api/admin/review exposes pending corrections", async () => {
   assert.equal(response.status, 200);
   const payload = await response.json();
   assert.equal(payload.counts.pendingCorrections, 1);
+});
+
+test("GET /api/admin/review treats undo as merge-conflict reset", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.merges.push(
+    {
+      id: 1,
+      group_id_a: "G1",
+      group_id_b: "G2",
+      verdict: "same",
+      created_at: "2026-01-01 10:00:00",
+    },
+    {
+      id: 2,
+      group_id_a: "G1",
+      group_id_b: "G2",
+      verdict: "different",
+      created_at: "2026-01-01 10:01:00",
+    },
+    {
+      id: 3,
+      group_id_a: "G1",
+      group_id_b: "G2",
+      verdict: "undo",
+      created_at: "2026-01-01 10:02:00",
+    },
+  );
+
+  const request = makeRequest("/api/admin/review", { method: "GET" });
+  const response = await adminReviewOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.counts.mergeConflicts, 0);
 });
 
 test("GET /api/admin/export supports CSV output", async () => {

@@ -106,12 +106,14 @@ export class FakeD1 {
     }
 
     if (query.includes("insert into merge_decisions")) {
-      const [groupA, groupB, verdict] = args;
+      const [groupA, groupB, verdict, voterKey, userAgent] = args;
       this.merges.push({
         id: this.merges.length + 1,
         group_id_a: groupA,
         group_id_b: groupB,
         verdict,
+        voter_key: voterKey || "",
+        user_agent: userAgent || "",
         created_at: "2026-01-01 00:00:00",
       });
     }

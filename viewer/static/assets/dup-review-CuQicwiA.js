@@ -1,4 +1,4 @@
-  <div class="page">
+import{u as e,j as n,c as a}from"./useLegacyScripts-CeexSiYu.js";const s=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Kontrola podobných záběrů</p>
@@ -98,3 +98,4 @@
       </section>
     </main>
   </div>
+`,i=["https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./dup-review.js","./mode-picker.js"];function o(){return e(i),n.jsx("div",{dangerouslySetInnerHTML:{__html:s}})}a(document.getElementById("root")).render(n.jsx(o,{}));

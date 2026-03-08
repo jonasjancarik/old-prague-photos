@@ -75,12 +75,25 @@ export async function onRequest(context) {
           group_id_a,
           group_id_b,
           verdict,
+          voter_key,
+          user_agent,
           created_at
         FROM merge_decisions
       `,
     );
   } catch (error) {
-    mergeRows = [];
+    mergeRows = await queryRows(
+      env,
+      `
+        SELECT
+          id,
+          group_id_a,
+          group_id_b,
+          verdict,
+          created_at
+        FROM merge_decisions
+      `,
+    ).catch(() => []);
   }
 
   const xidGroupMap = await loadXidGroupMap(request, env);

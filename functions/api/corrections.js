@@ -48,13 +48,30 @@ async function loadReviewState(request, env) {
           group_id_a,
           group_id_b,
           verdict,
+          voter_key,
+          user_agent,
           created_at
         FROM merge_decisions
       `,
     ).all();
     mergeRows = mergesResult?.results || [];
   } catch (error) {
-    mergeRows = [];
+    try {
+      const mergesResult = await env.CORRECTIONS_DB.prepare(
+        `
+          SELECT
+            id,
+            group_id_a,
+            group_id_b,
+            verdict,
+            created_at
+          FROM merge_decisions
+        `,
+      ).all();
+      mergeRows = mergesResult?.results || [];
+    } catch (innerError) {
+      mergeRows = [];
+    }
   }
 
   const xidGroupMap = await loadXidGroupMap(request, env);

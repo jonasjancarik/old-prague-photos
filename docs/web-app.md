@@ -121,7 +121,7 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `GET /api/corrections` - latest corrections (per group)
 - `POST /api/corrections` - submit correction / flag
 - `GET /api/merges` - latest merge decisions
-- `POST /api/merges` - submit merge decision
+- `POST /api/merges` - submit merge decision (`same`, `different`, `undo` for last-vote revert)
 - `GET /api/admin/review` - maintainer overview (pending corrections, flags, conflicts, recent merges)
 - `GET /api/admin/export?format=json|csv&since=...&limit=...` - maintainer export
 - `GET /api/preview-url?xid=...` - preview URL resolver (R2 tile probe -> feature preview/zoomify fallback)

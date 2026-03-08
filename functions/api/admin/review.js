@@ -119,27 +119,52 @@ function buildLocationConflictByGroup(groupCorrections, correctionRowsByGroup) {
 }
 
 function buildMergeConflictPairs(mergeRows) {
-  const verdictsByPair = new Map();
+  const eventsByPair = new Map();
   (mergeRows || []).forEach((row) => {
     let groupA = normalizeId(row.group_id_a);
     let groupB = normalizeId(row.group_id_b);
     const verdict = normalizeId(row.verdict).toLowerCase();
     if (!groupA || !groupB || groupA === groupB) return;
-    if (!["same", "different"].includes(verdict)) return;
+    if (!["same", "different", "undo"].includes(verdict)) return;
     if (groupA > groupB) {
       [groupA, groupB] = [groupB, groupA];
     }
     const key = canonicalPair(groupA, groupB);
     if (!key) return;
-    if (!verdictsByPair.has(key)) {
-      verdictsByPair.set(key, new Set());
+    if (!eventsByPair.has(key)) {
+      eventsByPair.set(key, []);
     }
-    verdictsByPair.get(key).add(verdict);
+    eventsByPair.get(key).push({
+      ...row,
+      group_id_a: groupA,
+      group_id_b: groupB,
+      verdict,
+    });
   });
 
   const conflictPairs = new Set();
-  verdictsByPair.forEach((verdicts, key) => {
-    if (verdicts.has("same") && verdicts.has("different")) {
+  eventsByPair.forEach((events, key) => {
+    events.sort((left, right) => {
+      const ts = eventTimestamp(left) - eventTimestamp(right);
+      if (ts !== 0) return ts;
+      const leftId = Number(normalizeId(left.id));
+      const rightId = Number(normalizeId(right.id));
+      if (Number.isFinite(leftId) && Number.isFinite(rightId) && leftId !== rightId) {
+        return leftId - rightId;
+      }
+      return normalizeId(left.id).localeCompare(normalizeId(right.id));
+    });
+
+    const activeVerdicts = new Set();
+    events.forEach((item) => {
+      if (item.verdict === "undo") {
+        activeVerdicts.clear();
+        return;
+      }
+      activeVerdicts.add(item.verdict);
+    });
+
+    if (activeVerdicts.has("same") && activeVerdicts.has("different")) {
       conflictPairs.add(key);
     }
   });
@@ -179,18 +204,36 @@ export async function onRequest({ request, env }) {
     `,
   );
 
-  const mergeRows = await queryRows(
-    env,
-    `
-      SELECT
-        id,
-        group_id_a,
-        group_id_b,
-        verdict,
-        created_at
-      FROM merge_decisions
-    `,
-  );
+  let mergeRows = [];
+  try {
+    mergeRows = await queryRows(
+      env,
+      `
+        SELECT
+          id,
+          group_id_a,
+          group_id_b,
+          verdict,
+          voter_key,
+          user_agent,
+          created_at
+        FROM merge_decisions
+      `,
+    );
+  } catch (error) {
+    mergeRows = await queryRows(
+      env,
+      `
+        SELECT
+          id,
+          group_id_a,
+          group_id_b,
+          verdict,
+          created_at
+        FROM merge_decisions
+      `,
+    );
+  }
 
   const xidGroupMap = await loadXidGroupMap(request, env);
   const reviewState = buildReviewState({
@@ -248,6 +291,8 @@ export async function onRequest({ request, env }) {
         group_id_a: groupA,
         group_id_b: groupB,
         verdict: normalizeId(item.verdict).toLowerCase(),
+        voter_key: normalizeId(item.voter_key),
+        user_agent: normalizeId(item.user_agent),
         received_at: item.created_at || null,
         merge_conflict: Boolean(pair && mergeConflictPairs.has(pair)),
       };

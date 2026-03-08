@@ -101,18 +101,36 @@ export async function onRequest({ request, env }) {
     `,
   );
 
-  const mergeRows = await queryRows(
-    env,
-    `
-      SELECT
-        id,
-        group_id_a,
-        group_id_b,
-        verdict,
-        created_at
-      FROM merge_decisions
-    `,
-  );
+  let mergeRows = [];
+  try {
+    mergeRows = await queryRows(
+      env,
+      `
+        SELECT
+          id,
+          group_id_a,
+          group_id_b,
+          verdict,
+          voter_key,
+          user_agent,
+          created_at
+        FROM merge_decisions
+      `,
+    );
+  } catch (error) {
+    mergeRows = await queryRows(
+      env,
+      `
+        SELECT
+          id,
+          group_id_a,
+          group_id_b,
+          verdict,
+          created_at
+        FROM merge_decisions
+      `,
+    );
+  }
 
   const xidGroupMap = await loadXidGroupMap(request, env);
   const reviewState = buildReviewState({
@@ -161,6 +179,7 @@ export async function onRequest({ request, env }) {
       message: row.message || "",
       email: row.email || "",
       voter_key: row.voter_key || "",
+      user_agent: row.user_agent || "",
       created_at: row.created_at || "",
     });
   });
@@ -184,7 +203,8 @@ export async function onRequest({ request, env }) {
       lon: "",
       message: "",
       email: "",
-      voter_key: "",
+      voter_key: row.voter_key || "",
+      user_agent: row.user_agent || "",
       created_at: row.created_at || "",
     });
   });
@@ -209,6 +229,7 @@ export async function onRequest({ request, env }) {
       message: "",
       email: "",
       voter_key: "",
+      user_agent: "",
       created_at: row.last_event_at || "",
     });
   });
@@ -232,6 +253,7 @@ export async function onRequest({ request, env }) {
     "message",
     "email",
     "voter_key",
+    "user_agent",
     "created_at",
   ];
 

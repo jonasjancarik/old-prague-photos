@@ -287,6 +287,36 @@ class ViewerPreviewApiTests(unittest.TestCase):
         self.assertTrue(correction["has_coordinates"])
         self.assertIn("group-LOCALONLY", payload["doneGroupIds"])
 
+    def test_review_state_honors_merge_undo_as_latest_event(self) -> None:
+        self._append_jsonl(
+            self.merges_path,
+            {
+                "id": "merge_1",
+                "group_id_a": "group-LOCALONLY",
+                "group_id_b": "group-R2ONLY",
+                "verdict": "same",
+                "received_at": "2026-01-01T00:00:00+00:00",
+            },
+        )
+        self._append_jsonl(
+            self.merges_path,
+            {
+                "id": "merge_2",
+                "group_id_a": "group-LOCALONLY",
+                "group_id_b": "group-R2ONLY",
+                "verdict": "undo",
+                "received_at": "2026-01-01T00:01:00+00:00",
+            },
+        )
+
+        response = self.client.get("/api/review-state")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        resolved = payload["resolvedGroupByXid"]
+        self.assertEqual(resolved["R2ONLY"], "group-R2ONLY")
+        self.assertEqual(resolved["LOCALONLY"], "group-LOCALONLY")
+        self.assertEqual(payload["mergeDecisions"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

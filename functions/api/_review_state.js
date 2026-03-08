@@ -264,13 +264,15 @@ function buildLatestMerges(mergeRows) {
     if (groupA > groupB) {
       [groupA, groupB] = [groupB, groupA];
     }
-    if (!["same", "different"].includes(verdict)) return;
+    if (!["same", "different", "undo"].includes(verdict)) return;
 
     const candidate = {
       id: row.id,
       group_id_a: groupA,
       group_id_b: groupB,
       verdict,
+      voter_key: normalizeId(row.voter_key),
+      user_agent: normalizeId(row.user_agent),
       received_at: row.received_at || row.created_at || "",
       created_at: row.created_at || row.received_at || "",
     };
@@ -282,7 +284,14 @@ function buildLatestMerges(mergeRows) {
     }
   });
 
-  return latestByPair;
+  const activeByPair = new Map();
+  latestByPair.forEach((item, key) => {
+    if (item.verdict === "same" || item.verdict === "different") {
+      activeByPair.set(key, item);
+    }
+  });
+
+  return activeByPair;
 }
 
 function normalizedCorrections(correctionRows, xidGroupMap) {
@@ -444,6 +453,8 @@ export function buildReviewState({ correctionRows, mergeRows, xidGroupMap }) {
       group_id_a: item.group_id_a,
       group_id_b: item.group_id_b,
       verdict: item.verdict,
+      voter_key: item.voter_key || "",
+      user_agent: item.user_agent || "",
       received_at: item.received_at || null,
     }))
     .sort((a, b) => {

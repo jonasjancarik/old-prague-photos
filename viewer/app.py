@@ -405,7 +405,7 @@ def _load_merge_records() -> list[dict[str, Any]]:
             verdict = _normalize_id(record.get("verdict")).lower()
             if not group_id_a or not group_id_b or group_id_a == group_id_b:
                 continue
-            if verdict not in {"same", "different"}:
+            if verdict not in {"same", "different", "undo"}:
                 continue
             if group_id_a > group_id_b:
                 group_id_a, group_id_b = group_id_b, group_id_a
@@ -416,6 +416,8 @@ def _load_merge_records() -> list[dict[str, Any]]:
                     "group_id_a": group_id_a,
                     "group_id_b": group_id_b,
                     "verdict": verdict,
+                    "voter_key": _normalize_id(record.get("voter_key")),
+                    "user_agent": _normalize_id(record.get("user_agent")),
                     "received_at": record.get("received_at"),
                     "created_at": record.get("received_at"),
                     "_seq": seq,
@@ -431,7 +433,11 @@ def _load_latest_merge_records() -> list[dict[str, Any]]:
         current = latest.get(pair_key)
         if current is None or _is_newer_event(row, current):
             latest[pair_key] = row
-    return [latest[key] for key in sorted(latest)]
+    return [
+        latest[key]
+        for key in sorted(latest)
+        if latest[key].get("verdict") in {"same", "different"}
+    ]
 
 
 def build_review_state() -> dict[str, Any]:
@@ -538,6 +544,8 @@ def build_review_state() -> dict[str, Any]:
             "group_id_a": row["group_id_a"],
             "group_id_b": row["group_id_b"],
             "verdict": row["verdict"],
+            "voter_key": row.get("voter_key", ""),
+            "user_agent": row.get("user_agent", ""),
             "received_at": row.get("received_at"),
         }
         for row in merge_rows
@@ -1217,7 +1225,7 @@ def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
     verdict = (payload.verdict or "").strip().lower()
     if not verdict:
         verdict = "same"
-    if verdict not in {"same", "different"}:
+    if verdict not in {"same", "different", "undo"}:
         raise HTTPException(status_code=400, detail="Neplatný typ rozhodnutí")
 
     if not is_turnstile_bypass():
@@ -1236,6 +1244,7 @@ def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
         "group_id_a": group_id_a,
         "group_id_b": group_id_b,
         "verdict": verdict,
+        "voter_key": _build_voter_key(request),
         "user_agent": request.headers.get("user-agent", ""),
         "received_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -1323,20 +1332,41 @@ def _location_conflict_groups(
 
 
 def _merge_conflict_pairs(merge_rows: list[dict[str, Any]]) -> set[str]:
-    verdicts: dict[str, set[str]] = {}
+    events_by_pair: dict[str, list[dict[str, Any]]] = {}
     for row in merge_rows:
         group_id_a = _normalize_id(row.get("group_id_a"))
         group_id_b = _normalize_id(row.get("group_id_b"))
         verdict = _normalize_id(row.get("verdict")).lower()
         if not group_id_a or not group_id_b or group_id_a == group_id_b:
             continue
-        if verdict not in {"same", "different"}:
+        if verdict not in {"same", "different", "undo"}:
             continue
         if group_id_a > group_id_b:
             group_id_a, group_id_b = group_id_b, group_id_a
         key = f"{group_id_a}::{group_id_b}"
-        verdicts.setdefault(key, set()).add(verdict)
-    return {key for key, values in verdicts.items() if {"same", "different"} <= values}
+        events_by_pair.setdefault(key, []).append(
+            {
+                **row,
+                "group_id_a": group_id_a,
+                "group_id_b": group_id_b,
+                "verdict": verdict,
+            }
+        )
+
+    conflicts: set[str] = set()
+    for key, events in events_by_pair.items():
+        events.sort(key=_event_order_key)
+        active_verdicts: set[str] = set()
+        for event in events:
+            verdict = _normalize_id(event.get("verdict")).lower()
+            if verdict == "undo":
+                active_verdicts.clear()
+                continue
+            active_verdicts.add(verdict)
+        if {"same", "different"} <= active_verdicts:
+            conflicts.add(key)
+
+    return conflicts
 
 
 @app.get("/api/admin/review")
@@ -1385,6 +1415,8 @@ def get_admin_review() -> JSONResponse:
                 "group_id_a": group_id_a,
                 "group_id_b": group_id_b,
                 "verdict": _normalize_id(row.get("verdict")).lower(),
+                "voter_key": _normalize_id(row.get("voter_key")),
+                "user_agent": _normalize_id(row.get("user_agent")),
                 "received_at": row.get("received_at") or row.get("created_at"),
                 "merge_conflict": key in merge_conflicts,
             }
@@ -1507,6 +1539,7 @@ def get_admin_export(request: Request) -> Response:
         "message",
         "email",
         "voter_key",
+        "user_agent",
         "created_at",
     ]
 
@@ -1532,6 +1565,7 @@ def get_admin_export(request: Request) -> Response:
                 "message": row.get("message"),
                 "email": row.get("email"),
                 "voter_key": row.get("voter_key"),
+                "user_agent": row.get("user_agent"),
                 "created_at": row.get("received_at"),
             }
         )
@@ -1555,7 +1589,8 @@ def get_admin_export(request: Request) -> Response:
                 "lon": "",
                 "message": "",
                 "email": "",
-                "voter_key": "",
+                "voter_key": row.get("voter_key"),
+                "user_agent": row.get("user_agent"),
                 "created_at": row.get("received_at"),
             }
         )
@@ -1580,6 +1615,7 @@ def get_admin_export(request: Request) -> Response:
                 "message": "",
                 "email": "",
                 "voter_key": "",
+                "user_agent": "",
                 "created_at": row.get("last_event_at"),
             }
         )
