@@ -159,6 +159,7 @@ async function loadZoomifyInto(target, xid, scanIndex) {
     }
 
     const meta = await loadZoomifyMeta(xid, scanIndex);
+    if (target.lastKey !== key) return;
 
     if (!target.viewer) {
       target.viewer = window.OpenSeadragon({
@@ -174,8 +175,10 @@ async function loadZoomifyInto(target, xid, scanIndex) {
     if (!window.OldPragueZoomify?.createTileSource) {
       throw new Error("Chybí helper pro Zoomify");
     }
+    if (target.lastKey !== key) return;
     target.viewer.open(window.OldPragueZoomify.createTileSource(meta));
   } catch (error) {
+    if (target.lastKey !== key) return;
     console.warn("Zoom náhled selhal", error);
     target.wrapEl.classList.add("is-fallback");
   }

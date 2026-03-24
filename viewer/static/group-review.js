@@ -1,5 +1,6 @@
 const state = {
   features: [],
+  allGroups: [],
   groups: [],
   groupById: new Map(),
   currentIndex: 0,
@@ -8,8 +9,14 @@ const state = {
   archiveBaseUrl: "",
   versionClustersBySeries: new Map(),
   versionClusterByXid: new Map(),
+  voteStateByGroup: new Map(),
+  reviewedGroupIds: new Set(),
   scanIndexByXid: new Map(),
+  submittingVote: false,
 };
+
+const REVIEWED_GROUPS_STORAGE_KEY = "old-prague-group-review-reviewed";
+const REQUIRED_OK_VOTES = 2;
 
 const groupCountEl = document.getElementById("group-count");
 const remainingCountEl = document.getElementById("remaining-count");
@@ -22,6 +29,7 @@ const actionTextEl = document.getElementById("group-action-text");
 const markOkBtn = document.getElementById("group-mark-ok");
 const openDedupeBtn = document.getElementById("group-open-dedupe");
 const archiveLinkEl = document.getElementById("group-archive-link");
+const resetProgressBtn = document.getElementById("reset-group-progress");
 const detailsEl = document.getElementById("group-details");
 const zoomWrap = document.getElementById("group-zoom")?.closest(".zoom-wrap");
 const zoomViewerEl = document.getElementById("group-zoom");
@@ -80,8 +88,11 @@ function buildDedupeUrl(groupId) {
 }
 
 function updateCounts() {
-  const total = state.groups.length;
-  const remaining = Math.max(0, total - state.currentIndex - 1);
+  const total = state.allGroups.length;
+  const remaining = state.groups.length
+    ? Math.max(0, state.groups.length - state.currentIndex - 1)
+    : 0;
+  const currentVoteState = getVoteState(state.currentGroup?.id || "");
   if (groupCountEl) {
     groupCountEl.textContent = total ? total.toLocaleString() : "0";
   }
@@ -95,8 +106,13 @@ function updateCounts() {
     currentGroupEl.title = state.currentGroup?.id || "";
   }
   if (prevBtn) prevBtn.disabled = state.currentIndex <= 0;
-  if (nextBtn) nextBtn.disabled = state.currentIndex >= total - 1;
-  if (markOkBtn) markOkBtn.disabled = !state.currentGroup;
+  if (nextBtn) nextBtn.disabled = state.currentIndex >= state.groups.length - 1;
+  if (markOkBtn) {
+    markOkBtn.disabled =
+      !state.currentGroup ||
+      state.submittingVote ||
+      Boolean(currentVoteState?.current_user_voted);
+  }
   if (openDedupeBtn) openDedupeBtn.disabled = !state.currentGroup;
   if (archiveLinkEl) archiveLinkEl.classList.toggle("is-disabled", !state.currentFeature);
 }
@@ -148,6 +164,7 @@ async function loadZoomifyInto(target, xid, scanIndex) {
     }
 
     const meta = await loadZoomifyMeta(xid, scanIndex);
+    if (target.lastKey !== key) return;
 
     if (!target.viewer) {
       target.viewer = window.OpenSeadragon({
@@ -163,17 +180,109 @@ async function loadZoomifyInto(target, xid, scanIndex) {
     if (!window.OldPragueZoomify?.createTileSource) {
       throw new Error("Chybí helper pro Zoomify");
     }
+    if (target.lastKey !== key) return;
     target.viewer.open(window.OldPragueZoomify.createTileSource(meta));
   } catch (error) {
+    if (target.lastKey !== key) return;
     console.warn("Zoom náhled selhal", error);
     if (target.previewImgEl) {
       try {
-        target.previewImgEl.src = await loadPreviewUrl(xid);
+        const previewUrl = await loadPreviewUrl(xid);
+        if (target.lastKey !== key) return;
+        target.previewImgEl.src = previewUrl;
       } catch (previewError) {
+        if (target.lastKey !== key) return;
         target.previewImgEl.src = "";
       }
     }
     target.wrapEl.classList.add("is-fallback");
+  }
+}
+
+function loadReviewedGroupIds() {
+  try {
+    const raw = window.localStorage.getItem(REVIEWED_GROUPS_STORAGE_KEY) || "";
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.map((value) => normalizeGroupValue(value)).filter(Boolean));
+  } catch (error) {
+    return new Set();
+  }
+}
+
+function saveReviewedGroupIds() {
+  window.localStorage.setItem(
+    REVIEWED_GROUPS_STORAGE_KEY,
+    JSON.stringify(Array.from(state.reviewedGroupIds)),
+  );
+}
+
+function getVoteState(groupId) {
+  const normalized = normalizeGroupValue(groupId);
+  return normalized ? state.voteStateByGroup.get(normalized) || null : null;
+}
+
+function isGroupDone(groupId) {
+  return Boolean(getVoteState(groupId)?.done);
+}
+
+function countCommunityPendingGroups() {
+  return state.allGroups.filter((group) => group?.id && !isGroupDone(group.id)).length;
+}
+
+function applyGroupReviewVoteState(payload) {
+  const next = new Map();
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  items.forEach((item) => {
+    const groupId = normalizeGroupValue(item?.group_id);
+    if (!groupId) return;
+    next.set(groupId, {
+      group_id: groupId,
+      ok_votes: Number(item?.ok_votes) || 0,
+      required_ok_votes: Number(item?.required_ok_votes) || REQUIRED_OK_VOTES,
+      done: Boolean(item?.done),
+      current_user_voted: Boolean(item?.current_user_voted),
+      current_user_vote_at: item?.current_user_vote_at || null,
+      last_vote_at: item?.last_vote_at || null,
+    });
+  });
+  state.voteStateByGroup = next;
+}
+
+function rebuildPendingGroups() {
+  state.groups = state.allGroups.filter(
+    (group) =>
+      group?.id &&
+      !state.reviewedGroupIds.has(group.id) &&
+      !isGroupDone(group.id),
+  );
+  state.groupById = new Map(state.groups.map((group) => [group.id, group]));
+}
+
+async function refreshGroupReviewVoteState() {
+  const payload = await fetchJson("/api/group-review-votes");
+  applyGroupReviewVoteState(payload);
+}
+
+async function submitGroupReviewVoteRequest(payload) {
+  const sendRequest = () =>
+    fetch("/api/group-review-votes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(payload),
+    });
+
+  const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
+  if (submitWithRetry) {
+    await submitWithRetry(sendRequest);
+    return;
+  }
+
+  const response = await sendRequest();
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || "Odeslání selhalo");
   }
 }
 
@@ -223,6 +332,11 @@ function renderActionHint(group) {
     actionTextEl.textContent = "Zkontrolujte verze/skeny této série a zvolte další krok.";
     return;
   }
+  const voteState = getVoteState(group.id);
+  if (voteState?.current_user_voted) {
+    actionTextEl.textContent = `Pro sérii ${shortId(group.id)} už máte v této relaci aktivní hlas.`;
+    return;
+  }
   actionTextEl.textContent = `Pokud série míchá různé záběry, otevřete párové porovnání jen pro sérii ${shortId(
     group.id,
   )}.`;
@@ -247,6 +361,7 @@ function setFeature(group, feature) {
   if (groupSummaryEl) {
     const count = group?.items?.length || 0;
     const versions = state.versionClustersBySeries.get(group.id) || [];
+    const voteState = getVoteState(group.id);
     const versionCount = versions.length || count;
     const scanCount = Math.max(
       0,
@@ -260,9 +375,12 @@ function setFeature(group, feature) {
       }),
     );
     const scanLabel = scanCount > 1 ? ` · ${scanCount} skeny` : "";
+    const okVotes = voteState?.ok_votes || 0;
+    const requiredVotes = voteState?.required_ok_votes || REQUIRED_OK_VOTES;
+    const voteLabel = ` · ${okVotes}/${requiredVotes} hlasů`;
     groupSummaryEl.textContent = `Série ${shortId(
       group.id,
-    )} · ${versionCount} verzí${scanLabel}`;
+    )} · ${versionCount} verzí${scanLabel}${voteLabel}`;
     groupSummaryEl.title = group.id;
   }
 
@@ -272,7 +390,28 @@ function setFeature(group, feature) {
 
 function showGroup(index) {
   if (!state.groups.length) {
-    setStatus("Žádné série s více verzemi.", "success");
+    state.currentGroup = null;
+    state.currentFeature = null;
+    if (groupSummaryEl) {
+      groupSummaryEl.textContent = "Série: —";
+      groupSummaryEl.title = "";
+    }
+    if (archiveLinkEl) {
+      archiveLinkEl.href = "#";
+      archiveLinkEl.classList.add("is-disabled");
+    }
+    if (previewImgEl) {
+      previewImgEl.src = "";
+    }
+    updateCounts();
+    setStatus(
+      !state.allGroups.length
+        ? "Žádné série s více verzemi."
+        : countCommunityPendingGroups() === 0
+          ? "Pro tuto chvíli už jsou všechny série odhlasované."
+          : "V tomto prohlížeči už nic nezbývá. Tlačítko nahoře znovu ukáže dříve prošlé série.",
+      "success",
+    );
     return;
   }
   const safeIndex = Math.max(0, Math.min(index, state.groups.length - 1));
@@ -283,19 +422,47 @@ function showGroup(index) {
   setFeature(group, feature);
 }
 
-function markCurrentGroupOk() {
+async function markCurrentGroupOk() {
   if (!state.currentGroup) return;
-  if (state.currentIndex >= state.groups.length - 1) {
-    setStatus("Série označena jako zkontrolovaná. Jste na konci seznamu.", "success");
-    return;
+  state.submittingVote = true;
+  updateCounts();
+  clearStatus();
+
+  try {
+    await submitGroupReviewVoteRequest({
+      group_id: state.currentGroup.id,
+      verdict: "ok",
+    });
+    state.reviewedGroupIds.add(state.currentGroup.id);
+    saveReviewedGroupIds();
+    await refreshGroupReviewVoteState();
+    const nextIndex = state.currentIndex;
+    rebuildPendingGroups();
+    if (!state.groups.length) {
+      showGroup(0);
+      return;
+    }
+    setStatus("Hlas uložen. Přecházím na další sérii.", "success");
+    setTimeout(() => showGroup(Math.min(nextIndex, state.groups.length - 1)), 180);
+  } catch (error) {
+    setStatus(error.message || "Odeslání selhalo", "error");
+  } finally {
+    state.submittingVote = false;
+    updateCounts();
   }
-  setStatus("Série označena jako zkontrolovaná. Přecházím na další.", "success");
-  setTimeout(() => showGroup(state.currentIndex + 1), 180);
 }
 
 function openCurrentGroupInDedupe() {
   if (!state.currentGroup?.id) return;
   window.location.href = buildDedupeUrl(state.currentGroup.id);
+}
+
+function resetLocalProgress() {
+  state.reviewedGroupIds.clear();
+  saveReviewedGroupIds();
+  rebuildPendingGroups();
+  showGroup(0);
+  setStatus("Lokální filtr byl vymazán.", "success");
 }
 
 async function bootstrap() {
@@ -352,8 +519,10 @@ async function bootstrap() {
 
   const grouping = window.OldPragueGrouping;
   const groupIndex = grouping.buildGroups(state.features);
-  state.groups = groupIndex.groups.filter((group) => group?.items?.length > 1);
-  state.groupById = groupIndex.groupById;
+  state.allGroups = groupIndex.groups.filter((group) => group?.items?.length > 1);
+  state.reviewedGroupIds = loadReviewedGroupIds();
+  await refreshGroupReviewVoteState();
+  rebuildPendingGroups();
 
   showGroup(0);
 }
@@ -362,6 +531,7 @@ if (prevBtn) prevBtn.addEventListener("click", () => showGroup(state.currentInde
 if (nextBtn) nextBtn.addEventListener("click", () => showGroup(state.currentIndex + 1));
 if (markOkBtn) markOkBtn.addEventListener("click", markCurrentGroupOk);
 if (openDedupeBtn) openDedupeBtn.addEventListener("click", openCurrentGroupInDedupe);
+if (resetProgressBtn) resetProgressBtn.addEventListener("click", resetLocalProgress);
 
 bootstrap().catch((error) => {
   setStatus("Nepodařilo se načíst data.", "error");

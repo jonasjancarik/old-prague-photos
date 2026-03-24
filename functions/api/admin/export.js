@@ -132,6 +132,20 @@ export async function onRequest({ request, env }) {
     );
   }
 
+  const groupReviewVoteRows = await queryRows(
+    env,
+    `
+      SELECT
+        id,
+        group_id,
+        verdict,
+        voter_key,
+        user_agent,
+        created_at
+      FROM group_review_votes
+    `,
+  ).catch(() => []);
+
   const xidGroupMap = await loadXidGroupMap(request, env);
   const reviewState = buildReviewState({
     correctionRows,
@@ -147,6 +161,10 @@ export async function onRequest({ request, env }) {
     .sort((a, b) => parseEventTime(b.created_at) - parseEventTime(a.created_at))
     .slice(0, limit);
 
+  const filteredGroupReviewVotes = keepAfterSince(groupReviewVoteRows, sinceTs)
+    .sort((a, b) => parseEventTime(b.created_at) - parseEventTime(a.created_at))
+    .slice(0, limit);
+
   if (format === "json") {
     return jsonResponse({
       generatedAt: new Date().toISOString(),
@@ -154,6 +172,7 @@ export async function onRequest({ request, env }) {
       limit,
       corrections: filteredCorrections,
       merges: filteredMerges,
+      groupReviewVotes: filteredGroupReviewVotes,
       groupState: reviewState.groupCorrections,
     });
   }
@@ -192,6 +211,31 @@ export async function onRequest({ request, env }) {
       group_id: "",
       group_id_a: row.group_id_a || "",
       group_id_b: row.group_id_b || "",
+      verdict: row.verdict || "",
+      correction_state: "",
+      anchor_type: "",
+      ok_votes: "",
+      required_ok_votes: "",
+      done: "",
+      has_coordinates: "",
+      lat: "",
+      lon: "",
+      message: "",
+      email: "",
+      voter_key: row.voter_key || "",
+      user_agent: row.user_agent || "",
+      created_at: row.created_at || "",
+    });
+  });
+
+  filteredGroupReviewVotes.forEach((row) => {
+    exportRows.push({
+      record_type: "group_review_vote",
+      id: row.id || "",
+      xid: "",
+      group_id: row.group_id || "",
+      group_id_a: "",
+      group_id_b: "",
       verdict: row.verdict || "",
       correction_state: "",
       anchor_type: "",

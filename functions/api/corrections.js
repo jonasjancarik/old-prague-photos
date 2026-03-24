@@ -177,8 +177,11 @@ async function handlePost(request, env) {
   }
 
   const xidGroupMap = await loadXidGroupMap(request, env);
+  if (xidGroupMap.size === 0) {
+    return jsonResponse({ detail: "Chybí metadata skupin" }, 500);
+  }
   const mappedGroupId = xidGroupMap.get(xid) || "";
-  if (xidGroupMap.size > 0 && !mappedGroupId) {
+  if (!mappedGroupId) {
     return jsonResponse({ detail: "Neznámé xid" }, 400);
   }
   if (mappedGroupId && groupId && groupId !== mappedGroupId) {

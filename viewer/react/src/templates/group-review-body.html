@@ -7,6 +7,9 @@
           Série vznikají ze shody metadata (obsah + autor + datace). Projděte verze a skeny v rámci jedné série.
         </p>
         <div class="topbar-actions">
+          <button class="secondary" type="button" id="reset-group-progress">
+            Znovu ukázat moje série
+          </button>
           <a class="action-link" href="./pomoc.html">Zpět na pomoc</a>
           <a class="action-link" href="./index.html">Zpět na mapu</a>
         </div>
@@ -17,7 +20,7 @@
           <span class="stat-value" id="group-count">—</span>
         </div>
         <div class="stat">
-          <span class="stat-label">Zbývá</span>
+          <span class="stat-label">Zbývá pro mě</span>
           <span class="stat-value" id="remaining-count">—</span>
         </div>
         <div class="stat">
@@ -38,6 +41,9 @@
           </button>
         </div>
         <p class="helper review-source" id="group-summary">Série: —</p>
+        <p class="helper">
+          „Série vypadá dobře“ ukládá hlas na server. Tlačítko nahoře jen znovu zobrazí série, které jste v tomto prohlížeči už odklikli.
+        </p>
         <div class="group-actions">
           <p class="helper group-actions-title" id="group-action-text">
             Zkontrolujte verze/skeny této série a zvolte další krok.
@@ -78,4 +84,3 @@
       </section>
     </main>
   </div>
-

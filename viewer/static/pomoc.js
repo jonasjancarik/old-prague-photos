@@ -9,6 +9,7 @@ const state = {
   features: [],
   groups: [],
   groupByXid: new Map(),
+  doneGroupIds: new Set(),
   remaining: [],
   history: [],
   voted: {}, // group_id -> "ok" | "wrong"
@@ -188,10 +189,8 @@ async function refreshRemainingCloud(options = {}) {
   try {
     const reviewState = await fetchJson("/api/review-state");
     const done = applyReviewStateToFeatures(state.features, reviewState);
-
-    // Update local remaining pool while keeping out things already done by others
-    state.remaining = state.groups.filter((group) => !done.has(group.id));
-    updateCounts();
+    done.forEach((groupId) => state.doneGroupIds.add(groupId));
+    syncRemainingPool();
     reviewStateLastRefreshAt = Date.now();
   } catch (err) {
     console.warn("Refresh counteru selhal", err);
@@ -221,6 +220,36 @@ function applyReviewStateToFeatures(features, reviewState) {
   return applied.doneGroupIds || new Set();
 }
 
+function syncRemainingPool() {
+  const currentGroupId = state.currentGroup?.id || "";
+  const historyIds = new Set(
+    state.history.map((group) => String(group?.id || "").trim()).filter(Boolean),
+  );
+  const next = [];
+  const seen = new Set();
+
+  state.remaining.forEach((group) => {
+    const groupId = String(group?.id || "").trim();
+    if (!groupId || seen.has(groupId)) return;
+    if (state.doneGroupIds.has(groupId)) return;
+    if (groupId === currentGroupId || historyIds.has(groupId)) return;
+    seen.add(groupId);
+    next.push(group);
+  });
+
+  state.groups.forEach((group) => {
+    const groupId = String(group?.id || "").trim();
+    if (!groupId || seen.has(groupId)) return;
+    if (state.doneGroupIds.has(groupId)) return;
+    if (groupId === currentGroupId || historyIds.has(groupId)) return;
+    seen.add(groupId);
+    next.push(group);
+  });
+
+  state.remaining = next;
+  updateCounts();
+}
+
 async function loadZoomifyMeta(xid) {
   const url = `/api/zoomify?xid=${encodeURIComponent(xid)}`;
   return fetchJson(url);
@@ -238,6 +267,7 @@ async function loadZoomifyInto(xid) {
     }
 
     const meta = await loadZoomifyMeta(xid);
+    if (zoomLastXid !== xid) return;
 
     if (!zoomViewer) {
       zoomViewer = window.OpenSeadragon({
@@ -253,8 +283,10 @@ async function loadZoomifyInto(xid) {
     if (!window.OldPragueZoomify?.createTileSource) {
       throw new Error("Chybí helper pro Zoomify");
     }
+    if (zoomLastXid !== xid) return;
     zoomViewer.open(window.OldPragueZoomify.createTileSource(meta));
   } catch (error) {
+    if (zoomLastXid !== xid) return;
     console.warn("Zoom náhled selhal", error);
     zoomWrap.classList.add("is-fallback");
   }
@@ -425,17 +457,24 @@ function setMode(mode) {
 }
 
 async function pickRandom() {
+  syncRemainingPool();
   if (!state.remaining.length) {
-    state.remaining = [...state.groups];
+    setControlsEnabled(false);
+    if (prevBtn) {
+      prevBtn.disabled = state.history.length === 0;
+    }
+    setStatus("Pro tuto chvíli už nic dalšího nezbývá.", "success");
+    return;
   }
 
   const idx = Math.floor(Math.random() * state.remaining.length);
   const group = state.remaining.splice(idx, 1)[0];
 
-  if (state.currentGroup) {
+  if (state.currentGroup && !state.doneGroupIds.has(state.currentGroup.id)) {
     state.history.push(state.currentGroup);
   }
 
+  setControlsEnabled(true);
   showGroup(group);
 }
 
@@ -448,6 +487,7 @@ function pickPrev() {
     state.remaining.push(state.currentGroup);
   }
 
+  setControlsEnabled(true);
   showGroup(prevGroup);
 }
 
@@ -492,6 +532,8 @@ async function submitCorrection() {
 
   try {
     await submitCorrectionRequest(payload);
+    state.doneGroupIds.add(state.currentGroup.id);
+    syncRemainingPool();
 
     setStatus("Díky! Uloženo. Jdeme na další.", "success");
     closeCorrectionModal();
@@ -519,6 +561,8 @@ async function submitFlag() {
 
   try {
     await submitCorrectionRequest(payload);
+    state.doneGroupIds.add(state.currentGroup.id);
+    syncRemainingPool();
 
     setStatus("Díky! Hlášení uloženo. Jdeme na další.", "success");
     closeCorrectionModal();
@@ -544,6 +588,8 @@ async function submitOk() {
 
   try {
     await submitCorrectionRequest(payload);
+    state.doneGroupIds.add(state.currentGroup.id);
+    syncRemainingPool();
 
     setStatus("Díky! Potvrzeno. Jdeme na další.", "success");
     setTimeout(() => pickRandom(), 400);
@@ -572,13 +618,13 @@ async function bootstrap() {
 
   const reviewState = await fetchJson("/api/review-state").catch(() => ({}));
   const doneGroupIds = applyReviewStateToFeatures(features, reviewState);
+  state.doneGroupIds = new Set(doneGroupIds);
 
   const grouping = window.OldPragueGrouping;
   const groupIndex = grouping.buildGroups(features);
   state.groups = groupIndex.groups;
   state.groupByXid = groupIndex.groupByXid;
-  state.remaining = state.groups.filter((group) => !doneGroupIds.has(group.id));
-  updateCounts();
+  syncRemainingPool();
   refreshRemainingCloud({ force: true });
 
   dataReady = true;

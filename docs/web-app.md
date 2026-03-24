@@ -99,6 +99,11 @@ Hashing source order in `build_similarity.py`:
 - `/dup-review.html` - visual duplicate review (merge decisions)
 - `/pomoc.html` - help page
 
+Group review progress:
+- `group-review.html` writes a dedicated backend vote separate from location corrections and merge decisions.
+- A series is treated as community-reviewed after `2` independent `ok` votes.
+- The reset button on the page only clears the browser-local hide list; it does not delete backend votes.
+
 Index page filtering behavior:
 - Year slider + toggles filter the active dataset.
 - Metadata search (`Hledat v metadatech fotek…`) further filters the same active dataset.
@@ -122,6 +127,8 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `POST /api/corrections` - submit correction / flag
 - `GET /api/merges` - latest merge decisions
 - `POST /api/merges` - submit merge decision (`same`, `different`, `undo` for last-vote revert)
+- `GET /api/group-review-votes` - aggregated series-review votes (`ok_votes`, `done`)
+- `POST /api/group-review-votes` - submit series-review vote (`ok`, `undo`)
 - `GET /api/admin/review` - maintainer overview (pending corrections, flags, conflicts, recent merges)
 - `GET /api/admin/export?format=json|csv&since=...&limit=...` - maintainer export
 - `GET /api/preview-url?xid=...` - preview URL resolver (R2 tile probe -> feature preview/zoomify fallback)
@@ -131,7 +138,7 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `GET /api/dezoomify?xid=...&scanIndex=0` - FastAPI-only full-resolution JPEG download (tile stitch on server)
 
 Write API hardening:
-- `POST /api/verify`, `POST /api/corrections`, `POST /api/merges` require same-origin (`Origin`/`Referer` match).
+- `POST /api/verify`, `POST /api/corrections`, `POST /api/merges`, `POST /api/group-review-votes` require same-origin (`Origin`/`Referer` match).
 - Per-IP rate limits are enforced in D1.
 - Turnstile verification checks `success`, `hostname`, and expected `action`.
 - Recommended for production: protect `/admin*` and `/api/admin/*` at Cloudflare WAF/Access.

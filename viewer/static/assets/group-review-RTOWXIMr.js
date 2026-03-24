@@ -1,4 +1,4 @@
-import{u as a,j as n,c as s}from"./useLegacyScripts-CeexSiYu.js";const e=`  <div class="page">
+import{u as s,j as n,c as a}from"./useLegacyScripts-CeexSiYu.js";const e=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Kontrola skupin</p>
@@ -7,6 +7,9 @@ import{u as a,j as n,c as s}from"./useLegacyScripts-CeexSiYu.js";const e=`  <div
           Série vznikají ze shody metadata (obsah + autor + datace). Projděte verze a skeny v rámci jedné série.
         </p>
         <div class="topbar-actions">
+          <button class="secondary" type="button" id="reset-group-progress">
+            Znovu ukázat moje série
+          </button>
           <a class="action-link" href="./pomoc.html">Zpět na pomoc</a>
           <a class="action-link" href="./index.html">Zpět na mapu</a>
         </div>
@@ -17,7 +20,7 @@ import{u as a,j as n,c as s}from"./useLegacyScripts-CeexSiYu.js";const e=`  <div
           <span class="stat-value" id="group-count">—</span>
         </div>
         <div class="stat">
-          <span class="stat-label">Zbývá</span>
+          <span class="stat-label">Zbývá pro mě</span>
           <span class="stat-value" id="remaining-count">—</span>
         </div>
         <div class="stat">
@@ -38,6 +41,9 @@ import{u as a,j as n,c as s}from"./useLegacyScripts-CeexSiYu.js";const e=`  <div
           </button>
         </div>
         <p class="helper review-source" id="group-summary">Série: —</p>
+        <p class="helper">
+          „Série vypadá dobře“ ukládá hlas na server. Tlačítko nahoře jen znovu zobrazí série, které jste v tomto prohlížeči už odklikli.
+        </p>
         <div class="group-actions">
           <p class="helper group-actions-title" id="group-action-text">
             Zkontrolujte verze/skeny této série a zvolte další krok.
@@ -78,5 +84,4 @@ import{u as a,j as n,c as s}from"./useLegacyScripts-CeexSiYu.js";const e=`  <div
       </section>
     </main>
   </div>
-
-`,t=["https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./group-review.js"];function i(){return a(t),n.jsx("div",{dangerouslySetInnerHTML:{__html:e}})}s(document.getElementById("root")).render(n.jsx(i,{}));
+`,t=["https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./group-review.js"];function o(){return s(t),n.jsx("div",{dangerouslySetInnerHTML:{__html:e}})}a(document.getElementById("root")).render(n.jsx(o,{}));

@@ -6,6 +6,7 @@ import {
   toHttpError,
   verifyTurnstileToken,
 } from "./_security.js";
+import { loadXidGroupMap } from "./_review_state.js";
 
 function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
@@ -97,6 +98,15 @@ async function handlePost(request, env) {
   if (!verdict) verdict = "same";
   if (!["same", "different", "undo"].includes(verdict)) {
     return jsonResponse({ detail: "Neplatný typ rozhodnutí" }, 400);
+  }
+
+  const xidGroupMap = await loadXidGroupMap(request, env);
+  if (xidGroupMap.size === 0) {
+    return jsonResponse({ detail: "Chybí metadata skupin" }, 500);
+  }
+  const knownGroupIds = new Set(xidGroupMap.values());
+  if (!knownGroupIds.has(groupIdA) || !knownGroupIds.has(groupIdB)) {
+    return jsonResponse({ detail: "Neznámá skupina" }, 400);
   }
 
   const hasSession = await hasValidSession(request, env);
