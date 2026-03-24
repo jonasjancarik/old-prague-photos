@@ -2,6 +2,8 @@
 
 The viewer is a static frontend (Leaflet map + review UIs) with an optional backend for corrections. It can run locally via FastAPI or be deployed to Cloudflare Pages + D1.
 
+For a plain-English explanation of the 3 separate review/voting systems, see [Community Voting](./community-voting.md).
+
 ## Frontend source + build
 
 - React source: `viewer/react/`
