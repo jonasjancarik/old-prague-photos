@@ -2,7 +2,9 @@
 
 The viewer is a static frontend (Leaflet map + review UIs) with an optional backend for corrections. It can run locally via FastAPI or be deployed to Cloudflare Pages + D1.
 
-For a plain-English explanation of the 3 separate review/voting systems, see [Community Voting](./community-voting.md).
+Community help docs:
+- maintainer reference: [Community Help Workflows](./community-voting.md)
+- Czech user-facing guide: [Komunitní pomoc](./komunitni-pomoc.md)
 
 ## Frontend source + build
 

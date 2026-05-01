@@ -1,33 +1,50 @@
-# Community Voting
+# Community Help Workflows
 
 Read this when:
-- you need to remember what the different review UIs are actually voting on
-- you need to debug why something is or is not marked done
-- you are changing `/pomoc.html`, `/dup-review.html`, `/group-review.html`, or `review-state`
+- you need to understand what the community help pages are asking users to decide
+- you need to debug why a group is or is not marked reviewed, merged, corrected, or done
+- you are changing `/pomoc.html`, `/dup-review.html`, `/group-review.html`, `review-state`, or any community vote API
 
-This app has 3 separate community review systems.
+This is the maintainer-facing reference. For user-facing Czech instructions, see
+[Komunitní pomoc](./komunitni-pomoc.md).
 
-They look similar in the UI, but they answer different questions and write to different storage.
+The app has three separate community workflows. They share visual patterns and
+verification/session logic, but they answer different questions and write to
+different storage.
 
-## 1. Location Review
+## Quick Model
+
+- `/pomoc.html`
+  asks: "Is the map location correct?"
+- `/dup-review.html`
+  asks: "Are these two groups the same shot or series?"
+- `/group-review.html`
+  asks: "Does this one metadata-based group look internally coherent?"
+
+Keep those questions separate. A group-review "looks good" vote is not a
+location confirmation, and a location `ok` vote is not a duplicate/merge
+decision.
+
+## Workflow 1: Location Review
 
 UI:
 - `/pomoc.html`
-- main map correction modal on `/`
+- correction modal on `/`
 
 Question:
-- “Is the map location correct?”
+- "Is the map location correct?"
 
-Possible outcomes:
+Verdicts:
 - `ok`
-  Means the location is correct.
+  The map location is correct.
 - `wrong`
-  Means the location is wrong and the voter supplies replacement coordinates.
+  The map location is wrong and the voter supplies replacement coordinates.
 - `flag`
-  Means the voter thinks the current location is wrong or suspicious, but cannot place the correct point precisely.
+  The map location is wrong or suspicious, but the voter cannot place the
+  correct point precisely.
 
 Storage:
-- Pages/D1: `corrections` table
+- Cloudflare Pages/D1: `corrections`
 - FastAPI local dev: `viewer/data/corrections.jsonl`
 
 API:
@@ -43,46 +60,56 @@ Important fields:
 - `has_coordinates`
 - `voter_key`
 
-Meaning of `group_id` here:
-- corrections apply to the whole metadata group, not only to one single photo version
+Scope:
+- Corrections apply to `group_id`, not only to one photo version.
+- Groups are based on the exported metadata grouping (`obsah + autor + datace`).
 
 Consensus rules:
-- Latest anchor event matters.
-- Anchor event means:
+- The latest anchor event controls the current state.
+- Anchor events are:
   - `wrong` with coordinates
   - `flag`
-- If latest anchor is a coordinate correction:
-  - it needs `1` independent later `ok` vote to become approved
-- If latest anchor is a `flag`:
-  - it needs `2` independent later `ok` votes to be considered resolved
-- If there is no anchor event:
-  - plain `ok` votes can still make the group “done” after `2` independent votes
+- If the latest anchor is a coordinate correction, it needs one independent
+  later `ok` vote to become approved.
+- If the latest anchor is a `flag`, it needs two independent later `ok` votes to
+  be considered resolved.
+- If there is no anchor event, plain `ok` votes can still mark the location
+  workflow done after two independent votes.
+- The correction author's own later `ok` vote does not confirm their correction.
 
-Important consequence:
-- location `ok` is not a generic “looks fine” signal
-- it specifically affects location consensus
+Frontend behavior:
+- `review-state` can include pending corrected coordinates. The UI may show a
+  proposed correction immediately while marking it as pending confirmation.
+- When a later state removes a merge or correction from a feature, the frontend
+  restores that feature's original GeoJSON coordinates before applying the new
+  state. This prevents stale corrected coordinates after merge undo/split flows.
 
 Core code:
 - [functions/api/corrections.js](/Users/janca/projects/old-prague-photos/functions/api/corrections.js)
 - [functions/api/_review_state.js](/Users/janca/projects/old-prague-photos/functions/api/_review_state.js)
+- [viewer/static/grouping.js](/Users/janca/projects/old-prague-photos/viewer/static/grouping.js)
 - [viewer/static/pomoc.js](/Users/janca/projects/old-prague-photos/viewer/static/pomoc.js)
+- [viewer/static/correction-ui.js](/Users/janca/projects/old-prague-photos/viewer/static/correction-ui.js)
 
-## 2. Duplicate / Merge Review
+## Workflow 2: Duplicate / Merge Review
 
 UI:
 - `/dup-review.html`
+- `/group-review.html` can open this page focused on one group
 
 Question:
-- “Are these 2 groups actually the same shot/series?”
+- "Are these two groups actually the same shot or series?"
 
-Possible outcomes:
+Verdicts:
 - `same`
+  The two groups should collapse into one resolved group.
 - `different`
+  The two groups should stay separate.
 - `undo`
-  Reverts the last active decision for that pair
+  Clears the latest active decision for that pair.
 
 Storage:
-- Pages/D1: `merge_decisions` table
+- Cloudflare Pages/D1: `merge_decisions`
 - FastAPI local dev: `viewer/data/merges.jsonl`
 
 API:
@@ -96,38 +123,53 @@ Important fields:
 - `verdict`
 - `voter_key`
 
-Consensus model:
-- this is not counted like correction `ok` votes
-- instead, the latest active decision per pair wins
-- `undo` clears the last active pair decision
-- active `same` decisions feed the union-find merge resolver used by `review-state`
+Candidate sources:
+- groups with matching coordinates
+- visual similarity pairs from `viewer/static/data/similarity_candidates.json`
 
-Important consequence:
-- merge review changes which groups are considered the same root
-- it does not say anything about map correctness
+Consensus model:
+- This is not a counted voting workflow.
+- The latest event for a canonical pair wins.
+- Active `same` decisions feed a union-find resolver in `review-state`.
+- Active `different` decisions suppress that candidate pair but do not affect map
+  correctness.
+- `undo` clears the active pair decision so the pair can be considered again.
+
+Runtime behavior:
+- After a merge decision is saved, the duplicate-review UI fetches
+  `/api/review-state?fresh=1` before rebuilding candidates.
+- If that fresh-state fetch fails, the UI keeps the existing state and shows an
+  error instead of applying an empty state. This avoids reintroducing already
+  decided pairs.
 
 Core code:
 - [functions/api/merges.js](/Users/janca/projects/old-prague-photos/functions/api/merges.js)
 - [functions/api/_review_state.js](/Users/janca/projects/old-prague-photos/functions/api/_review_state.js)
 - [viewer/static/dup-review.js](/Users/janca/projects/old-prague-photos/viewer/static/dup-review.js)
 
-## 3. Group / Series Review
+## Workflow 3: Group / Series Review
 
 UI:
 - `/group-review.html`
 
 Question:
-- “Does this metadata-based series look coherent?”
-- In other words:
+- "Does this metadata-based group look internally coherent?"
+- In practical terms:
   - do these versions/scans belong together?
-  - does this group seem internally fine?
+  - does this group seem like one coherent series rather than mixed subjects?
 
-Possible outcomes:
+Verdicts:
 - `ok`
 - `undo`
 
+Current public UI:
+- lets a user submit `ok`
+- keeps a browser-local hide list so already-clicked groups do not immediately
+  reappear
+- does not expose a prominent backend undo button
+
 Storage:
-- Pages/D1: `group_review_votes` table
+- Cloudflare Pages/D1: `group_review_votes`
 - FastAPI local dev: `viewer/data/group_review_votes.jsonl`
 
 API:
@@ -140,133 +182,131 @@ Important fields:
 - `voter_key`
 
 Consensus rules:
-- a series is considered community-reviewed after `2` independent `ok` votes
-- vote aggregation is per `group_id`
-- only the latest vote per `(group_id, voter)` matters
-- `undo` removes that voter’s active `ok` vote for the group
+- A series is community-reviewed after two independent active `ok` votes.
+- Aggregation is per `group_id`.
+- Only the latest vote per `(group_id, voter)` counts.
+- `undo` removes that voter's active `ok` vote for the group.
 
 Important consequence:
-- group-review votes are intentionally separate from location `ok`
-- a voter saying “this series grouping looks right” does not imply “the map pin is correct”
+- Group-review votes are intentionally separate from location `ok`.
+- A voter saying "this series looks coherent" does not imply "the map pin is
+  correct."
 
 Core code:
 - [functions/api/group-review-votes.js](/Users/janca/projects/old-prague-photos/functions/api/group-review-votes.js)
 - [viewer/static/group-review.js](/Users/janca/projects/old-prague-photos/viewer/static/group-review.js)
 
-## Why These Are Separate
-
-The 3 systems answer different questions:
-
-- location review:
-  “Is the pin correct?”
-- merge review:
-  “Should these 2 groups collapse into one?”
-- group review:
-  “Does this one group look internally coherent?”
-
-Reusing one vote type for another would create bad state.
-
-Example:
-- if group-review “looks good” wrote a location `ok`
-- then the app would treat “series seems coherent” as “location confirmed”
-- that would incorrectly mark location review done
-
-That is why group-review has its own table and endpoint.
-
-## Shared vs Local State
+## Shared State vs Local Browser State
 
 Shared, server-backed state:
-- corrections
+- location corrections
 - merge decisions
 - group-review votes
 
 Local browser-only state:
-- `/group-review.html` also keeps a browser-local hide list
-- this is just a convenience so the current browser session can move forward without immediately resurfacing already-clicked groups
-- clearing that local list does not delete backend votes
+- `/group-review.html` keeps a hide list in local storage after the current user
+  clicks "Série vypadá dobře".
+- This only helps the current browser move forward through the queue.
+- Clearing the list does not delete backend votes.
 
 Current UI wording:
-- “Znovu ukázat moje série” only resets the browser-local hide list
+- "Znovu ukázat moje série" resets only the browser-local hide list.
 
 ## `review-state` Scope
 
-`GET /api/review-state` currently covers:
+`GET /api/review-state` covers:
 - resolved merge roots
 - location/correction consensus
 - done groups for the location workflow
-- latest merge decisions
+- latest active merge decisions
+- aggregate counts used by the main map UI
 
-It does not currently include:
+It does not include:
 - aggregated group-review vote state
 
-That is intentional.
-
-Reason:
-- `review-state` is for location correction + merge resolution
-- group-review has its own independent state model and API
+That is intentional. `review-state` is for location correction plus merge
+resolution. Group review has its own API and state model.
 
 ## Independent Voters
 
-All 3 systems use `voter_key` to distinguish independent votes.
+All three workflows use `voter_key` to distinguish independent voters.
 
-`voter_key` is derived from request context and session/cookie material.
-
-Practical meaning:
-- 2 clicks from the same effective voter do not count as 2 independent community confirmations
-- the system is designed to require distinct voters, not repeated clicks
+`voter_key` is derived from request context and session/cookie material. The
+practical effect is:
+- two clicks from the same effective voter do not count as two independent
+  confirmations
+- repeated clicks can update that voter's latest state, but they do not satisfy
+  independent consensus by themselves
 
 Core code:
 - [functions/api/_security.js](/Users/janca/projects/old-prague-photos/functions/api/_security.js)
 - [viewer/app.py](/Users/janca/projects/old-prague-photos/viewer/app.py)
+
+## Verification and Write Protection
+
+Write endpoints require:
+- same-origin requests in production
+- rate limiting through D1
+- Turnstile verification or a valid signed session cookie
+
+Relevant write endpoints:
+- `POST /api/verify`
+- `POST /api/corrections`
+- `POST /api/merges`
+- `POST /api/group-review-votes`
+
+Local development can use `TURNSTILE_BYPASS=1` on localhost only.
 
 ## Admin / Export
 
 Maintainer export:
 - `GET /api/admin/export`
 
-It now includes:
+It includes:
 - correction rows
 - merge rows
 - group-review vote rows
-- derived group state from `review-state`
+- derived location group state from `review-state`
 
 Admin review screen:
 - `GET /api/admin/review`
 
-It is still focused on:
-- pending corrections
+It focuses on:
+- pending coordinate corrections
 - unresolved flags
 - merge conflicts
+- recent merge decisions
 
 It does not currently expose a dedicated group-review moderation dashboard.
 
 ## Deploy / Migration Notes
 
-New tables must exist in D1 before Pages code can use them.
+Tables must exist in D1 before Pages code can use them.
 
-Current migration for group-review votes:
+Current group-review migration:
 - [migrations/0008_group_review_votes.sql](/Users/janca/projects/old-prague-photos/migrations/0008_group_review_votes.sql)
 
-Apply:
+Apply migrations:
 
 ```bash
 npx wrangler d1 migrations apply CORRECTIONS_DB --local
 npx wrangler d1 migrations apply CORRECTIONS_DB
 ```
 
-If this migration is missing:
+If the group-review migration is missing:
 - Pages group-review vote writes will fail
 - FastAPI local dev still works because it writes JSONL files directly
 
-## Quick Mental Model
+## Test Coverage
 
-Use this when you have forgotten the system:
+Relevant tests:
+- [functions/api/__tests__/review-state-consensus.test.mjs](/Users/janca/projects/old-prague-photos/functions/api/__tests__/review-state-consensus.test.mjs)
+- [functions/api/__tests__/routes.test.mjs](/Users/janca/projects/old-prague-photos/functions/api/__tests__/routes.test.mjs)
+- [functions/api/__tests__/security.test.mjs](/Users/janca/projects/old-prague-photos/functions/api/__tests__/security.test.mjs)
+- [functions/api/__tests__/static-grouping.test.mjs](/Users/janca/projects/old-prague-photos/functions/api/__tests__/static-grouping.test.mjs)
 
-- `/pomoc.html`
-  “Pin correct?”
-- `/dup-review.html`
-  “Same group or not?”
-- `/group-review.html`
-  “This group itself looks coherent?”
+Run:
 
-If you keep those 3 questions separate, the rest of the model stays understandable.
+```bash
+node --test functions/api/__tests__/*.mjs
+```
