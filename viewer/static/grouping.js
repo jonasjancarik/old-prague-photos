@@ -1,7 +1,36 @@
 (() => {
+  const ORIGINAL_COORDINATES_KEY = "__oldPragueOriginalCoordinates";
+
   function normalizeId(value) {
     const raw = String(value || "").trim();
     return raw || "";
+  }
+
+  function getOriginalCoordinates(feature) {
+    if (!feature?.geometry) return null;
+    const coords = feature.geometry.coordinates;
+    if (!Array.isArray(coords)) return null;
+
+    if (!Array.isArray(feature[ORIGINAL_COORDINATES_KEY])) {
+      Object.defineProperty(feature, ORIGINAL_COORDINATES_KEY, {
+        value: coords.slice(),
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    return feature[ORIGINAL_COORDINATES_KEY];
+  }
+
+  function restoreOriginalCoordinates(feature) {
+    const original = getOriginalCoordinates(feature);
+    if (!original || !feature?.geometry) return;
+    feature.geometry.coordinates = original.slice();
+  }
+
+  function applyCorrectedCoordinates(feature, lat, lon) {
+    getOriginalCoordinates(feature);
+    feature.geometry.coordinates = [lon, lat];
   }
 
   function buildGroupIdByXid(features) {
@@ -83,6 +112,7 @@
     });
 
     (features || []).forEach((feature) => {
+      restoreOriginalCoordinates(feature);
       const props = feature?.properties || {};
       const baseGroup = normalizeId(props.group_id) || normalizeId(props.id);
       const groupId = resolveGroupId ? resolveGroupId(baseGroup) : baseGroup;
@@ -91,7 +121,7 @@
       const lat = Number(correction.lat);
       const lon = Number(correction.lon);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-      feature.geometry.coordinates = [lon, lat];
+      applyCorrectedCoordinates(feature, lat, lon);
       props.corrected = { lat, lon };
     });
 
@@ -113,6 +143,7 @@
     });
 
     (features || []).forEach((feature) => {
+      restoreOriginalCoordinates(feature);
       const props = feature?.properties || {};
       const xid = normalizeId(props.id);
       const fallbackGroup = normalizeId(props.group_id) || xid;
@@ -134,7 +165,7 @@
       const lat = toFiniteCoord(correction.lat);
       const lon = toFiniteCoord(correction.lon);
       if (lat === null || lon === null) return;
-      feature.geometry.coordinates = [lon, lat];
+      applyCorrectedCoordinates(feature, lat, lon);
       props.corrected = { lat, lon };
     });
 

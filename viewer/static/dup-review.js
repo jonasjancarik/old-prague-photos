@@ -473,7 +473,7 @@ async function submitMergePayload(payload) {
     }
   }
 
-  const reviewState = await fetchJson("/api/review-state?fresh=1").catch(() => ({}));
+  const reviewState = await fetchJson("/api/review-state?fresh=1");
   applyReviewStatePayload(reviewState);
 }
 
