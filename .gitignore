@@ -27,6 +27,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+!viewer/react/src/lib/
+!viewer/react/src/lib/useLegacyScripts.js
 lib64/
 parts/
 sdist/
