@@ -392,11 +392,11 @@ python build_similarity.py
 ```
 
 What it does:
-- Computes a perceptual hash (dHash) per scan
+- Computes a composite visual hash per scan (mounted-print crop + dHash + edge-structure hash)
 - Produces candidate pairs for visual duplicates
 - Builds per-series "version" clusters (scans of the same shot)
 
-Outputs:
+Default outputs:
 - `viewer/static/data/similarity_candidates.json`
 - `viewer/static/data/series_version_clusters.json`
 - Cache: `output/similarity/hashes.jsonl`
@@ -410,16 +410,50 @@ Notes:
 - Legacy hash cache lines without `hash_profile` are ignored and recomputed
 
 Useful flags:
-- `--pair-distance 8` (stricter duplicate pair queue; default)
-- `--cluster-distance 10` (within-series version clustering; default)
-- `--distance 8` (legacy alias; sets both unless explicit split flags are passed)
+- `--pair-distance 18` (conservative duplicate pair queue; default, over 128-bit composite hash)
+- `--cluster-distance 32` (within-series version clustering; default, over 128-bit composite hash)
+- `--distance 18` (legacy alias; sets both unless explicit split flags are passed)
 - `--r2-tiles-base https://<r2-public-domain>/tiles`
 - `--stitch-target-long-side 1024`
 - `--stitch-max-tiles 16`
-- `--hash-size 8` (64-bit hash)
+- `--hash-size 8` (128-bit composite hash)
 - `--limit 200` (smoke test)
 - `--sleep 0.2` (throttle)
 - `--force` (recompute cache)
+
+LLM-reviewed final duplicate dataset:
+
+```bash
+# 1) Write raw hash candidates somewhere stable, so materialization does not
+#    overwrite its own source.
+PYTHONPATH=. uv run python build_similarity.py \
+  --output output/similarity/hash_candidates.json \
+  --clusters-output viewer/static/data/series_version_clusters.json
+
+# 2) Review every hash candidate. This is resumable; reruns skip successful
+#    pair_id records already present in the JSONL file.
+PYTHONPATH=. uv run python scripts/llm_review_similarity.py \
+  --input output/similarity/hash_candidates.json \
+  --output output/similarity/llm_pair_reviews.jsonl \
+  --jobs 10
+
+# 3) Materialize the viewer dataset. By default this keeps only high-confidence
+#    same_shot reviews and refuses to publish if any input pair is unreviewed.
+PYTHONPATH=. uv run python scripts/llm_review_similarity.py \
+  --mode materialize \
+  --input output/similarity/hash_candidates.json \
+  --output output/similarity/llm_pair_reviews.jsonl \
+  --final-output viewer/static/data/similarity_candidates.json
+```
+
+The review step sends the stitched scan images as base64 image inputs, applies
+the mounted-photo crop by default, and writes one strict JSON verdict per pair:
+`same_shot`, `same_scene_variant`, `different`, or `uncertain`. The
+materialized pairs keep the original pair fields and add `llm_verdict`,
+`llm_confidence`, `llm_reason`, `llm_model`, and `llm_backend`.
+Use `--backend codex --model gpt-5.5 --codex-reasoning-effort low` to run
+the same adjudication through `codex exec` instead of the direct OpenAI API.
+Use `--allow-partial` only for smoke/test materializations.
 
 ## Web viewer
 
@@ -443,30 +477,23 @@ npm --prefix viewer/react run dev
 
 ### Run locally
 
-Preferred (Cloudflare Pages Functions + local D1, closest to production):
+FastAPI local dev, quickest local loop:
 
 ```bash
-npm --prefix viewer/react run build
-bunx wrangler d1 migrations apply CORRECTIONS_DB --local
-TURNSTILE_BYPASS=1 bunx wrangler pages dev viewer/static --local
-```
-
-Open the URL printed by Wrangler (typically `http://127.0.0.1:8788`).
-
-FastAPI fallback (quick local app server):
-
-```bash
-npm --prefix viewer/react run build
-uv run uvicorn viewer.app:app --reload \
-  --reload-dir viewer \
-  --reload-dir viewer/static \
-  --reload-include "*.html" \
-  --reload-include "*.css" \
-  --reload-include "*.js" \
-  --reload-include "*.geojson"
+npm run dev
 ```
 
 Open `http://127.0.0.1:8000`.
+
+Cloudflare Pages Functions + local D1, closest to production:
+
+```bash
+npm run dev:pages
+```
+
+Open the URL printed by Wrangler (typically `http://127.0.0.1:8788`).
+`dev:pages` applies local D1 migrations, runs the React/static watcher in the background,
+and starts Wrangler Pages with local Turnstile bypass.
 
 Full-resolution download (map modal):
 - FastAPI runtime exposes server-side stitch via `GET /api/dezoomify?xid=...&scanIndex=...`.

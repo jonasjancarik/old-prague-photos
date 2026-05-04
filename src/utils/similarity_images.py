@@ -11,8 +11,8 @@ from src.utils.similarity_core import (
     HashSourceError,
     LevelInfo,
     ScanInput,
-    dhash,
 )
+from src.utils.similarity_hashing import hash_image_for_similarity
 
 
 def normalize_base_url(value: str) -> str:
@@ -206,7 +206,7 @@ def compute_preview_hash(
         with Image.open(local_path) as image:
             width, height = image.size
             return HashResult(
-                hash_value=dhash(image, hash_size),
+                hash_value=hash_image_for_similarity(image, hash_size),
                 image_source=image_source,
                 render_mode="preview_original",
                 image_width=width,
@@ -217,7 +217,7 @@ def compute_preview_hash(
     with Image.open(BytesIO(response.content)) as image:
         width, height = image.size
         return HashResult(
-            hash_value=dhash(image, hash_size),
+            hash_value=hash_image_for_similarity(image, hash_size),
             image_source=image_source,
             render_mode="preview_original",
             image_width=width,
@@ -283,7 +283,7 @@ def load_local_stitched_hash(
     with Image.open(image_path) as image:
         width, height = image.size
         return HashResult(
-            hash_value=dhash(image, hash_size),
+            hash_value=hash_image_for_similarity(image, hash_size),
             image_source="local_stitched",
             render_mode=render_mode,
             image_width=width,
@@ -331,7 +331,7 @@ def compute_zoomify_hash(
     )
     with image:
         image_width, image_height = image.size
-        hash_value = dhash(image, hash_size)
+        hash_value = hash_image_for_similarity(image, hash_size)
         persist_stitched_cache(
             image=image,
             image_path=stitched_image_path,

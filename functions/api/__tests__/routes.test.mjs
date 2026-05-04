@@ -5,16 +5,37 @@ import { onRequest as correctionsOnRequest } from "../corrections.js";
 import { onRequest as adminExportOnRequest } from "../admin/export.js";
 import { onRequest as adminReviewOnRequest } from "../admin/review.js";
 import { onRequest as configOnRequest } from "../config.js";
+import { onRequest as groupReviewVotesOnRequest } from "../group-review-votes.js";
 import { onRequest as mergesOnRequest } from "../merges.js";
 import { onRequest as previewUrlOnRequest } from "../preview-url.js";
 import { onRequest as zoomifyOnRequest } from "../zoomify.js";
 import { onRequest as verifyOnRequest } from "../verify.js";
-import { FakeD1, makeRequest } from "./test-helpers.mjs";
+import { FakeD1, makePhotosAsset, makeRequest } from "./test-helpers.mjs";
 
 function makeEnv(overrides = {}) {
   return {
     CORRECTIONS_DB: new FakeD1(),
     TURNSTILE_SECRET_KEY: "turnstile-secret",
+    ASSETS: makePhotosAsset([
+      {
+        properties: {
+          id: "A1",
+          group_id: "group-a",
+        },
+      },
+      {
+        properties: {
+          id: "A2",
+          group_id: "group-b",
+        },
+      },
+      {
+        properties: {
+          id: "X1",
+          group_id: "G1",
+        },
+      },
+    ]),
     ...overrides,
   };
 }
@@ -233,6 +254,231 @@ test("POST /api/merges accepts same-origin with valid session cookie", async () 
 
     const mergeResponse = await mergesOnRequest({ request: mergeRequest, env });
     assert.equal(mergeResponse.status, 200);
+    assert.equal(env.CORRECTIONS_DB.merges.length, 1);
+    assert.equal(env.CORRECTIONS_DB.merges[0].verdict, "same");
+    assert.equal(
+      typeof env.CORRECTIONS_DB.merges[0].voter_key,
+      "string",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("POST /api/merges accepts undo verdict", async () => {
+  const env = makeEnv();
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          hostname: "example.com",
+          action: "session_verify",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+
+    const verifyRequest = makeRequest("/api/verify", {
+      headers: { Origin: "https://example.com" },
+      jsonBody: { token: "ok" },
+    });
+    const verifyResponse = await verifyOnRequest({ request: verifyRequest, env });
+    assert.equal(verifyResponse.status, 200);
+
+    const cookie = String(verifyResponse.headers.get("Set-Cookie") || "").split(";")[0];
+    const mergeRequest = makeRequest("/api/merges", {
+      headers: {
+        Origin: "https://example.com",
+        Cookie: cookie,
+        "User-Agent": "route-test-agent",
+      },
+      jsonBody: {
+        group_id_a: "group-a",
+        group_id_b: "group-b",
+        verdict: "undo",
+      },
+    });
+
+    const mergeResponse = await mergesOnRequest({ request: mergeRequest, env });
+    assert.equal(mergeResponse.status, 200);
+    assert.equal(env.CORRECTIONS_DB.merges.length, 1);
+    assert.equal(env.CORRECTIONS_DB.merges[0].verdict, "undo");
+    assert.equal(env.CORRECTIONS_DB.merges[0].user_agent, "route-test-agent");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("POST /api/merges rejects unknown group ids", async () => {
+  const env = makeEnv();
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          hostname: "example.com",
+          action: "session_verify",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+
+    const verifyRequest = makeRequest("/api/verify", {
+      headers: { Origin: "https://example.com" },
+      jsonBody: { token: "ok" },
+    });
+    const verifyResponse = await verifyOnRequest({ request: verifyRequest, env });
+    assert.equal(verifyResponse.status, 200);
+
+    const cookie = String(verifyResponse.headers.get("Set-Cookie") || "").split(";")[0];
+    const mergeRequest = makeRequest("/api/merges", {
+      headers: { Origin: "https://example.com", Cookie: cookie },
+      jsonBody: {
+        group_id_a: "group-a",
+        group_id_b: "ghost-group",
+        verdict: "same",
+      },
+    });
+
+    const mergeResponse = await mergesOnRequest({ request: mergeRequest, env });
+    assert.equal(mergeResponse.status, 400);
+    const payload = await mergeResponse.json();
+    assert.match(String(payload.detail || ""), /skupina/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("POST /api/group-review-votes accepts same-origin with valid token", async () => {
+  const env = makeEnv();
+  const request = makeRequest("/api/group-review-votes", {
+    headers: {
+      Origin: "https://example.com",
+      "CF-Connecting-IP": "3.3.3.3",
+    },
+    jsonBody: {
+      group_id: "group-a",
+      verdict: "ok",
+      token: "ok",
+    },
+  });
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          hostname: "example.com",
+          action: "group_review_submit",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+
+    const response = await groupReviewVotesOnRequest({ request, env });
+    assert.equal(response.status, 200);
+    assert.equal(env.CORRECTIONS_DB.groupReviewVotes.length, 1);
+    assert.equal(env.CORRECTIONS_DB.groupReviewVotes[0].group_id, "group-a");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("GET /api/group-review-votes aggregates ok votes and current user state", async () => {
+  const env = makeEnv();
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          hostname: "example.com",
+          action: "group_review_submit",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+
+    const firstVoteRequest = makeRequest("/api/group-review-votes", {
+      headers: {
+        Origin: "https://example.com",
+        "CF-Connecting-IP": "3.3.3.3",
+      },
+      jsonBody: {
+        group_id: "group-a",
+        verdict: "ok",
+        token: "ok",
+      },
+    });
+    const secondVoteRequest = makeRequest("/api/group-review-votes", {
+      headers: {
+        Origin: "https://example.com",
+        "CF-Connecting-IP": "4.4.4.4",
+      },
+      jsonBody: {
+        group_id: "group-a",
+        verdict: "ok",
+        token: "ok",
+      },
+    });
+
+    assert.equal(
+      (await groupReviewVotesOnRequest({ request: firstVoteRequest, env })).status,
+      200,
+    );
+    assert.equal(
+      (await groupReviewVotesOnRequest({ request: secondVoteRequest, env })).status,
+      200,
+    );
+
+    const getRequest = makeRequest("/api/group-review-votes", {
+      method: "GET",
+      headers: { "CF-Connecting-IP": "3.3.3.3" },
+    });
+    const response = await groupReviewVotesOnRequest({ request: getRequest, env });
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.count, 1);
+    assert.equal(payload.items[0].group_id, "group-a");
+    assert.equal(payload.items[0].ok_votes, 2);
+    assert.equal(payload.items[0].done, true);
+    assert.equal(payload.items[0].current_user_voted, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("POST /api/group-review-votes rejects unknown group ids", async () => {
+  const env = makeEnv();
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          hostname: "example.com",
+          action: "group_review_submit",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+
+    const request = makeRequest("/api/group-review-votes", {
+      headers: { Origin: "https://example.com" },
+      jsonBody: {
+        group_id: "ghost-group",
+        verdict: "ok",
+        token: "ok",
+      },
+    });
+
+    const response = await groupReviewVotesOnRequest({ request, env });
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.match(String(payload.detail || ""), /skupina/u);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -259,6 +505,39 @@ test("GET /api/admin/review exposes pending corrections", async () => {
   assert.equal(payload.counts.pendingCorrections, 1);
 });
 
+test("GET /api/admin/review treats undo as merge-conflict reset", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.merges.push(
+    {
+      id: 1,
+      group_id_a: "G1",
+      group_id_b: "G2",
+      verdict: "same",
+      created_at: "2026-01-01 10:00:00",
+    },
+    {
+      id: 2,
+      group_id_a: "G1",
+      group_id_b: "G2",
+      verdict: "different",
+      created_at: "2026-01-01 10:01:00",
+    },
+    {
+      id: 3,
+      group_id_a: "G1",
+      group_id_b: "G2",
+      verdict: "undo",
+      created_at: "2026-01-01 10:02:00",
+    },
+  );
+
+  const request = makeRequest("/api/admin/review", { method: "GET" });
+  const response = await adminReviewOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.counts.mergeConflicts, 0);
+});
+
 test("GET /api/admin/export supports CSV output", async () => {
   const env = makeEnv();
   env.CORRECTIONS_DB.corrections.push({
@@ -283,6 +562,26 @@ test("GET /api/admin/export supports CSV output", async () => {
   const body = await response.text();
   assert.match(body, /record_type/u);
   assert.match(body, /correction/u);
+});
+
+test("GET /api/admin/export includes group review votes in JSON output", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.groupReviewVotes.push({
+    id: 1,
+    group_id: "group-a",
+    verdict: "ok",
+    voter_key: "voter-a",
+    user_agent: "route-test-agent",
+    created_at: "2026-01-01 10:00:00",
+  });
+
+  const request = makeRequest("/api/admin/export?format=json", { method: "GET" });
+  const response = await adminExportOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(Array.isArray(payload.groupReviewVotes), true);
+  assert.equal(payload.groupReviewVotes.length, 1);
+  assert.equal(payload.groupReviewVotes[0].group_id, "group-a");
 });
 
 test("GET /api/config exposes client full-res download mode", async () => {

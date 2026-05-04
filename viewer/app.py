@@ -34,6 +34,7 @@ ORPHAN_IDS_PATH = STATIC_DATA_DIR / "orphan_xids.json"
 FEEDBACK_PATH = DATA_DIR / "feedback.jsonl"
 CORRECTIONS_PATH = DATA_DIR / "corrections.jsonl"
 MERGES_PATH = DATA_DIR / "merges.jsonl"
+GROUP_REVIEW_VOTES_PATH = DATA_DIR / "group_review_votes.jsonl"
 LOCAL_PREVIEWS_DIR = PROJECT_ROOT / "downloads" / "archive" / "previews"
 
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
@@ -88,6 +89,12 @@ class VerifyPayload(BaseModel):
 class MergePayload(BaseModel):
     group_id_a: str = Field(min_length=1)
     group_id_b: str = Field(min_length=1)
+    verdict: str | None = None
+    token: str | None = None
+
+
+class GroupReviewVotePayload(BaseModel):
+    group_id: str = Field(min_length=1)
     verdict: str | None = None
     token: str | None = None
 
@@ -171,6 +178,10 @@ def build_xid_group_cache() -> dict[str, str]:
                 mapping[xid] = group_id
         _xid_group_cache = mapping
     return _xid_group_cache
+
+
+def build_known_group_ids() -> set[str]:
+    return {group_id for group_id in build_xid_group_cache().values() if group_id}
 
 
 def _normalize_id(value: Any) -> str:
@@ -405,7 +416,7 @@ def _load_merge_records() -> list[dict[str, Any]]:
             verdict = _normalize_id(record.get("verdict")).lower()
             if not group_id_a or not group_id_b or group_id_a == group_id_b:
                 continue
-            if verdict not in {"same", "different"}:
+            if verdict not in {"same", "different", "undo"}:
                 continue
             if group_id_a > group_id_b:
                 group_id_a, group_id_b = group_id_b, group_id_a
@@ -416,6 +427,43 @@ def _load_merge_records() -> list[dict[str, Any]]:
                     "group_id_a": group_id_a,
                     "group_id_b": group_id_b,
                     "verdict": verdict,
+                    "voter_key": _normalize_id(record.get("voter_key")),
+                    "user_agent": _normalize_id(record.get("user_agent")),
+                    "received_at": record.get("received_at"),
+                    "created_at": record.get("received_at"),
+                    "_seq": seq,
+                }
+            )
+    return rows
+
+
+def _load_group_review_vote_records() -> list[dict[str, Any]]:
+    if not GROUP_REVIEW_VOTES_PATH.exists():
+        return []
+
+    rows: list[dict[str, Any]] = []
+    with GROUP_REVIEW_VOTES_PATH.open(encoding="utf-8") as handle:
+        for seq, line in enumerate(handle, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            group_id = _normalize_id(record.get("group_id"))
+            verdict = _normalize_id(record.get("verdict")).lower()
+            if not group_id or verdict not in {"ok", "undo"}:
+                continue
+
+            rows.append(
+                {
+                    "id": record.get("id") or f"group_vote_{seq}",
+                    "group_id": group_id,
+                    "verdict": verdict,
+                    "voter_key": _normalize_id(record.get("voter_key")),
+                    "user_agent": _normalize_id(record.get("user_agent")),
                     "received_at": record.get("received_at"),
                     "created_at": record.get("received_at"),
                     "_seq": seq,
@@ -431,7 +479,11 @@ def _load_latest_merge_records() -> list[dict[str, Any]]:
         current = latest.get(pair_key)
         if current is None or _is_newer_event(row, current):
             latest[pair_key] = row
-    return [latest[key] for key in sorted(latest)]
+    return [
+        latest[key]
+        for key in sorted(latest)
+        if latest[key].get("verdict") in {"same", "different"}
+    ]
 
 
 def build_review_state() -> dict[str, Any]:
@@ -538,6 +590,8 @@ def build_review_state() -> dict[str, Any]:
             "group_id_a": row["group_id_a"],
             "group_id_b": row["group_id_b"],
             "verdict": row["verdict"],
+            "voter_key": row.get("voter_key", ""),
+            "user_agent": row.get("user_agent", ""),
             "received_at": row.get("received_at"),
         }
         for row in merge_rows
@@ -550,6 +604,76 @@ def build_review_state() -> dict[str, Any]:
         "groupRoots": group_roots,
         "mergeDecisions": merge_decisions,
     }
+
+
+def _group_review_vote_identity(record: dict[str, Any]) -> str:
+    voter_key = _normalize_id(record.get("voter_key"))
+    if voter_key:
+        return voter_key
+    record_id = _normalize_id(record.get("id"))
+    if record_id:
+        return f"legacy:{record_id}"
+    return f"legacy:{int(record.get('_seq') or 0)}"
+
+
+def build_group_review_vote_state(current_voter_key: str = "") -> list[dict[str, Any]]:
+    known_group_ids = build_known_group_ids()
+    if not known_group_ids:
+        return []
+
+    latest_by_group_voter: dict[str, dict[str, Any]] = {}
+    for row in _load_group_review_vote_records():
+        group_id = _normalize_id(row.get("group_id"))
+        if group_id not in known_group_ids:
+            continue
+        key = f"{group_id}::{_group_review_vote_identity(row)}"
+        current = latest_by_group_voter.get(key)
+        if current is None or _is_newer_event(row, current):
+            latest_by_group_voter[key] = row
+
+    active_by_group: dict[str, list[dict[str, Any]]] = {}
+    for row in latest_by_group_voter.values():
+        if _normalize_id(row.get("verdict")).lower() != "ok":
+            continue
+        active_by_group.setdefault(row["group_id"], []).append(row)
+
+    items: list[dict[str, Any]] = []
+    for group_id in sorted(active_by_group):
+        votes = active_by_group[group_id]
+        current_user_vote = next(
+            (
+                row
+                for row in votes
+                if current_voter_key and _normalize_id(row.get("voter_key")) == current_voter_key
+            ),
+            None,
+        )
+        last_vote_at = max(
+            (
+                row.get("received_at") or row.get("created_at") or ""
+                for row in votes
+            ),
+            key=_parse_event_time,
+            default="",
+        )
+        ok_votes = len(votes)
+        items.append(
+            {
+                "group_id": group_id,
+                "ok_votes": ok_votes,
+                "required_ok_votes": 2,
+                "done": ok_votes >= 2,
+                "current_user_voted": bool(current_user_vote),
+                "current_user_vote_at": (
+                    current_user_vote.get("received_at")
+                    or current_user_vote.get("created_at")
+                    if current_user_vote
+                    else None
+                ),
+                "last_vote_at": last_vote_at or None,
+            }
+        )
+    return items
 
 
 def is_valid_email(email: str) -> bool:
@@ -1157,8 +1281,10 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
 
     requested_group_id = (payload.group_id or "").strip()
     xid_group_cache = build_xid_group_cache()
+    if not xid_group_cache:
+        raise HTTPException(status_code=500, detail="Chybí metadata skupin")
     mapped_group_id = xid_group_cache.get(payload.xid, "")
-    if xid_group_cache and not mapped_group_id:
+    if not mapped_group_id:
         raise HTTPException(status_code=400, detail="Neznámé xid")
     if mapped_group_id and requested_group_id and requested_group_id != mapped_group_id:
         raise HTTPException(status_code=400, detail="Neplatná skupina pro xid")
@@ -1207,6 +1333,12 @@ def get_merges() -> JSONResponse:
     return JSONResponse({"items": items, "count": len(items)})
 
 
+@app.get("/api/group-review-votes")
+def get_group_review_votes(request: Request) -> JSONResponse:
+    items = build_group_review_vote_state(_build_voter_key(request))
+    return JSONResponse({"items": items, "count": len(items)})
+
+
 @app.post("/api/merges")
 def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
     group_id_a = payload.group_id_a.strip()
@@ -1217,8 +1349,14 @@ def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
     verdict = (payload.verdict or "").strip().lower()
     if not verdict:
         verdict = "same"
-    if verdict not in {"same", "different"}:
+    if verdict not in {"same", "different", "undo"}:
         raise HTTPException(status_code=400, detail="Neplatný typ rozhodnutí")
+
+    known_group_ids = build_known_group_ids()
+    if not known_group_ids:
+        raise HTTPException(status_code=500, detail="Chybí metadata skupin")
+    if group_id_a not in known_group_ids or group_id_b not in known_group_ids:
+        raise HTTPException(status_code=400, detail="Neznámá skupina")
 
     if not is_turnstile_bypass():
         if payload.token:
@@ -1236,6 +1374,7 @@ def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
         "group_id_a": group_id_a,
         "group_id_b": group_id_b,
         "verdict": verdict,
+        "voter_key": _build_voter_key(request),
         "user_agent": request.headers.get("user-agent", ""),
         "received_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -1243,6 +1382,49 @@ def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with _feedback_lock:
         with MERGES_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False))
+            handle.write("\n")
+
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/group-review-votes")
+def submit_group_review_vote(
+    payload: GroupReviewVotePayload, request: Request
+) -> JSONResponse:
+    group_id = payload.group_id.strip()
+    verdict = (payload.verdict or "").strip().lower()
+    if not verdict:
+        verdict = "ok"
+    if verdict not in {"ok", "undo"}:
+        raise HTTPException(status_code=400, detail="Neplatný typ rozhodnutí")
+
+    known_group_ids = build_known_group_ids()
+    if not known_group_ids:
+        raise HTTPException(status_code=500, detail="Chybí metadata skupin")
+    if group_id not in known_group_ids:
+        raise HTTPException(status_code=400, detail="Neznámá skupina")
+
+    if not is_turnstile_bypass():
+        if payload.token:
+            verify_turnstile(
+                payload.token, request.client.host if request.client else None
+            )
+        elif not _has_valid_session(request):
+            raise HTTPException(status_code=400, detail="Turnstile je povinný")
+
+    record = {
+        "id": f"group_vote_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
+        "group_id": group_id,
+        "verdict": verdict,
+        "voter_key": _build_voter_key(request),
+        "user_agent": request.headers.get("user-agent", ""),
+        "received_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with _feedback_lock:
+        with GROUP_REVIEW_VOTES_PATH.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, ensure_ascii=False))
             handle.write("\n")
 
@@ -1323,20 +1505,41 @@ def _location_conflict_groups(
 
 
 def _merge_conflict_pairs(merge_rows: list[dict[str, Any]]) -> set[str]:
-    verdicts: dict[str, set[str]] = {}
+    events_by_pair: dict[str, list[dict[str, Any]]] = {}
     for row in merge_rows:
         group_id_a = _normalize_id(row.get("group_id_a"))
         group_id_b = _normalize_id(row.get("group_id_b"))
         verdict = _normalize_id(row.get("verdict")).lower()
         if not group_id_a or not group_id_b or group_id_a == group_id_b:
             continue
-        if verdict not in {"same", "different"}:
+        if verdict not in {"same", "different", "undo"}:
             continue
         if group_id_a > group_id_b:
             group_id_a, group_id_b = group_id_b, group_id_a
         key = f"{group_id_a}::{group_id_b}"
-        verdicts.setdefault(key, set()).add(verdict)
-    return {key for key, values in verdicts.items() if {"same", "different"} <= values}
+        events_by_pair.setdefault(key, []).append(
+            {
+                **row,
+                "group_id_a": group_id_a,
+                "group_id_b": group_id_b,
+                "verdict": verdict,
+            }
+        )
+
+    conflicts: set[str] = set()
+    for key, events in events_by_pair.items():
+        events.sort(key=_event_order_key)
+        active_verdicts: set[str] = set()
+        for event in events:
+            verdict = _normalize_id(event.get("verdict")).lower()
+            if verdict == "undo":
+                active_verdicts.clear()
+                continue
+            active_verdicts.add(verdict)
+        if {"same", "different"} <= active_verdicts:
+            conflicts.add(key)
+
+    return conflicts
 
 
 @app.get("/api/admin/review")
@@ -1385,6 +1588,8 @@ def get_admin_review() -> JSONResponse:
                 "group_id_a": group_id_a,
                 "group_id_b": group_id_b,
                 "verdict": _normalize_id(row.get("verdict")).lower(),
+                "voter_key": _normalize_id(row.get("voter_key")),
+                "user_agent": _normalize_id(row.get("user_agent")),
                 "received_at": row.get("received_at") or row.get("created_at"),
                 "merge_conflict": key in merge_conflicts,
             }
@@ -1456,6 +1661,7 @@ def get_admin_export(request: Request) -> Response:
 
     correction_rows = _load_correction_records()
     merge_rows = _load_merge_records()
+    group_review_vote_rows = _load_group_review_vote_records()
     review_state = build_review_state()
 
     def include_since(row: dict[str, Any]) -> bool:
@@ -1476,6 +1682,12 @@ def get_admin_export(request: Request) -> Response:
         reverse=True,
     )[:limit]
 
+    filtered_group_review_votes = sorted(
+        [row for row in group_review_vote_rows if include_since(row)],
+        key=lambda row: _parse_event_time(row.get("received_at") or row.get("created_at")),
+        reverse=True,
+    )[:limit]
+
     if format_value == "json":
         return JSONResponse(
             {
@@ -1484,6 +1696,7 @@ def get_admin_export(request: Request) -> Response:
                 "limit": limit,
                 "corrections": filtered_corrections,
                 "merges": filtered_merges,
+                "groupReviewVotes": filtered_group_review_votes,
                 "groupState": review_state.get("groupCorrections", []),
             }
         )
@@ -1507,6 +1720,7 @@ def get_admin_export(request: Request) -> Response:
         "message",
         "email",
         "voter_key",
+        "user_agent",
         "created_at",
     ]
 
@@ -1532,6 +1746,7 @@ def get_admin_export(request: Request) -> Response:
                 "message": row.get("message"),
                 "email": row.get("email"),
                 "voter_key": row.get("voter_key"),
+                "user_agent": row.get("user_agent"),
                 "created_at": row.get("received_at"),
             }
         )
@@ -1555,7 +1770,33 @@ def get_admin_export(request: Request) -> Response:
                 "lon": "",
                 "message": "",
                 "email": "",
-                "voter_key": "",
+                "voter_key": row.get("voter_key"),
+                "user_agent": row.get("user_agent"),
+                "created_at": row.get("received_at"),
+            }
+        )
+    for row in filtered_group_review_votes:
+        export_rows.append(
+            {
+                "record_type": "group_review_vote",
+                "id": row.get("id"),
+                "xid": "",
+                "group_id": row.get("group_id"),
+                "group_id_a": "",
+                "group_id_b": "",
+                "verdict": row.get("verdict"),
+                "correction_state": "",
+                "anchor_type": "",
+                "ok_votes": "",
+                "required_ok_votes": "",
+                "done": "",
+                "has_coordinates": "",
+                "lat": "",
+                "lon": "",
+                "message": "",
+                "email": "",
+                "voter_key": row.get("voter_key"),
+                "user_agent": row.get("user_agent"),
                 "created_at": row.get("received_at"),
             }
         )
@@ -1580,6 +1821,7 @@ def get_admin_export(request: Request) -> Response:
                 "message": "",
                 "email": "",
                 "voter_key": "",
+                "user_agent": "",
                 "created_at": row.get("last_event_at"),
             }
         )

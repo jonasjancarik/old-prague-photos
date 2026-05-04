@@ -242,3 +242,66 @@ test("flag creates pending unresolved state while preserving last approved coord
   assert.equal(item.lat, 50.1);
   assert.equal(item.lon, 14.4);
 });
+
+test("merge same resolves group roots across xids", () => {
+  const state = buildReviewState({
+    correctionRows: [],
+    mergeRows: [
+      {
+        id: 1,
+        group_id_a: "G1",
+        group_id_b: "G2",
+        verdict: "same",
+        created_at: "2026-01-01 10:00:00",
+      },
+    ],
+    xidGroupMap: buildMap([
+      ["X1", "G1"],
+      ["X2", "G2"],
+    ]),
+  });
+
+  assert.equal(state.resolvedGroupByXid.X1, "G1");
+  assert.equal(state.resolvedGroupByXid.X2, "G1");
+  assert.equal(state.groupRoots.G2, "G1");
+  assert.deepEqual(state.mergeDecisions, [
+    {
+      group_id_a: "G1",
+      group_id_b: "G2",
+      verdict: "same",
+      voter_key: "",
+      user_agent: "",
+      received_at: "2026-01-01 10:00:00",
+    },
+  ]);
+});
+
+test("merge undo clears latest pair decision and keeps groups split", () => {
+  const state = buildReviewState({
+    correctionRows: [],
+    mergeRows: [
+      {
+        id: 1,
+        group_id_a: "G1",
+        group_id_b: "G2",
+        verdict: "same",
+        created_at: "2026-01-01 10:00:00",
+      },
+      {
+        id: 2,
+        group_id_a: "G1",
+        group_id_b: "G2",
+        verdict: "undo",
+        created_at: "2026-01-01 10:05:00",
+      },
+    ],
+    xidGroupMap: buildMap([
+      ["X1", "G1"],
+      ["X2", "G2"],
+    ]),
+  });
+
+  assert.equal(state.resolvedGroupByXid.X1, "G1");
+  assert.equal(state.resolvedGroupByXid.X2, "G2");
+  assert.deepEqual(state.mergeDecisions, []);
+});

@@ -10,6 +10,7 @@ const state = {
   remaining: [],
   history: [],
   currentPair: null,
+  lastSubmittedPair: null,
   similarityPairs: [],
   leftGroup: null,
   rightGroup: null,
@@ -27,6 +28,7 @@ const prevBtn = document.getElementById("prev-pair");
 const skipBtn = document.getElementById("skip-pair");
 const sameBtn = document.getElementById("mark-same");
 const differentBtn = document.getElementById("mark-different");
+const undoBtn = document.getElementById("undo-last");
 const statusEl = document.getElementById("review-status");
 const turnstileNote = document.getElementById("turnstile-note");
 const pairSourceEl = document.getElementById("pair-source");
@@ -76,8 +78,12 @@ function updateCounts() {
 
 function updateActionState() {
   const canSubmit = !!state.currentPair;
+  const canUndo = Boolean(
+    state.lastSubmittedPair?.group_id_a && state.lastSubmittedPair?.group_id_b,
+  );
   if (sameBtn) sameBtn.disabled = !canSubmit;
   if (differentBtn) differentBtn.disabled = !canSubmit;
+  if (undoBtn) undoBtn.disabled = !canUndo;
 }
 
 async function fetchJson(url) {
@@ -153,6 +159,7 @@ async function loadZoomifyInto(target, xid, scanIndex) {
     }
 
     const meta = await loadZoomifyMeta(xid, scanIndex);
+    if (target.lastKey !== key) return;
 
     if (!target.viewer) {
       target.viewer = window.OpenSeadragon({
@@ -168,8 +175,10 @@ async function loadZoomifyInto(target, xid, scanIndex) {
     if (!window.OldPragueZoomify?.createTileSource) {
       throw new Error("Chybí helper pro Zoomify");
     }
+    if (target.lastKey !== key) return;
     target.viewer.open(window.OldPragueZoomify.createTileSource(meta));
   } catch (error) {
+    if (target.lastKey !== key) return;
     console.warn("Zoom náhled selhal", error);
     target.wrapEl.classList.add("is-fallback");
   }
@@ -432,33 +441,59 @@ async function submitDecision(verdict) {
   };
 
   try {
-    const sendRequest = () =>
-      fetch("/api/merges", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify(payload),
-      });
-
-    const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
-    if (submitWithRetry) {
-      await submitWithRetry(sendRequest);
-    } else {
-      const response = await sendRequest();
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.detail || "Odeslání selhalo");
-      }
-    }
-
-    const reviewState = await fetchJson("/api/review-state?fresh=1").catch(() => ({}));
-    applyReviewStatePayload(reviewState);
-
+    await submitMergePayload(payload);
+    state.lastSubmittedPair = {
+      group_id_a: payload.group_id_a,
+      group_id_b: payload.group_id_b,
+    };
     setStatus("Uloženo.", "success");
-    updateActionState();
     rebuildPairs();
   } catch (error) {
     setStatus(error.message || "Odeslání selhalo", "error");
+  }
+}
+
+async function submitMergePayload(payload) {
+  const sendRequest = () =>
+    fetch("/api/merges", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(payload),
+    });
+
+  const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
+  if (submitWithRetry) {
+    await submitWithRetry(sendRequest);
+  } else {
+    const response = await sendRequest();
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || "Odeslání selhalo");
+    }
+  }
+
+  const reviewState = await fetchJson("/api/review-state?fresh=1");
+  applyReviewStatePayload(reviewState);
+}
+
+async function undoLastDecision() {
+  const pair = state.lastSubmittedPair;
+  if (!pair?.group_id_a || !pair?.group_id_b) return;
+
+  clearStatus();
+
+  try {
+    await submitMergePayload({
+      group_id_a: pair.group_id_a,
+      group_id_b: pair.group_id_b,
+      verdict: "undo",
+    });
+    state.lastSubmittedPair = null;
+    setStatus("Poslední hlas vrácen.", "success");
+    rebuildPairs();
+  } catch (error) {
+    setStatus(error.message || "Vrácení hlasu selhalo", "error");
   }
 }
 
@@ -499,6 +534,7 @@ if (prevBtn) prevBtn.addEventListener("click", () => pickPrev());
 if (sameBtn) sameBtn.addEventListener("click", () => submitDecision("same"));
 if (differentBtn)
   differentBtn.addEventListener("click", () => submitDecision("different"));
+if (undoBtn) undoBtn.addEventListener("click", () => undoLastDecision());
 
 bootstrap().catch((error) => {
   setStatus("Nepodařilo se načíst data.", "error");

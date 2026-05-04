@@ -4,8 +4,18 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from PIL import Image, ImageDraw
+
 import build_similarity
-from src.utils.similarity_core import HashResult, ScanInput, load_hash_cache
+from src.utils.similarity_core import (
+    HashResult,
+    ScanInput,
+    dhash,
+    edge_hash,
+    load_hash_cache,
+    visual_hash,
+)
+from src.utils.similarity_hashing import mounted_photo_crop
 from src.utils.similarity_images import (
     build_zoomify_candidates,
     build_zoomify_tile_urls,
@@ -279,8 +289,89 @@ class BuildSimilarityTests(unittest.TestCase):
             )
         self.assertEqual(sorted(cache.keys()), [("X1", 0)])
 
+    def test_load_hash_cache_respects_expected_algo(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "hashes.jsonl"
+            path.write_text(
+                "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "xid": "X1",
+                                "group_id": "G1",
+                                "hash": "00ff",
+                                "algo": "dhash",
+                                "hash_size": 8,
+                                "scan_index": 0,
+                                "hash_profile": "profile-v3",
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "xid": "X2",
+                                "group_id": "G2",
+                                "hash": "00aa",
+                                "algo": "dhash-edge-mountcrop",
+                                "hash_size": 8,
+                                "scan_index": 0,
+                                "hash_profile": "profile-v3",
+                            }
+                        ),
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            cache = load_hash_cache(
+                path,
+                force=False,
+                hash_size=8,
+                hash_profile="profile-v3",
+                expected_algo="dhash-edge-mountcrop",
+            )
+        self.assertEqual(sorted(cache.keys()), [("X2", 0)])
+
+    def test_visual_hash_combines_dhash_and_edge_hash(self) -> None:
+        image = Image.new("RGB", (64, 64), "white")
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((6, 6, 58, 58), outline="black", width=4)
+        draw.line((16, 48, 48, 16), fill="black", width=3)
+
+        hash_size = 8
+        component_bits = hash_size * hash_size
+        mask = (1 << component_bits) - 1
+        value = visual_hash(image, hash_size)
+
+        self.assertEqual(value >> component_bits, dhash(image, hash_size))
+        self.assertEqual(value & mask, edge_hash(image, hash_size))
+
+    def test_mounted_photo_crop_detects_inset_photo(self) -> None:
+        image = Image.new("RGB", (400, 300), (224, 204, 160))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((120, 80, 280, 190), fill=(120, 125, 110))
+        draw.line((130, 165, 270, 95), fill=(40, 40, 40), width=3)
+        draw.text((155, 212), "caption", fill=(80, 70, 50))
+
+        cropped, applied = mounted_photo_crop(image)
+
+        self.assertTrue(applied)
+        self.assertLess(cropped.size[0], image.size[0] * 0.7)
+        self.assertLess(cropped.size[1], image.size[1] * 0.7)
+
+    def test_mounted_photo_crop_leaves_full_frame_image(self) -> None:
+        image = Image.new("RGB", (300, 220), "white")
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((0, 0, 299, 219), outline="black", width=6)
+        draw.rectangle((8, 8, 292, 212), fill=(120, 120, 120))
+        draw.line((10, 190, 290, 20), fill=(30, 30, 30), width=4)
+        draw.line((20, 20, 270, 205), fill=(210, 210, 210), width=3)
+
+        cropped, applied = mounted_photo_crop(image)
+
+        self.assertFalse(applied)
+        self.assertEqual(cropped.size, image.size)
+
     def test_resolve_distances(self) -> None:
-        self.assertEqual(build_similarity.resolve_distances(None, None, None), (8, 10))
+        self.assertEqual(build_similarity.resolve_distances(None, None, None), (18, 32))
         self.assertEqual(build_similarity.resolve_distances(7, None, None), (7, 7))
         self.assertEqual(build_similarity.resolve_distances(7, 5, None), (5, 7))
         self.assertEqual(build_similarity.resolve_distances(7, 5, 6), (5, 6))

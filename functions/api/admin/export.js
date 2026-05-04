@@ -101,18 +101,50 @@ export async function onRequest({ request, env }) {
     `,
   );
 
-  const mergeRows = await queryRows(
+  let mergeRows = [];
+  try {
+    mergeRows = await queryRows(
+      env,
+      `
+        SELECT
+          id,
+          group_id_a,
+          group_id_b,
+          verdict,
+          voter_key,
+          user_agent,
+          created_at
+        FROM merge_decisions
+      `,
+    );
+  } catch (error) {
+    mergeRows = await queryRows(
+      env,
+      `
+        SELECT
+          id,
+          group_id_a,
+          group_id_b,
+          verdict,
+          created_at
+        FROM merge_decisions
+      `,
+    );
+  }
+
+  const groupReviewVoteRows = await queryRows(
     env,
     `
       SELECT
         id,
-        group_id_a,
-        group_id_b,
+        group_id,
         verdict,
+        voter_key,
+        user_agent,
         created_at
-      FROM merge_decisions
+      FROM group_review_votes
     `,
-  );
+  ).catch(() => []);
 
   const xidGroupMap = await loadXidGroupMap(request, env);
   const reviewState = buildReviewState({
@@ -129,6 +161,10 @@ export async function onRequest({ request, env }) {
     .sort((a, b) => parseEventTime(b.created_at) - parseEventTime(a.created_at))
     .slice(0, limit);
 
+  const filteredGroupReviewVotes = keepAfterSince(groupReviewVoteRows, sinceTs)
+    .sort((a, b) => parseEventTime(b.created_at) - parseEventTime(a.created_at))
+    .slice(0, limit);
+
   if (format === "json") {
     return jsonResponse({
       generatedAt: new Date().toISOString(),
@@ -136,6 +172,7 @@ export async function onRequest({ request, env }) {
       limit,
       corrections: filteredCorrections,
       merges: filteredMerges,
+      groupReviewVotes: filteredGroupReviewVotes,
       groupState: reviewState.groupCorrections,
     });
   }
@@ -161,6 +198,7 @@ export async function onRequest({ request, env }) {
       message: row.message || "",
       email: row.email || "",
       voter_key: row.voter_key || "",
+      user_agent: row.user_agent || "",
       created_at: row.created_at || "",
     });
   });
@@ -184,7 +222,33 @@ export async function onRequest({ request, env }) {
       lon: "",
       message: "",
       email: "",
-      voter_key: "",
+      voter_key: row.voter_key || "",
+      user_agent: row.user_agent || "",
+      created_at: row.created_at || "",
+    });
+  });
+
+  filteredGroupReviewVotes.forEach((row) => {
+    exportRows.push({
+      record_type: "group_review_vote",
+      id: row.id || "",
+      xid: "",
+      group_id: row.group_id || "",
+      group_id_a: "",
+      group_id_b: "",
+      verdict: row.verdict || "",
+      correction_state: "",
+      anchor_type: "",
+      ok_votes: "",
+      required_ok_votes: "",
+      done: "",
+      has_coordinates: "",
+      lat: "",
+      lon: "",
+      message: "",
+      email: "",
+      voter_key: row.voter_key || "",
+      user_agent: row.user_agent || "",
       created_at: row.created_at || "",
     });
   });
@@ -209,6 +273,7 @@ export async function onRequest({ request, env }) {
       message: "",
       email: "",
       voter_key: "",
+      user_agent: "",
       created_at: row.last_event_at || "",
     });
   });
@@ -232,6 +297,7 @@ export async function onRequest({ request, env }) {
     "message",
     "email",
     "voter_key",
+    "user_agent",
     "created_at",
   ];
 

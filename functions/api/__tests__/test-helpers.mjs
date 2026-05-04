@@ -23,6 +23,22 @@ export function makeRequest(
   });
 }
 
+export function makePhotosAsset(features = []) {
+  return {
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          type: "FeatureCollection",
+          features,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+  };
+}
+
 class FakeStatement {
   constructor(db, sql) {
     this.db = db;
@@ -54,6 +70,7 @@ export class FakeD1 {
     this.rateRows = new Map();
     this.corrections = [];
     this.merges = [];
+    this.groupReviewVotes = [];
   }
 
   prepare(sql) {
@@ -106,12 +123,27 @@ export class FakeD1 {
     }
 
     if (query.includes("insert into merge_decisions")) {
-      const [groupA, groupB, verdict] = args;
+      const [groupA, groupB, verdict, voterKey, userAgent] = args;
       this.merges.push({
         id: this.merges.length + 1,
         group_id_a: groupA,
         group_id_b: groupB,
         verdict,
+        voter_key: voterKey || "",
+        user_agent: userAgent || "",
+        created_at: "2026-01-01 00:00:00",
+      });
+      return;
+    }
+
+    if (query.includes("insert into group_review_votes")) {
+      const [groupId, verdict, voterKey, userAgent] = args;
+      this.groupReviewVotes.push({
+        id: this.groupReviewVotes.length + 1,
+        group_id: groupId,
+        verdict,
+        voter_key: voterKey || "",
+        user_agent: userAgent || "",
         created_at: "2026-01-01 00:00:00",
       });
     }
@@ -136,6 +168,9 @@ export class FakeD1 {
     }
     if (query.includes("from merge_decisions")) {
       return { results: this.merges.slice() };
+    }
+    if (query.includes("from group_review_votes")) {
+      return { results: this.groupReviewVotes.slice() };
     }
     return { results: [] };
   }

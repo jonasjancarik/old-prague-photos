@@ -1,0 +1,276 @@
+import{u as n,j as a,c as e}from"./useLegacyScripts-D2vOR0u_.js";const s=`  <div class="page">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Archivní prohlížeč</p>
+        <h1>Staré fotografie Prahy</h1>
+        <p class="subtitle">
+          Geolokalizované fotografie z archivu hlavního města Prahy. Toto není oficiální projekt hlavního města Prahy.
+        </p>
+        <div class="topbar-actions">
+          <button class="secondary" type="button" id="info-open">O co jde</button>
+          <a class="action-link" href="./pomoc.html">Chci pomoct</a>
+          <a class="action-link" href="./admin.html">Admin</a>
+        </div>
+      </div>
+      <div class="topbar-meta">
+        <div class="stat">
+          <span class="stat-label">Zmapované snímky</span>
+          <span class="stat-value" id="photo-count">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Zkontrolováno komunitou</span>
+          <span class="stat-value" id="verified-count">—</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="map-toolbar">
+        <div class="search-container">
+          <div class="search-input-row">
+            <input type="text" id="map-search" placeholder="Hledat v metadatech fotek..." aria-label="Hledat" />
+            <label class="search-mode-toggle" for="search-address-toggle">
+              <span class="toggle-switch">
+                <input type="checkbox" id="search-address-toggle" />
+                <span class="toggle-slider"></span>
+              </span>
+              <span>Hledat adresy</span>
+            </label>
+          </div>
+          <div id="search-results" class="search-results is-hidden"></div>
+        </div>
+        <div class="map-controls">
+          <div class="year-filter" aria-label="Filtr podle roku">
+            <span class="year-filter-label">Rok</span>
+            <div class="year-slider-wrap" id="year-slider-wrap">
+              <div class="year-slider-track"></div>
+              <input class="year-slider year-slider-min" type="range" id="year-min" min="0" max="0" step="1"
+                aria-label="Rok od" />
+              <input class="year-slider year-slider-max" type="range" id="year-max" min="0" max="0" step="1"
+                aria-label="Rok do" />
+            </div>
+            <div class="year-filter-values">
+              <output class="year-filter-value" id="year-min-value">—</output>
+              <span class="year-filter-sep">–</span>
+              <output class="year-filter-value" id="year-max-value">—</output>
+            </div>
+            <label class="year-filter-toggle">
+              <input type="checkbox" id="year-unknown-toggle" checked />
+              <span class="year-filter-toggle-text">
+                Bez datace <span id="year-unknown-count">—</span>
+              </span>
+            </label>
+            <label class="year-filter-toggle">
+              <input type="checkbox" id="year-imprecise-toggle" checked />
+              <span class="year-filter-toggle-text">
+                Nepřesná datace <span id="year-imprecise-count">—</span>
+              </span>
+            </label>
+          </div>
+          <div class="cluster-toggle-container">
+            <label class="toggle-switch">
+              <input type="checkbox" id="cluster-toggle" checked />
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">Seskupovat fotografie</span>
+          </div>
+        </div>
+      </div>
+      <section class="map-panel">
+        <div id="map" aria-label="Mapa s polohami fotografií"></div>
+        <div class="map-overlay">
+          <div class="chip">Klikněte na bod pro fotografii</div>
+        </div>
+      </section>
+
+      <section class="card photo-grid-section" aria-label="Galerie fotografií">
+        <div class="photo-grid-head">
+          <p class="eyebrow">Galerie ve výřezu mapy</p>
+          <p class="helper photo-grid-count" id="photo-grid-count">—</p>
+        </div>
+        <div class="photo-grid" id="photo-grid"></div>
+        <p class="helper photo-grid-empty is-hidden" id="photo-grid-empty">
+          V aktuálním výřezu mapy nejsou dostupné žádné fotografie.
+        </p>
+        <div class="photo-grid-actions">
+          <button class="secondary" type="button" id="photo-grid-load-more">
+            Načíst další
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Info Modal -->
+  <div class="modal" id="info-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-info-close></div>
+    <div class="modal-dialog info-dialog" role="dialog" aria-modal="true" aria-label="O projektu">
+      <div class="modal-header">
+        <div>
+          <p class="modal-eyebrow">Informace</p>
+          <h2 class="modal-title">Jak to funguje</h2>
+        </div>
+        <button class="modal-close" type="button" data-info-close>
+          Zavřít
+        </button>
+      </div>
+      <div class="modal-body info-body">
+        <div class="card info-card">
+          <p class="how-lead">
+            Z archivu jsme nasbírali cca 10&nbsp;000 záznamů. Část jde geokódovat rovnou (adresa / č.p.) přes Mapy.cz.
+            Zbytek nejdřív projde LLM, které z popisu vytáhne kandidátní místa.
+          </p>
+          <ul class="how-list">
+            <li><strong>Výsledek:</strong> dataset s GPS souřadnicemi pro mapu.</li>
+            <li><strong>Opravy:</strong> změny se projeví hned jako čekající na potvrzení komunitou.</li>
+            <li><strong>Cíl:</strong> Vytvořit co nejpřesnější mapu historických fotografií Prahy.</li>
+          </ul>
+          <div class="info-footer">
+            <p>Tento projekt je komunitní a open-source. Data pocházejí z Archivu hlavního města Prahy.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal" id="archive-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-modal-close></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-label="Archivní záznam">
+      <div class="modal-header">
+        <div>
+          <!-- <p class="modal-eyebrow">Archivní záznam</p>
+            <h2 class="modal-title">Náhled stránky</h2> -->
+        </div>
+        <button class="modal-close" type="button" data-modal-close>
+          Zavřít
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-frame">
+          <div class="modal-main">
+            <div class="zoom-wrap zoom-wrap-preview-fallback">
+              <div id="zoom-viewer" class="zoom-viewer" aria-label="Náhled fotografie"></div>
+              <img id="archive-preview" class="zoom-preview" alt="Náhled fotografie" loading="lazy" />
+              <div
+                id="archive-unavailable"
+                class="zoom-unavailable"
+                role="status"
+                aria-live="polite"
+              ></div>
+              <iframe id="archive-iframe" title="Archivní záznam" loading="lazy" referrerpolicy="no-referrer"></iframe>
+            </div>
+
+            <aside class="modal-sidebar" id="modal-sidebar" aria-label="Detaily a opravy">
+              <!-- Meta view -->
+              <div class="modal-meta" id="modal-meta-view">
+                <div class="modal-meta-head">
+                  <p class="modal-meta-eyebrow">Detaily</p>
+                  <h3 class="modal-meta-title">Informace o fotografii</h3>
+                </div>
+                <div id="photo-details" class="detail-list"></div>
+                <div class="photo-minimap is-hidden" id="photo-minimap-wrap">
+                  <p class="detail-label">Poloha na mapě</p>
+                  <div id="photo-minimap" aria-label="Mini mapa polohy fotografie"></div>
+                </div>
+
+                <div class="report-cta-container">
+                  <div class="consensus-banner is-hidden" id="consensus-banner">
+                    <p class="helper consensus-text" id="consensus-text"></p>
+                    <div class="consensus-actions">
+                      <button class="secondary" type="button" id="confirm-cta">
+                        Sedí, potvrdit
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="report-cta" id="report-cta-container">
+                    <div class="report-meta">
+                      <p class="report-eyebrow">Zpětná vazba</p>
+                      <h2 class="report-title">Netrefili jsme to?</h2>
+                      <p class="report-subtitle">
+                        Je fotografie špatně umístěna?
+                      </p>
+                    </div>
+                    <div class="report-actions">
+                      <button class="primary report-button" type="button" id="report-cta">
+                        Opravit polohu
+                      </button>
+                      <button class="secondary report-button report-flag-button" type="button" id="report-flag">
+                        Nevím kde přesně
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Correction view -->
+              <div class="modal-correction is-hidden" id="modal-correction-view">
+                <div class="modal-meta-head">
+                  <p class="modal-meta-eyebrow">Oprava polohy</p>
+                  <h3 class="modal-meta-title">Zadejte správné místo</h3>
+                  <p class="helper scope-hint is-hidden" id="correction-scope-hint"></p>
+                </div>
+
+                <form id="feedback-form" class="is-open"> <!-- form stays open in its container -->
+                  <input type="hidden" name="issue" value="wrong_location" />
+                  <input type="hidden" name="correction_lat" />
+                  <input type="hidden" name="correction_lon" />
+
+                  <div class="correction-picker">
+                    <p class="helper">Přetáhněte špendlík na mapě na správné místo.</p>
+                    <div id="correction-map" aria-label="Mapa pro opravu polohy"></div>
+                  </div>
+
+                  <label class="field">
+                    <span>Upřesnění (volitelné)</span>
+                    <textarea name="message" rows="2" placeholder="Např. patro, směr focení..."></textarea>
+                  </label>
+
+                  <label class="field">
+                    <span>E-mail (volitelné)</span>
+                    <input name="email" type="email" placeholder="vy@priklad.cz" />
+                  </label>
+
+                  <div class="turnstile-wrap">
+                    <p class="helper" id="turnstile-note"></p>
+                  </div>
+
+                  <div class="form-actions">
+                    <button type="submit" class="primary" disabled>
+                      Uložit polohu
+                    </button>
+                    <button type="button" class="secondary" id="cancel-correction">
+                      Zrušit
+                    </button>
+                  </div>
+                  <p class="form-status" id="form-status"></p>
+                </form>
+              </div>
+            </aside>
+          </div>
+          <div class="modal-footer">
+            <div class="modal-nearby-nav">
+              <button class="secondary modal-nearby-btn" type="button" id="nearby-prev">
+                Předchozí v okolí
+              </button>
+              <span class="helper modal-nearby-state" id="nearby-state">—</span>
+              <button class="secondary modal-nearby-btn" type="button" id="nearby-next">
+                Další v okolí
+              </button>
+            </div>
+            <div class="modal-footer-right">
+              <div class="modal-footer-actions">
+                <button class="secondary" type="button" id="download-fullres" disabled>
+                  Stáhnout plné rozlišení
+                </button>
+                <a id="archive-fallback" href="#" target="_blank" rel="noopener">
+                  Otevřít v archivu
+                </a>
+              </div>
+              <p class="helper modal-download-status" id="download-fullres-status"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+`,o=["https://unpkg.com/leaflet@1.9.4/dist/leaflet.js","https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js","https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./app.js"];function i(){return n(o),a.jsx("div",{dangerouslySetInnerHTML:{__html:s}})}e(document.getElementById("root")).render(a.jsx(i,{}));

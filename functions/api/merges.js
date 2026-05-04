@@ -1,10 +1,12 @@
 import {
   assertSameOrigin,
+  buildVoterKey,
   enforceRateLimit,
   hasValidSession,
   toHttpError,
   verifyTurnstileToken,
 } from "./_security.js";
+import { loadXidGroupMap } from "./_review_state.js";
 
 function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
@@ -18,22 +20,47 @@ function jsonResponse(payload, status = 200, headers = {}) {
 }
 
 async function handleGet(env) {
-  const query = `
-    WITH latest AS (
-      SELECT group_id_a, group_id_b, MAX(id) AS any_id
-      FROM merge_decisions
-      GROUP BY group_id_a, group_id_b
-    )
-    SELECT
-      m.group_id_a,
-      m.group_id_b,
-      m.verdict,
-      m.created_at AS received_at
-    FROM latest l
-    JOIN merge_decisions m ON m.id = l.any_id
-  `;
+  let result;
+  try {
+    result = await env.CORRECTIONS_DB.prepare(
+      `
+        WITH latest AS (
+          SELECT group_id_a, group_id_b, MAX(id) AS any_id
+          FROM merge_decisions
+          GROUP BY group_id_a, group_id_b
+        )
+        SELECT
+          m.group_id_a,
+          m.group_id_b,
+          m.verdict,
+          m.voter_key,
+          m.user_agent,
+          m.created_at AS received_at
+        FROM latest l
+        JOIN merge_decisions m ON m.id = l.any_id
+        WHERE m.verdict IN ('same', 'different')
+      `,
+    ).all();
+  } catch (error) {
+    result = await env.CORRECTIONS_DB.prepare(
+      `
+        WITH latest AS (
+          SELECT group_id_a, group_id_b, MAX(id) AS any_id
+          FROM merge_decisions
+          GROUP BY group_id_a, group_id_b
+        )
+        SELECT
+          m.group_id_a,
+          m.group_id_b,
+          m.verdict,
+          m.created_at AS received_at
+        FROM latest l
+        JOIN merge_decisions m ON m.id = l.any_id
+        WHERE m.verdict IN ('same', 'different')
+      `,
+    ).all();
+  }
 
-  const result = await env.CORRECTIONS_DB.prepare(query).all();
   const items = result?.results || [];
   return jsonResponse({ items, count: items.length });
 }
@@ -69,8 +96,17 @@ async function handlePost(request, env) {
 
   let verdict = String(body?.verdict || "").trim().toLowerCase();
   if (!verdict) verdict = "same";
-  if (!["same", "different"].includes(verdict)) {
+  if (!["same", "different", "undo"].includes(verdict)) {
     return jsonResponse({ detail: "Neplatný typ rozhodnutí" }, 400);
+  }
+
+  const xidGroupMap = await loadXidGroupMap(request, env);
+  if (xidGroupMap.size === 0) {
+    return jsonResponse({ detail: "Chybí metadata skupin" }, 500);
+  }
+  const knownGroupIds = new Set(xidGroupMap.values());
+  if (!knownGroupIds.has(groupIdA) || !knownGroupIds.has(groupIdB)) {
+    return jsonResponse({ detail: "Neznámá skupina" }, 400);
   }
 
   const hasSession = await hasValidSession(request, env);
@@ -96,18 +132,38 @@ async function handlePost(request, env) {
     [groupIdA, groupIdB] = [groupIdB, groupIdA];
   }
 
-  const statement = env.CORRECTIONS_DB.prepare(
-    `
-      INSERT INTO merge_decisions (
-        group_id_a,
-        group_id_b,
-        verdict
-      )
-      VALUES (?, ?, ?)
-    `,
-  ).bind(groupIdA, groupIdB, verdict);
+  const voterKey = await buildVoterKey(request, env);
+  const userAgent = request.headers.get("User-Agent") || "";
 
-  await statement.run();
+  try {
+    await env.CORRECTIONS_DB.prepare(
+      `
+        INSERT INTO merge_decisions (
+          group_id_a,
+          group_id_b,
+          verdict,
+          voter_key,
+          user_agent
+        )
+        VALUES (?, ?, ?, ?, ?)
+      `,
+    )
+      .bind(groupIdA, groupIdB, verdict, voterKey, userAgent)
+      .run();
+  } catch (error) {
+    await env.CORRECTIONS_DB.prepare(
+      `
+        INSERT INTO merge_decisions (
+          group_id_a,
+          group_id_b,
+          verdict
+        )
+        VALUES (?, ?, ?)
+      `,
+    )
+      .bind(groupIdA, groupIdB, verdict)
+      .run();
+  }
 
   return jsonResponse({ ok: true });
 }

@@ -1333,10 +1333,6 @@ textarea {
 }
 
 .help-mode {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
-  align-items: start;
   margin-bottom: 18px;
 }
 
@@ -1348,32 +1344,61 @@ textarea {
   max-width: 56ch;
 }
 
-.help-mode-actions {
-  display: flex;
+.help-mode-guide {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  flex-wrap: wrap;
-  justify-self: end;
-  align-self: center;
+  max-width: 760px;
 }
 
-.help-mode-actions .primary,
-.help-mode-actions .secondary {
-  width: auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.help-mode-card {
+  display: block;
+  min-height: 100%;
+  padding: 12px 13px;
+  border: 1px solid rgba(31, 30, 28, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.52);
+  color: inherit;
   text-decoration: none;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
 
-.help-mode-actions .primary[aria-current="page"] {
-  cursor: default;
-  box-shadow: none;
-  transform: none;
+.help-mode-card:hover,
+.help-mode-card:focus-visible {
+  border-color: rgba(43, 110, 120, 0.34);
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 10px 24px rgba(31, 30, 28, 0.08);
+  text-decoration: none;
+  transform: translateY(-1px);
 }
 
-.help-mode-actions .primary[aria-current="page"]:hover {
-  transform: none;
-  box-shadow: none;
+.help-mode-card:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 3px;
+}
+
+.help-mode-card.is-current {
+  border-color: rgba(195, 77, 47, 0.42);
+  background: rgba(195, 77, 47, 0.1);
+}
+
+.help-mode-guide strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.84rem;
+  color: var(--ink);
+}
+
+.help-mode-guide span {
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.38;
+  color: var(--ink-soft);
 }
 
 .help-grid {
@@ -1681,6 +1706,80 @@ textarea {
   margin-bottom: 16px;
 }
 
+.workflow-help {
+  margin: 0 0 16px;
+  border: 1px solid rgba(31, 30, 28, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  overflow: hidden;
+}
+
+.workflow-help summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+}
+
+.workflow-help summary::-webkit-details-marker {
+  display: none;
+}
+
+.workflow-help summary::after {
+  content: "+";
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(31, 30, 28, 0.14);
+  color: var(--accent-2);
+  background: rgba(43, 110, 120, 0.1);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.workflow-help[open] summary::after {
+  content: "−";
+}
+
+.workflow-help-body {
+  border-top: 1px solid rgba(31, 30, 28, 0.1);
+  padding: 12px 14px 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workflow-help-item {
+  min-width: 0;
+}
+
+.workflow-help-item strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.86rem;
+  color: var(--ink);
+}
+
+.workflow-help-item span {
+  display: block;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.workflow-helper-note {
+  margin: -4px 0 14px;
+  text-align: center;
+}
+
 .group-actions {
   margin-bottom: 16px;
   padding: 14px;
@@ -1732,13 +1831,9 @@ textarea {
 }
 
 @media (max-width: 980px) {
-  .help-mode {
+  .help-mode-guide,
+  .workflow-help-body {
     grid-template-columns: 1fr;
-    align-items: flex-start;
-  }
-
-  .help-mode-actions {
-    justify-self: start;
   }
 
   .help-grid {

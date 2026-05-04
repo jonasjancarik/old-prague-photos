@@ -1,3166 +1,918 @@
 {
-  "generated_at": "2026-02-15T21:43:36Z",
-  "distance": 8,
-  "pair_distance": 8,
+  "generated_at": "2026-05-03T21:26:40Z",
+  "distance": 18,
+  "pair_distance": 18,
   "hash_size": 8,
-  "algo": "dhash",
+  "algo": "dhash-edge-mountcrop",
   "pairs": [
+    {
+      "group_id_a": "22066f6022e4ff3dab4e57f4e5374145281d7201",
+      "group_id_b": "c9768d9c674c8a4cb927ef39f82421105c33fbbb",
+      "distance": 0,
+      "xid_a": "A14CDA89B67611DF820F00166F1163D4",
+      "xid_b": "70B0EA55D12B11E89EBD74D435EEBE90",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "Both images show the same courtyard photograph with identical arched gallery geometry, matching balcony railings and vines, the same open windows, ladders and a",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
     {
       "group_id_a": "31d9248c7267b6e9ca264052b042d9ad34291094",
       "group_id_b": "7dff974a28b9db668451e9433251f2ea962219ba",
       "distance": 0,
       "xid_a": "A0C4FE2FB67611DF820F00166F1163D4",
-      "xid_b": "A0C4FD83B67611DF820F00166F1163D4"
+      "xid_b": "A0C4FD83B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "The same street corner composition aligns exactly: the tram and its passengers occupy the same positions, the second tram at left is in the same spot, the cobbl",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "54de58aacedb6b77259a5c9feebb6079f54f9336",
-      "group_id_b": "7838a8fcc39e9f19ecd38ebd75438768644a350e",
-      "distance": 1,
-      "xid_a": "A118896AB67611DF820F00166F1163D4",
-      "xid_b": "A0C4F7B6B67611DF820F00166F1163D4"
+      "group_id_a": "9af399a385fb5f7834bf37676fb6d3cd27422931",
+      "group_id_b": "b4d3fd01970f4189c1d7531b101fd89c64c42273",
+      "distance": 0,
+      "xid_a": "A14CDD3AB67611DF820F00166F1163D4",
+      "xid_b": "A1187348B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "Both images show the same ornate baroque portal with identical carved coat of arms, matching paired statues, identical arched double wooden door pattern, same t",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "0f4c22315af9af51c9d932b4b9b63722d3702df6",
-      "group_id_b": "d3985560a2e2397973b6a17d52e71a99c21c4a2d",
+      "group_id_a": "680d44e95b2ec9ac887dbad9ec6539e93dda2ad7",
+      "group_id_b": "d685dc279a906c4c6916b12ef807a2b9e823424f",
       "distance": 2,
-      "xid_a": "29E217FDD37311E8AE88406186009F3A",
-      "xid_b": "79D9FA0DD3A611E8AE88406186009F3A"
+      "xid_a": "7FD1CDD6D64F11E18B876C626D41E503",
+      "xid_b": "A0C503EFB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "The photographed content aligns throughout: the same tank at the same angle on the tram tracks, identical positions of people on and around it, the same arched/",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "5945cd77a9b2f5979fe28991e5763ec390d6e3da",
-      "group_id_b": "fdd0a607607dc9f73c62db4349cbdd346679e350",
-      "distance": 2,
-      "xid_a": "9C971FE123C611E4BF24406186009F3A",
-      "xid_b": "3E12D5C47A2911E49FAD0024BE7CD9AC"
-    },
-    {
-      "group_id_a": "089727acec28077b3db5081e70a29d2ea554e258",
-      "group_id_b": "bfae49942c7c41d5616407cc25d0f95591e2bc43",
+      "group_id_a": "72f8f8877c8e39f54616200831407706279b4749",
+      "group_id_b": "cba3bdebb46b51cc0571c9fd684d2b0108131679",
       "distance": 3,
-      "xid_a": "A0C501C4B67611DF820F00166F1163D4",
-      "xid_b": "A0C4FCA7B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "0c40df073568f58ca2c31c31dd4bdf4cfa33d8b1",
-      "group_id_b": "129211e6ab69b5796e19f74072aed61fbcbcfce5",
-      "distance": 3,
-      "xid_a": "59F6088EC47411E78A03D4BED94BB14D",
-      "xid_b": "179CC4FB3F3311E4B4E9406186009F3A"
-    },
-    {
-      "group_id_a": "2363ca5e802b8703d4fd687982d3fa99396676ae",
-      "group_id_b": "c9bd17eec79e4f3bc8f554b8de61b0c711842b1b",
-      "distance": 3,
-      "xid_a": "87F5FB64D39411E8A2B874D435EEBE90",
-      "xid_b": "3D28CFA2D37A11E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "3c1b6e11d8b8ba62247d5a732f7a1cc0a1652b71",
-      "group_id_b": "c0a3191a475af2b1339ed545359aac8b76d2262f",
-      "distance": 3,
-      "xid_a": "06117A015B1811E7A808406186009F3A",
-      "xid_b": "A118810FB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "5c8b83bcfbffde9059f2be85ebd01e1bb3641e37",
-      "distance": 3,
-      "xid_a": "B8EE346E95FA11E2BF2A525400E46D25",
-      "xid_b": "A118852AB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "7cb1608163d5b096961bc25772ad4a74caa2f4a7",
-      "distance": 3,
-      "xid_a": "B8EE346E95FA11E2BF2A525400E46D25",
-      "xid_b": "3B0C8A90E71111E3AC530024D626C8BC"
-    },
-    {
-      "group_id_a": "a91f5168b4137be10e9ed5afdc42aa9cafdf8c20",
-      "group_id_b": "e9d3343fbe6ec954c8a2e700d3b3f652932d23bd",
-      "distance": 3,
-      "xid_a": "c27e8edc11da47dcaaf4203f27c3c267",
-      "xid_b": "A854384FB83F11E5AA08D4BED94BB14D"
-    },
-    {
-      "group_id_a": "abcde7850ec1968df1b8413361293be0c13746b0",
-      "group_id_b": "c9bd17eec79e4f3bc8f554b8de61b0c711842b1b",
-      "distance": 3,
-      "xid_a": "20CF3B62D37911E8A2B874D435EEBE90",
-      "xid_b": "3D28CFA2D37A11E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "00a4bd0cded222f510f485940bb6378608e9c3e2",
-      "group_id_b": "2d5527ae8b63544951e52d0a89bdf7f75149ae6f",
-      "distance": 4,
-      "xid_a": "A14CE782B67611DF820F00166F1163D4",
-      "xid_b": "A11888CFB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "distance": 4,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "B8EE346E95FA11E2BF2A525400E46D25"
-    },
-    {
-      "group_id_a": "27d8895541aac9aa817e000ce97d67137da65ce0",
-      "group_id_b": "4aada6e27fffb9de3e0a5d38411c3b54ca93ab30",
-      "distance": 4,
-      "xid_a": "4710AEA76D7B11E88D0474D435EEBE90",
-      "xid_b": "157A73C16D6F11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "30425cdff958f835726ab7c053c16e08a2011e55",
-      "group_id_b": "5f0a7b930bc9a7793788f8090636471d61fff723",
-      "distance": 4,
-      "xid_a": "A0C509F8B67611DF820F00166F1163D4",
-      "xid_b": "A1188B5BB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "34a3505cae1e5a4045555da8771a9587a9ea422c",
-      "group_id_b": "b37cff41a7172c07036ed150c00e49cc7ac3ae62",
-      "distance": 4,
-      "xid_a": "9C14DB7F474011E180176C626D41E503",
-      "xid_b": "D98786FF473C11E180176C626D41E503"
-    },
-    {
-      "group_id_a": "3833f2688f500fa6dc9f6d2eaaaf719a3370dbf5",
-      "group_id_b": "bf70a40a4a7fee039d7b19bab3b37cd944fb8055",
-      "distance": 4,
-      "xid_a": "13FCC3AB85AB11E2BF1F525400E46D25",
-      "xid_b": "97E931E185AB11E2BF1F525400E46D25"
-    },
-    {
-      "group_id_a": "455c038b704c730b0c54c7f56c6adfcdfd66ee0f",
-      "group_id_b": "b2da79da6eef622614c7d5b51d82e6ab0f65a685",
-      "distance": 4,
-      "xid_a": "2b44d44bc4d24c41ab282f26be48e948",
-      "xid_b": "4157A6AB21E311E2A1E8406186009F3A"
+      "xid_a": "A1186DA7B67611DF820F00166F1163D4",
+      "xid_b": "A1188C74B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The same architectural elevation drawing is visible in both: identical mansard roof and triangular pediment, matching central arched doorway with balcony above,",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
       "group_id_a": "461f53f5599b7a038bc90bffab358fb1635a7609",
       "group_id_b": "728e44c0aa47b5c4c0cffeab159584e2d6ca9c68",
       "distance": 4,
       "xid_a": "8F89A0A1213611E8925674D435EEBE90",
-      "xid_b": "A1187920B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "680d44e95b2ec9ac887dbad9ec6539e93dda2ad7",
-      "group_id_b": "d685dc279a906c4c6916b12ef807a2b9e823424f",
-      "distance": 4,
-      "xid_a": "7FD1CDD6D64F11E18B876C626D41E503",
-      "xid_b": "A0C503EFB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "994ef4243cb38c33c69c4ab234fded0f5c09eee5",
-      "group_id_b": "b7c30d5add8d36ea6c094da4fd5496894a85c5e7",
-      "distance": 4,
-      "xid_a": "A1188358B67611DF820F00166F1163D4",
-      "xid_b": "09316d621726485794e8a6332e29f580"
-    },
-    {
-      "group_id_a": "9bf5c2073c35da7d29f919ecb5630f406f3aa65a",
-      "group_id_b": "de461badccf79c99b9ab321904db3bd5324f67e7",
-      "distance": 4,
-      "xid_a": "A1187CB5B67611DF820F00166F1163D4",
-      "xid_b": "A11866CDB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "cc9dd150d4e5dcbbbcfd7e0441da59d3b7695299",
-      "group_id_b": "e5c8c3f4c578938a474a233f705869c091f26432",
-      "distance": 4,
-      "xid_a": "A14CE5A5B67611DF820F00166F1163D4",
-      "xid_b": "A11884C6B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "e0e05afc21402cd1b15ce7c4aaa6b75cda128cbe",
-      "group_id_b": "f9bbee4203f65a5b837369d6230037468cb1fb43",
-      "distance": 4,
-      "xid_a": "E6A5034D21D711E2A1E8406186009F3A",
-      "xid_b": "7c33fb9528644480b5648e102a952eb1"
-    },
-    {
-      "group_id_a": "00dd52ef2a388cb7d0a3115920f0d281eb399be1",
-      "group_id_b": "7cb1608163d5b096961bc25772ad4a74caa2f4a7",
-      "distance": 5,
-      "xid_a": "A0C5182FB67611DF820F00166F1163D4",
-      "xid_b": "3B0C8A90E71111E3AC530024D626C8BC"
-    },
-    {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "ca298e0764a632cc23acdd24afab2973df6ff2e1",
-      "distance": 5,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "1C51E7CCC73B11EA983A406186009F3A"
-    },
-    {
-      "group_id_a": "05ae96d9ad6b744e32a1bb4cfe9246a28f50275d",
-      "group_id_b": "d6349cfe939230fc1657fd11cdc0a42f565027af",
-      "distance": 5,
-      "xid_a": "D649881204F611E3A4F66C626D41E503",
-      "xid_b": "5AFC3A4A04F711E3A4F66C626D41E503"
-    },
-    {
-      "group_id_a": "0a477d8fb5224f8a7c13ec277df4cdb92337246f",
-      "group_id_b": "9835b94fba5d131f9cdd26ffb215c142173bfc74",
-      "distance": 5,
-      "xid_a": "A0C51183B67611DF820F00166F1163D4",
-      "xid_b": "E86EDBD9B9A611E39F720024BE7CD9AC"
-    },
-    {
-      "group_id_a": "0e79bf630988eb6a35dda966b722e2feca11433a",
-      "group_id_b": "c1ea98d146d582e0d0a3ba05e3a7d7aecc535255",
-      "distance": 5,
-      "xid_a": "A1187076B67611DF820F00166F1163D4",
-      "xid_b": "A11888CDB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "12c78370e96db68b86cb062b0b9092f0b1c11c75",
-      "group_id_b": "da2e6938c6c3f50b291b57e0cb558ec9ecc77e96",
-      "distance": 5,
-      "xid_a": "A0C503B1B67611DF820F00166F1163D4",
-      "xid_b": "A1188581B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "1585f2f521d7084dee697fd1e7208d4dcae5b281",
-      "group_id_b": "849f0857391ebe983a9dcf1518e4f8eb86c63cdf",
-      "distance": 5,
-      "xid_a": "A14CE4DAB67611DF820F00166F1163D4",
-      "xid_b": "A1187577B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "5c8b83bcfbffde9059f2be85ebd01e1bb3641e37",
-      "distance": 5,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "A118852AB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "263cd6a65fe182043890cc70ce81ee42a6ac512c",
-      "group_id_b": "5f923ed7574a717c541a7d6c8f9ea9ab7b8a8680",
-      "distance": 5,
-      "xid_a": "A1188BCCB67611DF820F00166F1163D4",
-      "xid_b": "CF04012296CA11E6BE20406186009F3A"
+      "xid_b": "A1187920B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "The distinctive content aligns throughout: the same onion-domed church tower centered behind the trees, the same bicycle leaning by the kiosk at lower left, the",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
       "group_id_a": "2e1a21fb768330653c58fe3963808eab96793037",
       "group_id_b": "d55ca10ed135a0a3c1299382cf0d85f57804c71e",
       "distance": 5,
       "xid_a": "A309234ACC4F11E69EB5406186009F3A",
-      "xid_b": "4A6372F19FC211E3B650406186009F3A"
+      "xid_b": "4A6372F19FC211E3B650406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.96,
+      "llm_reason": "The distinctive photographed structures align: the factory buildings and tall chimney on the left bank, the same winding paths and dark cave-like openings on/cq",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "2ee7a43dc5f61fcc10bd0712a23f082b3226d287",
-      "group_id_b": "d3566062c994da6ceab4f8ba7c490644d3b17a3a",
+      "group_id_a": "455c038b704c730b0c54c7f56c6adfcdfd66ee0f",
+      "group_id_b": "b2da79da6eef622614c7d5b51d82e6ab0f65a685",
       "distance": 5,
-      "xid_a": "5f4ed6d61b9c401aa233b372d16bebbd",
-      "xid_b": "D65C9F6B233B11E2A12A406186009F3A"
+      "xid_a": "2b44d44bc4d24c41ab282f26be48e948",
+      "xid_b": "4157A6AB21E311E2A1E8406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.97,
+      "llm_reason": "The distinctive railway-side composition aligns: the same large cracked white rock face with the central dark vertical fissure, identical telegraph pole spacing",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "2f582d37546230d2073bfcafe023f66e56d84dde",
-      "group_id_b": "8d9c8abfa4dc29f0d39e5c199951ce6144756f39",
+      "group_id_a": "9bf5c2073c35da7d29f919ecb5630f406f3aa65a",
+      "group_id_b": "de461badccf79c99b9ab321904db3bd5324f67e7",
       "distance": 5,
-      "xid_a": "A14CDF6FB67611DF820F00166F1163D4",
-      "xid_b": "A14CE9EAB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "38f5abdd0402b6467da99d29134acc581b67b689",
-      "group_id_b": "801bde1cab6428eedbd4f1f0842c693bd4983e90",
-      "distance": 5,
-      "xid_a": "E319EB4C928711E49D49406186009F3A",
-      "xid_b": "0573D2E0928611E49D49406186009F3A"
-    },
-    {
-      "group_id_a": "3de2a2904b4260014213a8bba6a270a7074f21f3",
-      "group_id_b": "5f5fa5b30229c30a1a6edfe58a228e2445a7d52f",
-      "distance": 5,
-      "xid_a": "95106C5E234011E2A12A406186009F3A",
-      "xid_b": "6a625c361da94fad8a1d4c98d0ab9684"
-    },
-    {
-      "group_id_a": "43b417432ed66d646bcc894bc2dae9e5ca1320c3",
-      "group_id_b": "7473a61734ad4ec185a90e802a0d5caf9858b7c6",
-      "distance": 5,
-      "xid_a": "0DF035EFD0BE11EABE1F74D435EEBE90",
-      "xid_b": "0adca44ff9f84db5a0a3f0b20b678f7c"
-    },
-    {
-      "group_id_a": "43da15bbc3e87de8d3b2a2d1ac47676efd994c7d",
-      "group_id_b": "f650edd719ea4d689b3d2392319524cd4b0ca7b0",
-      "distance": 5,
-      "xid_a": "A11875DFB67611DF820F00166F1163D4",
-      "xid_b": "FF7F637EF46811E7A828406186009F3A"
-    },
-    {
-      "group_id_a": "4b4212aa59118831739042951a40fb40f03c8824",
-      "group_id_b": "da9356927ec5f116f4b13728ea8ad669d018f539",
-      "distance": 5,
-      "xid_a": "31C170E16D6711E88D0474D435EEBE90",
-      "xid_b": "8B8337C56D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "5dcfbe7dacef1dec734df28d68f137882c194586",
-      "group_id_b": "d4e60e432bf25c71ff16d10bbef2ceae3d9b2609",
-      "distance": 5,
-      "xid_a": "A0C4F8BAB67611DF820F00166F1163D4",
-      "xid_b": "64031877d7a64158a3e223b046fb54b2"
-    },
-    {
-      "group_id_a": "6981b9caaa27ebcc55f8cf7ec709d38eed767b18",
-      "group_id_b": "95dfa29769108125916fcd7ecfd382b4b4bfbc9d",
-      "distance": 5,
-      "xid_a": "426C02E628A211E6BCEA406186009F3A",
-      "xid_b": "A14CE6B8B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "79852b7773f5bbbdaf4080b7576243232d1bbf3e",
-      "group_id_b": "8b8db3d8db12c3d611239ea3f59014849e963c68",
-      "distance": 5,
-      "xid_a": "B02951246D7111E88D0474D435EEBE90",
-      "xid_b": "1BF674726D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "8b8db3d8db12c3d611239ea3f59014849e963c68",
-      "group_id_b": "da9356927ec5f116f4b13728ea8ad669d018f539",
-      "distance": 5,
-      "xid_a": "1BF674726D7211E88D0474D435EEBE90",
-      "xid_b": "8B8337C56D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "9dc49fa05eba3e1149dabf1c4a16126585ff8642",
-      "group_id_b": "dd3d908f3bca60f70d9e90ca4f39e7dafb4f3e04",
-      "distance": 5,
-      "xid_a": "A0C519BAB67611DF820F00166F1163D4",
-      "xid_b": "bf7fdbbd0aa846778bf49d4cff177093"
-    },
-    {
-      "group_id_a": "9dc69d3329d1f74118d70be81bad35e6ba0f53b0",
-      "group_id_b": "fc102d062236da9f5d793d2859512a0d4b515711",
-      "distance": 5,
-      "xid_a": "A0C5090AB67611DF820F00166F1163D4",
-      "xid_b": "A0C50A03B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "a7f16b7d5a29ac9cd1d77b3588993c4e43a38e20",
-      "group_id_b": "da9356927ec5f116f4b13728ea8ad669d018f539",
-      "distance": 5,
-      "xid_a": "652B08F16D6D11E88D0474D435EEBE90",
-      "xid_b": "8B8337C56D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "00dd52ef2a388cb7d0a3115920f0d281eb399be1",
-      "group_id_b": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "distance": 6,
-      "xid_a": "A0C5182FB67611DF820F00166F1163D4",
-      "xid_b": "908BDCF6923011E2BF28525400E46D25"
-    },
-    {
-      "group_id_a": "00dd52ef2a388cb7d0a3115920f0d281eb399be1",
-      "group_id_b": "23619fd94d385e623499854b58743a01fe9bf789",
-      "distance": 6,
-      "xid_a": "A0C5182FB67611DF820F00166F1163D4",
-      "xid_b": "CAF851B2056411E1BEBC000C766D2371"
-    },
-    {
-      "group_id_a": "00dd52ef2a388cb7d0a3115920f0d281eb399be1",
-      "group_id_b": "3c5a62f724fa2d834bbb513d6493c50f990b1e7e",
-      "distance": 6,
-      "xid_a": "A0C5182FB67611DF820F00166F1163D4",
-      "xid_b": "8DBC5918074811E48CE60024BE7CD9AC"
-    },
-    {
-      "group_id_a": "00dd52ef2a388cb7d0a3115920f0d281eb399be1",
-      "group_id_b": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "distance": 6,
-      "xid_a": "A0C5182FB67611DF820F00166F1163D4",
-      "xid_b": "B8EE346E95FA11E2BF2A525400E46D25"
-    },
-    {
-      "group_id_a": "00dd52ef2a388cb7d0a3115920f0d281eb399be1",
-      "group_id_b": "a29096dbbef0afbbebbec134e64809c95e6d883d",
-      "distance": 6,
-      "xid_a": "A0C5182FB67611DF820F00166F1163D4",
-      "xid_b": "6B672B8A9F4C11E18C606C626D41E503"
-    },
-    {
-      "group_id_a": "019637b24937716038d94badd32e28e983101764",
-      "group_id_b": "2f582d37546230d2073bfcafe023f66e56d84dde",
-      "distance": 6,
-      "xid_a": "A14CEB62B67611DF820F00166F1163D4",
-      "xid_b": "A14CDF6FB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "023b5a47624cf6d0e724d57c3cd8526a9c1639c7",
-      "group_id_b": "696f398897e632a1ad68e9ba550994aa3db5ef68",
-      "distance": 6,
-      "xid_a": "BCF16C3E32D711E0BDD9000C766D2371",
-      "xid_b": "A0C4F500B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "05081acb81de4b9c921a52267b5c420a6fb44383",
-      "distance": 6,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "A546B5D68B1311E2BF22525400E46D25"
-    },
-    {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "23619fd94d385e623499854b58743a01fe9bf789",
-      "distance": 6,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "CAF851B2056411E1BEBC000C766D2371"
-    },
-    {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "3c5a62f724fa2d834bbb513d6493c50f990b1e7e",
-      "distance": 6,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "8DBC5918074811E48CE60024BE7CD9AC"
-    },
-    {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "distance": 6,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "CDE8F73F960011E2BF2A525400E46D25"
-    },
-    {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "9cf68117edf6cb9925eb5fe9099b773b21b69d56",
-      "distance": 6,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "A0C4FE97B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "d2da82e4f52a1d43ca076684215d8fe077e9b3b1",
-      "distance": 6,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "06F343AB8B3211E2BF22525400E46D25"
-    },
-    {
-      "group_id_a": "04de4ac0d7b8afd691eef85dafeadeb86af795f2",
-      "group_id_b": "b945dcce1333403e765fcbf39be9cd254f4fba66",
-      "distance": 6,
-      "xid_a": "FA130655B9A711E39F720024BE7CD9AC",
-      "xid_b": "A0C4FAC4B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "0b37fa518b1c1f29cb93d83d1544eca55f29a112",
-      "group_id_b": "5a084bb69010ca98bdffefa22aaff33e689ff743",
-      "distance": 6,
-      "xid_a": "A14CE829B67611DF820F00166F1163D4",
-      "xid_b": "A14CE826B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "11d1f359a63d3fcdd52edfc76cef4e74c5317f4c",
-      "group_id_b": "d6c28b67b483ce498446f09978a71859a550bb1e",
-      "distance": 6,
-      "xid_a": "0282D68E90E311E8B3B474D435EEBE90",
-      "xid_b": "6B126392B97611E3AFA20024BE7CD9AC"
-    },
-    {
-      "group_id_a": "1274c9920acaa139eccf2243e125612b894e243e",
-      "group_id_b": "8a1571e40e03bbf956376613d93ac27584f9352f",
-      "distance": 6,
-      "xid_a": "37212EE18B1411E2BF22525400E46D25",
-      "xid_b": "A0C50384B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "17c99370000577ea35cd2ab79710a4a194f551b0",
-      "group_id_b": "4aada6e27fffb9de3e0a5d38411c3b54ca93ab30",
-      "distance": 6,
-      "xid_a": "474CF3816D6211E88D0474D435EEBE90",
-      "xid_b": "157A73C16D6F11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "17c99370000577ea35cd2ab79710a4a194f551b0",
-      "group_id_b": "8245530b264b7bd366a9898c97f1aaa86bf9d798",
-      "distance": 6,
-      "xid_a": "474CF3816D6211E88D0474D435EEBE90",
-      "xid_b": "EDB685736D5B11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "229740234a8a83ab96db491f0dea37eee9b6e3ca",
-      "group_id_b": "6540c5f4974b7e8f00e41ba46bb947d245b0ef3b",
-      "distance": 6,
-      "xid_a": "CBDA0172D37911E8A2B874D435EEBE90",
-      "xid_b": "D7C77BF4D39411E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "3f47a2001b9363b6fbe46c2f859c5edc1f3ba9e9",
-      "distance": 6,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "F1212404DFB811E5A81274D435EEBE90"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "8acea3237795bb57dccaaff1026d2df98b202a68",
-      "distance": 6,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "A0C50178B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "d2da82e4f52a1d43ca076684215d8fe077e9b3b1",
-      "distance": 6,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "06F343AB8B3211E2BF22525400E46D25"
-    },
-    {
-      "group_id_a": "2363ca5e802b8703d4fd687982d3fa99396676ae",
-      "group_id_b": "6540c5f4974b7e8f00e41ba46bb947d245b0ef3b",
-      "distance": 6,
-      "xid_a": "87F5FB64D39411E8A2B874D435EEBE90",
-      "xid_b": "D7C77BF4D39411E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "2363ca5e802b8703d4fd687982d3fa99396676ae",
-      "group_id_b": "abcde7850ec1968df1b8413361293be0c13746b0",
-      "distance": 6,
-      "xid_a": "87F5FB64D39411E8A2B874D435EEBE90",
-      "xid_b": "20CF3B62D37911E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "263cd6a65fe182043890cc70ce81ee42a6ac512c",
-      "group_id_b": "ac3948e3b6940f7793c8b44c7dd37c18ab662d9d",
-      "distance": 6,
-      "xid_a": "A1188BCCB67611DF820F00166F1163D4",
-      "xid_b": "8AEC36EF77B111E3B7C300110989F46F"
-    },
-    {
-      "group_id_a": "263cd6a65fe182043890cc70ce81ee42a6ac512c",
-      "group_id_b": "eb2ed43f8c0584d73f186e03e87605bbf8108163",
-      "distance": 6,
-      "xid_a": "A1188BCCB67611DF820F00166F1163D4",
-      "xid_b": "DFDE801F2BED11E69C9A406186009F3A"
-    },
-    {
-      "group_id_a": "27ecfc07aeb5aafed026a2ee93c9a121300e254a",
-      "group_id_b": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "distance": 6,
-      "xid_a": "A14CE285B67611DF820F00166F1163D4",
-      "xid_b": "F690718495FA11E2BF2A525400E46D25"
-    },
-    {
-      "group_id_a": "27ecfc07aeb5aafed026a2ee93c9a121300e254a",
-      "group_id_b": "9d662f9d795b6a4459585049b21f4341d6b3aa4f",
-      "distance": 6,
-      "xid_a": "A14CE285B67611DF820F00166F1163D4",
-      "xid_b": "03FD472C85B011E2BF1F525400E46D25"
-    },
-    {
-      "group_id_a": "2e4a40b34ff94dad2ffd920d6cded42696038294",
-      "group_id_b": "a891b7918b1edd9b543848e90f79c661d16cfe06",
-      "distance": 6,
-      "xid_a": "A0C4F5C9B67611DF820F00166F1163D4",
-      "xid_b": "C93D44A99B8611E2BF2D525400E46D25"
-    },
-    {
-      "group_id_a": "2f582d37546230d2073bfcafe023f66e56d84dde",
-      "group_id_b": "34a3505cae1e5a4045555da8771a9587a9ea422c",
-      "distance": 6,
-      "xid_a": "A14CDF6FB67611DF820F00166F1163D4",
-      "xid_b": "9C14DB7F474011E180176C626D41E503"
-    },
-    {
-      "group_id_a": "31fc7949ac0b6f5c31eb60ba007a88807121ea2b",
-      "group_id_b": "4e6ee52493c79f96a28acddcfd8f30933b2a58fa",
-      "distance": 6,
-      "xid_a": "A14CE4FDB67611DF820F00166F1163D4",
-      "xid_b": "A0C51705B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "31fc7949ac0b6f5c31eb60ba007a88807121ea2b",
-      "group_id_b": "6b00e75b5f358b9a49f00daf001dd86939d0a75f",
-      "distance": 6,
-      "xid_a": "A14CE4FDB67611DF820F00166F1163D4",
-      "xid_b": "A0C50B14B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "31fc7949ac0b6f5c31eb60ba007a88807121ea2b",
-      "group_id_b": "b515410ee11f356b810a087677460511dec30a3c",
-      "distance": 6,
-      "xid_a": "A14CE4FDB67611DF820F00166F1163D4",
-      "xid_b": "A0C51367B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "34a3505cae1e5a4045555da8771a9587a9ea422c",
-      "group_id_b": "aa59ca2b34f4964d61ec28a61fe5dba20d11e860",
-      "distance": 6,
-      "xid_a": "9C14DB7F474011E180176C626D41E503",
-      "xid_b": "A1187F32B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "40101b3196342183c419112cd84a72d9463f7049",
-      "group_id_b": "6668ea848a6d1a1a7523c7781d9fb32b5644b990",
-      "distance": 6,
-      "xid_a": "A0C4FE81B67611DF820F00166F1163D4",
-      "xid_b": "A14CDD2BB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "4054833a0a97f796fdb6bc70d6c57a1cd714d5e8",
-      "group_id_b": "69d27c5b8a6dedc0138fbb81882fba7678cfc3ec",
-      "distance": 6,
-      "xid_a": "1759EE9AF63411E3AB180024BE7CD9AC",
-      "xid_b": "A0C5100CB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "407560362c4da5b6f452b703b953ae762c79e4bf",
-      "group_id_b": "6dfb28960883449a63a85dd6b3683f2f1e0c61ce",
-      "distance": 6,
-      "xid_a": "A1188C55B67611DF820F00166F1163D4",
-      "xid_b": "3f0ac65488dd4f69a07f68ca0d917e2e"
-    },
-    {
-      "group_id_a": "430ef9ee5f892a941b1b91cbba7586a33495b29e",
-      "group_id_b": "a534c7f48495ee3e4742d577b6d77ad5354dc9da",
-      "distance": 6,
-      "xid_a": "A14CE3D1B67611DF820F00166F1163D4",
-      "xid_b": "D09C498ED65511E18B876C626D41E503"
-    },
-    {
-      "group_id_a": "49fd8f426624db5b7fbde974bc64e6036dde5efd",
-      "group_id_b": "81a35afed26932baaa6dd173d5d355b369e056a4",
-      "distance": 6,
-      "xid_a": "A0C4F96BB67611DF820F00166F1163D4",
-      "xid_b": "A1187602B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "4aada6e27fffb9de3e0a5d38411c3b54ca93ab30",
-      "group_id_b": "8245530b264b7bd366a9898c97f1aaa86bf9d798",
-      "distance": 6,
-      "xid_a": "157A73C16D6F11E88D0474D435EEBE90",
-      "xid_b": "EDB685736D5B11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "4aada6e27fffb9de3e0a5d38411c3b54ca93ab30",
-      "group_id_b": "d375db456ab70641c3381a7a03d624bbf93288aa",
-      "distance": 6,
-      "xid_a": "157A73C16D6F11E88D0474D435EEBE90",
-      "xid_b": "456535D16D6411E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "4b4212aa59118831739042951a40fb40f03c8824",
-      "group_id_b": "8b8db3d8db12c3d611239ea3f59014849e963c68",
-      "distance": 6,
-      "xid_a": "31C170E16D6711E88D0474D435EEBE90",
-      "xid_b": "1BF674726D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "4b4212aa59118831739042951a40fb40f03c8824",
-      "group_id_b": "a7f16b7d5a29ac9cd1d77b3588993c4e43a38e20",
-      "distance": 6,
-      "xid_a": "31C170E16D6711E88D0474D435EEBE90",
-      "xid_b": "652B08F16D6D11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "4e6ee52493c79f96a28acddcfd8f30933b2a58fa",
-      "group_id_b": "6b00e75b5f358b9a49f00daf001dd86939d0a75f",
-      "distance": 6,
-      "xid_a": "A0C51705B67611DF820F00166F1163D4",
-      "xid_b": "A0C50B14B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "8acea3237795bb57dccaaff1026d2df98b202a68",
-      "distance": 6,
-      "xid_a": "B8EE346E95FA11E2BF2A525400E46D25",
-      "xid_b": "A0C50178B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "a5849dc1c00daeec8cd00aeae396088ba0985bca",
-      "distance": 6,
-      "xid_a": "147B745795FC11E2BF2A525400E46D25",
-      "xid_b": "A11882B1B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "d2da82e4f52a1d43ca076684215d8fe077e9b3b1",
-      "distance": 6,
-      "xid_a": "B8EE346E95FA11E2BF2A525400E46D25",
-      "xid_b": "06F343AB8B3211E2BF22525400E46D25"
-    },
-    {
-      "group_id_a": "5c8b83bcfbffde9059f2be85ebd01e1bb3641e37",
-      "group_id_b": "7cb1608163d5b096961bc25772ad4a74caa2f4a7",
-      "distance": 6,
-      "xid_a": "A118852AB67611DF820F00166F1163D4",
-      "xid_b": "3B0C8A90E71111E3AC530024D626C8BC"
-    },
-    {
-      "group_id_a": "602b5ffe98076aa0f5b660716a5f1547e8864a5c",
-      "group_id_b": "6ba3827974e21283c23a829f50709237751aeb8c",
-      "distance": 6,
-      "xid_a": "A118874CB67611DF820F00166F1163D4",
-      "xid_b": "A14CE9E8B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "6074231926f39feb46041e34b5fe6d78a8cc294a",
-      "group_id_b": "842ad4bc894b21ea00d44bdca04257791c732d46",
-      "distance": 6,
-      "xid_a": "F8EE76C4D39511E8A2B874D435EEBE90",
-      "xid_b": "79a5b423a85c4c6ebe8b41f3e02f8f70"
-    },
-    {
-      "group_id_a": "6540c5f4974b7e8f00e41ba46bb947d245b0ef3b",
-      "group_id_b": "abcde7850ec1968df1b8413361293be0c13746b0",
-      "distance": 6,
-      "xid_a": "D7C77BF4D39411E8A2B874D435EEBE90",
-      "xid_b": "20CF3B62D37911E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "67098d993258db92dc93380ba3bcba3c6f1cd49c",
-      "group_id_b": "6ad310f4fe653e3dd3b2e6cb686549bac53f1151",
-      "distance": 6,
-      "xid_a": "9B32B3F996C711E2BF2B525400E46D25",
-      "xid_b": "A0C50EF4B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "6b00e75b5f358b9a49f00daf001dd86939d0a75f",
-      "group_id_b": "b515410ee11f356b810a087677460511dec30a3c",
-      "distance": 6,
-      "xid_a": "A0C50B14B67611DF820F00166F1163D4",
-      "xid_b": "A0C51367B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "6d1e4a6e93818487f21ac07708fcc04d31cb6251",
-      "group_id_b": "8a1349aca662ed335b2364f590b3fed0f6beb5f2",
-      "distance": 6,
-      "xid_a": "1C12AF8E234111E2A12A406186009F3A",
-      "xid_b": "77F5E9C8CEC911E38B386C626D41E503"
-    },
-    {
-      "group_id_a": "6eb031e1007d5ee6977040d5289e7afac71ce9c3",
-      "group_id_b": "cf8c9c45a87df18b176d72ffcbc8e7e1a3865b3e",
-      "distance": 6,
-      "xid_a": "A0C50E5FB67611DF820F00166F1163D4",
-      "xid_b": "92c8b267043f4085b4cd79657f495a90"
-    },
-    {
-      "group_id_a": "76e5c206dc99a7bb81c0e2f903b8c7f3724e5749",
-      "group_id_b": "801bde1cab6428eedbd4f1f0842c693bd4983e90",
-      "distance": 6,
-      "xid_a": "A0C4FC45B67611DF820F00166F1163D4",
-      "xid_b": "0573D2E0928611E49D49406186009F3A"
-    },
-    {
-      "group_id_a": "79852b7773f5bbbdaf4080b7576243232d1bbf3e",
-      "group_id_b": "da9356927ec5f116f4b13728ea8ad669d018f539",
-      "distance": 6,
-      "xid_a": "B02951246D7111E88D0474D435EEBE90",
-      "xid_b": "8B8337C56D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "79852b7773f5bbbdaf4080b7576243232d1bbf3e",
-      "group_id_b": "fc102d062236da9f5d793d2859512a0d4b515711",
-      "distance": 6,
-      "xid_a": "B02951246D7111E88D0474D435EEBE90",
-      "xid_b": "A0C50A03B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "7cb1608163d5b096961bc25772ad4a74caa2f4a7",
-      "group_id_b": "f650edd719ea4d689b3d2392319524cd4b0ca7b0",
-      "distance": 6,
-      "xid_a": "501D77F8E72D11E3AC530024D626C8BC",
-      "xid_b": "FF7F637EF46811E7A828406186009F3A"
-    },
-    {
-      "group_id_a": "7d4c93a61bae2042ea8b95c7fe6e22a8453cb11a",
-      "group_id_b": "a1978162f6ec324e99474e8058471c964fda7bd0",
-      "distance": 6,
-      "xid_a": "A11888EFB67611DF820F00166F1163D4",
-      "xid_b": "A0C50DE0B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "81ff0165dccad8999577ead7e4c30fc77a7771c2",
-      "group_id_b": "ae79287a5146e7f17aa3166b5ab423efe2e26d73",
-      "distance": 6,
-      "xid_a": "A0C516EEB67611DF820F00166F1163D4",
-      "xid_b": "A0C501BBB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "8690a5b7d898331cc8b9d26a3684347da66be1cc",
-      "group_id_b": "da9356927ec5f116f4b13728ea8ad669d018f539",
-      "distance": 6,
-      "xid_a": "81125AD16D8C11E88D0474D435EEBE90",
-      "xid_b": "8B8337C56D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "8921030fab9003b9cc4636900e25a29f485e4293",
-      "group_id_b": "a753841ab1564283858e8f2854fa7f3fe1dd8c25",
-      "distance": 6,
-      "xid_a": "A1186EC5B67611DF820F00166F1163D4",
-      "xid_b": "A118829CB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "8b8db3d8db12c3d611239ea3f59014849e963c68",
-      "group_id_b": "a7f16b7d5a29ac9cd1d77b3588993c4e43a38e20",
-      "distance": 6,
-      "xid_a": "1BF674726D7211E88D0474D435EEBE90",
-      "xid_b": "652B08F16D6D11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "8b8db3d8db12c3d611239ea3f59014849e963c68",
-      "group_id_b": "e02c4e8708da2b9dffb3dd9b3fb09eae46934cf2",
-      "distance": 6,
-      "xid_a": "1BF674726D7211E88D0474D435EEBE90",
-      "xid_b": "BCA6DAE76D7B11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "9a657ea335249da6528d5e625b7f56edc3436946",
-      "group_id_b": "e12af30d920b5fd597fa91acc55ad1e426cc3861",
-      "distance": 6,
-      "xid_a": "320E2D8121E011E2A1E8406186009F3A",
-      "xid_b": "fda7add0ee5c41af98fc4f798fc5f5d8"
-    },
-    {
-      "group_id_a": "9dc69d3329d1f74118d70be81bad35e6ba0f53b0",
-      "group_id_b": "e494f02631ed370400218b934e5dd66d4ac0e7ea",
-      "distance": 6,
-      "xid_a": "A0C5090AB67611DF820F00166F1163D4",
-      "xid_b": "515C7CE76D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "a0c8bc5b02ea130cd10ae512411fb7bb32b6baf6",
-      "group_id_b": "f34cce767ea2d0ccad9f9061b8cf98dd41712768",
-      "distance": 6,
-      "xid_a": "9B45D4B4E14E11E6B986406186009F3A",
-      "xid_b": "A1186804B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "a64ec3662bcc43f6abecd497487f1589a44f2ff7",
-      "group_id_b": "a6c2ec6763db50dd88990506395271b3ef88ba2d",
-      "distance": 6,
-      "xid_a": "A1187B04B67611DF820F00166F1163D4",
-      "xid_b": "3B295B91266E11E6B917406186009F3A"
-    },
-    {
-      "group_id_a": "c25a95906be829466217a55e66a75a756fbe2308",
-      "group_id_b": "caa652874a8d96ff999fcb5bf5abce5419ddf3f0",
-      "distance": 6,
-      "xid_a": "21233CA563DC11E89CE474D435EEBE90",
-      "xid_b": "287947048C0911E8A45074D435EEBE90"
-    },
-    {
-      "group_id_a": "004a48cb104cd191ef6a692c731305a272629f22",
-      "group_id_b": "e0ab95772fd519056dd4ab2c8a6d77ad3af1e5bc",
+      "xid_a": "A1187CB5B67611DF820F00166F1163D4",
+      "xid_b": "A11866CDB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "The distinctive building geometry and photographed content align exactly: the same ornate corner building with matching mansard roof, pediment, chimneys, window",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "0f4c22315af9af51c9d932b4b9b63722d3702df6",
+      "group_id_b": "d3985560a2e2397973b6a17d52e71a99c21c4a2d",
+      "distance": 6,
+      "xid_a": "29E217FDD37311E8AE88406186009F3A",
+      "xid_b": "79D9FA0DD3A611E8AE88406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.97,
+      "llm_reason": "The same bell fills the frame with matching crown shape, central relief panel, inscription bands, base scuffs, doorway timbers, and the same mustached man in a\u5e3d",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "0c40df073568f58ca2c31c31dd4bdf4cfa33d8b1",
+      "group_id_b": "129211e6ab69b5796e19f74072aed61fbcbcfce5",
       "distance": 7,
-      "xid_a": "A0C50231B67611DF820F00166F1163D4",
-      "xid_b": "82844F82A3A811E3A35E0024BE7CD9AC"
+      "xid_a": "59F6088EC47411E78A03D4BED94BB14D",
+      "xid_b": "179CC4FB3F3311E4B4E9406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.95,
+      "llm_reason": "The distinctive church-like building, left tower with cross, front statue, fence posts, trimmed trees, gate sections, curved curb, and cobblestone foreground/he",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "00dd52ef2a388cb7d0a3115920f0d281eb399be1",
-      "group_id_b": "5c8b83bcfbffde9059f2be85ebd01e1bb3641e37",
-      "distance": 7,
-      "xid_a": "A0C5182FB67611DF820F00166F1163D4",
-      "xid_b": "A118852AB67611DF820F00166F1163D4"
+      "group_id_a": "089727acec28077b3db5081e70a29d2ea554e258",
+      "group_id_b": "bfae49942c7c41d5616407cc25d0f95591e2bc43",
+      "distance": 8,
+      "xid_a": "A0C501C4B67611DF820F00166F1163D4",
+      "xid_b": "A0C4FCA7B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The distinctive station entrance/arch with rooftop sculpture, the long platform canopy to the right, the ornate lamp post at far right, the cart near the left,\ufffd",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "502dadd8e6c29b7a1c7a0060575edf805434e7b3",
-      "distance": 7,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "A11873ABB67611DF820F00166F1163D4"
+      "group_id_a": "52409bdc7c81df15bae42f91de8f142522f8c79e",
+      "group_id_b": "f70bafaf62510f886ec8e90d4e2f1233fa6bea02",
+      "distance": 8,
+      "xid_a": "CF5AA8627B0611E4A348406186009F3A",
+      "xid_b": "304E4E5FB5BC11E388980024BE7CD9AC",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.96,
+      "llm_reason": "The same scale-model layout aligns throughout: the castle-like cluster on the upper left ridge, the diagonal road and small buildings down the center-left, the\u9577",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "5c8b83bcfbffde9059f2be85ebd01e1bb3641e37",
-      "distance": 7,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "A118852AB67611DF820F00166F1163D4"
+      "group_id_a": "7a15e01da04e2feecba74b744a220eadf1d27165",
+      "group_id_b": "cf9df7c4115a01b6efa9669c23a4802815bb2801",
+      "distance": 8,
+      "xid_a": "A0C4F76EB67611DF820F00166F1163D4",
+      "xid_b": "A0C4FE0BB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The same riverside panorama aligns: the long apartment block on the left, central institutional building, ornate pavilion/structure on the right, road and embOn",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "7cb1608163d5b096961bc25772ad4a74caa2f4a7",
-      "distance": 7,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "3B0C8A90E71111E3AC530024D626C8BC"
-    },
-    {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "eda027b4e6ba16f93ade1e9bcb33ea9f470f2d1b",
-      "distance": 7,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "DED301CA648911E6A554000C76270B94"
-    },
-    {
-      "group_id_a": "0786e42d6c4104ebb4b833c3b55181566695a7cd",
-      "group_id_b": "6540c5f4974b7e8f00e41ba46bb947d245b0ef3b",
-      "distance": 7,
-      "xid_a": "4B4E0724D39411E8A2B874D435EEBE90",
-      "xid_b": "D7C77BF4D39411E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "0786e42d6c4104ebb4b833c3b55181566695a7cd",
-      "group_id_b": "c4b0d81ddcdd76de0865745ce2dfd36b8bb63538",
-      "distance": 7,
-      "xid_a": "4B4E0724D39411E8A2B874D435EEBE90",
-      "xid_b": "AA7CF0D4D39411E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "11d1f359a63d3fcdd52edfc76cef4e74c5317f4c",
-      "group_id_b": "ba2b22721b4f038029dc4348b4c0e7379fcd58b1",
-      "distance": 7,
-      "xid_a": "0282D68E90E311E8B3B474D435EEBE90",
-      "xid_b": "DA8716FE90E211E8B3B474D435EEBE90"
-    },
-    {
-      "group_id_a": "122d0eb06a3047e395cdbab96e71c36cac3f9e42",
-      "group_id_b": "772fdb76d56cfa9d776f6cd4f72c70199aabf196",
-      "distance": 7,
-      "xid_a": "7D0BF14D23B511E0BDC7000C766D2371",
-      "xid_b": "A14CEAAAB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "139ebb61bdfbd305d0a9f019fe7f2a36af679823",
-      "group_id_b": "9384afcc5623d26d3c48347f54414c30451c78dd",
-      "distance": 7,
-      "xid_a": "A0C50AABB67611DF820F00166F1163D4",
-      "xid_b": "CAF29A485F5211E8A52374D435EEBE90"
-    },
-    {
-      "group_id_a": "158c04127072f456b3bd114638cedae1ec325076",
-      "group_id_b": "2f582d37546230d2073bfcafe023f66e56d84dde",
-      "distance": 7,
-      "xid_a": "341CFE150D5F11E295A66C626D41E503",
-      "xid_b": "A14CDF6FB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "158c04127072f456b3bd114638cedae1ec325076",
-      "group_id_b": "34a3505cae1e5a4045555da8771a9587a9ea422c",
-      "distance": 7,
-      "xid_a": "341CFE150D5F11E295A66C626D41E503",
-      "xid_b": "9C14DB7F474011E180176C626D41E503"
-    },
-    {
-      "group_id_a": "17c99370000577ea35cd2ab79710a4a194f551b0",
-      "group_id_b": "b2d479865862e989a30f5ca12f3c8f86c9673014",
-      "distance": 7,
-      "xid_a": "474CF3816D6211E88D0474D435EEBE90",
-      "xid_b": "7EC3DD616D6211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "17c99370000577ea35cd2ab79710a4a194f551b0",
-      "group_id_b": "da9356927ec5f116f4b13728ea8ad669d018f539",
-      "distance": 7,
-      "xid_a": "474CF3816D6211E88D0474D435EEBE90",
-      "xid_b": "8B8337C56D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "1aae46fc820c43bce6cff6aa97247f32b2794263",
-      "group_id_b": "8adf9b60c30c1cbe699767de44d04345764bfd42",
-      "distance": 7,
-      "xid_a": "A1188D09B67611DF820F00166F1163D4",
-      "xid_b": "A0C5112EB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "1c73966579fdc06c2cbb42ad4979dd9391118eb3",
-      "group_id_b": "8e1975f2b5a7c0233641d1c60f7fffd6c802945a",
-      "distance": 7,
-      "xid_a": "82A22C9A0BAF11E2AEA36C626D41E503",
-      "xid_b": "3FEC08D40BBB11E2AEA36C626D41E503"
-    },
-    {
-      "group_id_a": "1c73966579fdc06c2cbb42ad4979dd9391118eb3",
-      "group_id_b": "daab0a29d0ffb7cfbaf06435bef2f35962e27f45",
-      "distance": 7,
-      "xid_a": "82A22C9A0BAF11E2AEA36C626D41E503",
-      "xid_b": "4791020989B111E8853174D435EEBE90"
-    },
-    {
-      "group_id_a": "1eaaae931450944a4f0e5a903ecb8dc51014813f",
-      "group_id_b": "2f582d37546230d2073bfcafe023f66e56d84dde",
-      "distance": 7,
-      "xid_a": "24D59F939E9A11E1AB206C626D41E503",
-      "xid_b": "A14CDF6FB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "243569032babdce9d7845117113bc2171aa4a430",
-      "distance": 7,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "2458dce3647c4a57bbe2141bca67f878"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "27ecfc07aeb5aafed026a2ee93c9a121300e254a",
-      "distance": 7,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "A14CE285B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "7cb1608163d5b096961bc25772ad4a74caa2f4a7",
-      "distance": 7,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "3B0C8A90E71111E3AC530024D626C8BC"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "80e3cbea1671031fef984802b371c2128f0d6a92",
-      "distance": 7,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "98BBFF7B16D811E2B3CE6C626D41E503"
-    },
-    {
-      "group_id_a": "243569032babdce9d7845117113bc2171aa4a430",
-      "group_id_b": "a4f10e32ae49a5d7bd3ec5f4862ba9a2449b6578",
-      "distance": 7,
-      "xid_a": "2458dce3647c4a57bbe2141bca67f878",
-      "xid_b": "A14CE892B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "24d6b690c3d002bea5f1d1a154b6a46f73a84c95",
-      "group_id_b": "ba5593c18bb4cf01936847ff07ca7d6c15fea81d",
-      "distance": 7,
-      "xid_a": "A1186E13B67611DF820F00166F1163D4",
-      "xid_b": "FDCF853D3E9E11E1B434000BCDD04BFA"
-    },
-    {
-      "group_id_a": "267dab6be6fa8b27d44c3bdd541231979f6cd5ef",
-      "group_id_b": "7ed707979c6cd6dde4ec2233c0d53ed640938cad",
-      "distance": 7,
-      "xid_a": "2297D3F119E011E2BEFD000C766D2371",
-      "xid_b": "A1186C8DB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "2a943208f05ee73ac6076a1d23bcd1f70991b548",
-      "group_id_b": "c25a95906be829466217a55e66a75a756fbe2308",
-      "distance": 7,
-      "xid_a": "CED698F2EB2211E3ABDE0024BE7CD9AC",
-      "xid_b": "21233CA563DC11E89CE474D435EEBE90"
-    },
-    {
-      "group_id_a": "2aa835d1c1205bf2dc7d1669455e539a74e91228",
-      "group_id_b": "5c8b83bcfbffde9059f2be85ebd01e1bb3641e37",
-      "distance": 7,
-      "xid_a": "FDCF850B3E9E11E1B434000BCDD04BFA",
-      "xid_b": "A118852AB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "2aa835d1c1205bf2dc7d1669455e539a74e91228",
-      "group_id_b": "698696e3326bebc7c2d09ce420e5ccd57ce6f137",
-      "distance": 7,
-      "xid_a": "FDCF850B3E9E11E1B434000BCDD04BFA",
-      "xid_b": "A11884E2B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "2bd7d441981f8e73811b8ea48ef1ae7b0168e7bf",
-      "group_id_b": "38923285a1c7829faa381e2e92fd7391264b97a8",
-      "distance": 7,
-      "xid_a": "B9980342802411E2BF1B525400E46D25",
-      "xid_b": "A11882C7B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "2c64769eb047dbbc0f4b8dc3aa493975e4e2ae8f",
-      "group_id_b": "d76565804fef3ff9efdfbab8af864e342b72e2f0",
-      "distance": 7,
-      "xid_a": "CE294153A74B11E6BBBD406186009F3A",
-      "xid_b": "E196E90E651811E6A555000C76270B94"
-    },
-    {
-      "group_id_a": "2cfe96b45f863e419c4fd636e044722b2df12c64",
-      "group_id_b": "d39a0ff868be2d0f75bdf19be6ef52c37536ed17",
-      "distance": 7,
-      "xid_a": "3066A305E72C11E3AC530024D626C8BC",
-      "xid_b": "B071AB9A85AA11E2BF1F525400E46D25"
-    },
-    {
-      "group_id_a": "2f582d37546230d2073bfcafe023f66e56d84dde",
-      "group_id_b": "9c4214560d21cabedee00a9a4a5c8ab26678839b",
-      "distance": 7,
-      "xid_a": "A14CDF6FB67611DF820F00166F1163D4",
-      "xid_b": "A118883EB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "34a3505cae1e5a4045555da8771a9587a9ea422c",
-      "group_id_b": "8d9c8abfa4dc29f0d39e5c199951ce6144756f39",
-      "distance": 7,
-      "xid_a": "9C14DB7F474011E180176C626D41E503",
-      "xid_b": "A14CE9EAB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "34a3505cae1e5a4045555da8771a9587a9ea422c",
-      "group_id_b": "9c4214560d21cabedee00a9a4a5c8ab26678839b",
-      "distance": 7,
-      "xid_a": "9C14DB7F474011E180176C626D41E503",
-      "xid_b": "A118883EB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "3706b2aff2be3f4a0f80b60659d4a34afc4651ee",
-      "group_id_b": "b065714824a663c0a82b33c9deeb049dabae4eec",
-      "distance": 7,
-      "xid_a": "D00D43206EEA11E88F4674D435EEBE90",
-      "xid_b": "A01A7DF9E03311E3A3D40024BE7CD9AC"
-    },
-    {
-      "group_id_a": "379747cbaf72f974219dd4c0f1d67e4c3a20957f",
-      "group_id_b": "80cfd73ec5b066998ca0a80ecd6fe0930196c0ec",
-      "distance": 7,
-      "xid_a": "D48DBD5FA4AA11E5A367406186009F3A",
-      "xid_b": "2425B4F69E3A11E3B7D600110989F46F"
+      "group_id_a": "e0e05afc21402cd1b15ce7c4aaa6b75cda128cbe",
+      "group_id_b": "f9bbee4203f65a5b837369d6230037468cb1fb43",
+      "distance": 8,
+      "xid_a": "E6A5034D21D711E2A1E8406186009F3A",
+      "xid_b": "7c33fb9528644480b5648e102a952eb1",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The same industrial panorama aligns: the long foreground sheds with paired roof vents, curving rail tracks and train cars, the square building and arched bridge",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
       "group_id_a": "3833f2688f500fa6dc9f6d2eaaaf719a3370dbf5",
-      "group_id_b": "48d53294396d5259de1aa26bd85a3bf0a0d9644b",
-      "distance": 7,
+      "group_id_b": "bf70a40a4a7fee039d7b19bab3b37cd944fb8055",
+      "distance": 9,
       "xid_a": "13FCC3AB85AB11E2BF1F525400E46D25",
-      "xid_b": "1F58696085AC11E2BF1F525400E46D25"
+      "xid_b": "97E931E185AB11E2BF1F525400E46D25",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.86,
+      "llm_reason": "The same sword hilt and blade details align: the domed pommel with the same central highlight and incised band, the vertical grip markings including the dark M/",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "3a2aeee94d79ecfe8f9f15776f401fc34125e9cf",
-      "group_id_b": "83cfd560936d8930f82a979c71528247f12b86d7",
-      "distance": 7,
-      "xid_a": "24CA81B90C9111E2AEA36C626D41E503",
-      "xid_b": "496451990C9111E2AEA36C626D41E503"
-    },
-    {
-      "group_id_a": "3ab2b4674fde5d592353d7b9f1a9dd1c2207c8ec",
-      "group_id_b": "553b297b779f9cdf866f11e6ee63474dd6079fea",
-      "distance": 7,
-      "xid_a": "935CF2120BB011E2AEA36C626D41E503",
-      "xid_b": "4D625C55953711E192C36C626D41E503"
-    },
-    {
-      "group_id_a": "3e19bae1cbfa67c4f314b123ef201bbba2981a66",
-      "group_id_b": "c2a2ab97e3a93c53253e1925c0fbf7fa4d664701",
-      "distance": 7,
-      "xid_a": "8DBB0A27645011E6A554000C76270B94",
-      "xid_b": "A0C4FF3DB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "3f00d23c7eab741cb0a5dec03f8d5e5b69d9edc5",
-      "group_id_b": "54021c63c602cae1e66ccbc6305fb35c4a662b0e",
-      "distance": 7,
-      "xid_a": "90589695E75C11E49A60406186009F3A",
-      "xid_b": "2E476492E73F11E49A60406186009F3A"
-    },
-    {
-      "group_id_a": "3f47a2001b9363b6fbe46c2f859c5edc1f3ba9e9",
-      "group_id_b": "5c8b83bcfbffde9059f2be85ebd01e1bb3641e37",
-      "distance": 7,
-      "xid_a": "F1212404DFB811E5A81274D435EEBE90",
-      "xid_b": "A118852AB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "3f47a2001b9363b6fbe46c2f859c5edc1f3ba9e9",
-      "group_id_b": "698696e3326bebc7c2d09ce420e5ccd57ce6f137",
-      "distance": 7,
-      "xid_a": "F1212404DFB811E5A81274D435EEBE90",
-      "xid_b": "A11884E2B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "3f47a2001b9363b6fbe46c2f859c5edc1f3ba9e9",
-      "group_id_b": "ebae7e62752d1701d7c86269e82cfb1511ca01f1",
-      "distance": 7,
-      "xid_a": "F1212404DFB811E5A81274D435EEBE90",
-      "xid_b": "A0C50CB3B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "3f47a2001b9363b6fbe46c2f859c5edc1f3ba9e9",
-      "group_id_b": "f34cce767ea2d0ccad9f9061b8cf98dd41712768",
-      "distance": 7,
-      "xid_a": "F1212404DFB811E5A81274D435EEBE90",
-      "xid_b": "A1186804B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "43081b4958b432aafa990adf28a611e5f62602c6",
-      "group_id_b": "f650edd719ea4d689b3d2392319524cd4b0ca7b0",
-      "distance": 7,
-      "xid_a": "5AA65B0BF25A11E4AA40406186009F3A",
-      "xid_b": "9BE18276F46A11E7A828406186009F3A"
-    },
-    {
-      "group_id_a": "43f26a3c0996508d7294fb37275ab5e9865c66f0",
-      "group_id_b": "cd91fd8b972cf3a940dd8ed6b89c3ae6ae93e7be",
-      "distance": 7,
-      "xid_a": "B2A1D88B62D511E6A552000C76270B94",
-      "xid_b": "2828F00262B311E6A552000C76270B94"
-    },
-    {
-      "group_id_a": "48d68b561c9ec8de4d13633e99ea6764d5157e93",
-      "group_id_b": "b9db70f5ffe786b9b348234bce2c38039fbd0783",
-      "distance": 7,
-      "xid_a": "3310B6BC62A211E6A552000C76270B94",
-      "xid_b": "952FB6289DCD11E196AF6C626D41E503"
-    },
-    {
-      "group_id_a": "4b4212aa59118831739042951a40fb40f03c8824",
-      "group_id_b": "8690a5b7d898331cc8b9d26a3684347da66be1cc",
-      "distance": 7,
-      "xid_a": "31C170E16D6711E88D0474D435EEBE90",
-      "xid_b": "81125AD16D8C11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "4b4212aa59118831739042951a40fb40f03c8824",
-      "group_id_b": "a96a54d92e23f1360c8027b946e3c2c8de6a1a58",
-      "distance": 7,
-      "xid_a": "31C170E16D6711E88D0474D435EEBE90",
-      "xid_b": "375D55916D6811E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "4b4212aa59118831739042951a40fb40f03c8824",
-      "group_id_b": "caa652874a8d96ff999fcb5bf5abce5419ddf3f0",
-      "distance": 7,
-      "xid_a": "31C170E16D6711E88D0474D435EEBE90",
-      "xid_b": "287947048C0911E8A45074D435EEBE90"
-    },
-    {
-      "group_id_a": "4d7057760377ee2236879c1ecfb9e8eae429e783",
-      "group_id_b": "5f923ed7574a717c541a7d6c8f9ea9ab7b8a8680",
-      "distance": 7,
-      "xid_a": "C351C3C29E3611E3B7D600110989F46F",
-      "xid_b": "CF04012296CA11E6BE20406186009F3A"
-    },
-    {
-      "group_id_a": "4d91f5f2f061e41c8b67bcb6aa2409ff50927f93",
-      "group_id_b": "7e85334a751f06d55cb0d30b453993e14b62f9d3",
-      "distance": 7,
-      "xid_a": "EE5993E48C0811E8A45074D435EEBE90",
-      "xid_b": "E05429C1657111E8B6E074D435EEBE90"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "5d344b7adf65a5ae648d8708488a4ff9bd1feba4",
-      "distance": 7,
-      "xid_a": "1A21762395FA11E2BF2A525400E46D25",
-      "xid_b": "621FB8B0289A11E6BCEA406186009F3A"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "80e3cbea1671031fef984802b371c2128f0d6a92",
-      "distance": 7,
-      "xid_a": "B8EE346E95FA11E2BF2A525400E46D25",
-      "xid_b": "98BBFF7B16D811E2B3CE6C626D41E503"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "980405000292d23abb715b6743ce525a5a45c59f",
-      "distance": 7,
-      "xid_a": "1A21762395FA11E2BF2A525400E46D25",
-      "xid_b": "4B695DBA4F2411E6A549000C76270B94"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "9cf68117edf6cb9925eb5fe9099b773b21b69d56",
-      "distance": 7,
-      "xid_a": "F690718495FA11E2BF2A525400E46D25",
-      "xid_b": "A0C4FE97B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "a29096dbbef0afbbebbec134e64809c95e6d883d",
-      "distance": 7,
-      "xid_a": "EAB95A61960011E2BF2A525400E46D25",
-      "xid_b": "6B672B8A9F4C11E18C606C626D41E503"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "bb9612eac3484fe82cdbab4f5472b68f3c4eca22",
-      "distance": 7,
-      "xid_a": "147B745795FC11E2BF2A525400E46D25",
-      "xid_b": "4C8CBD58362911E1BECE000C766D2371"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "d9a729ed5b60fc98f716102055aa0ba6fc0d4dae",
-      "distance": 7,
-      "xid_a": "B8EE346E95FA11E2BF2A525400E46D25",
-      "xid_b": "67FF44EB62D811E6A552000C76270B94"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "f34cce767ea2d0ccad9f9061b8cf98dd41712768",
-      "distance": 7,
-      "xid_a": "1A21762395FA11E2BF2A525400E46D25",
-      "xid_b": "A1186804B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "5c8b83bcfbffde9059f2be85ebd01e1bb3641e37",
-      "group_id_b": "d2da82e4f52a1d43ca076684215d8fe077e9b3b1",
-      "distance": 7,
-      "xid_a": "A118852AB67611DF820F00166F1163D4",
-      "xid_b": "06F343AB8B3211E2BF22525400E46D25"
-    },
-    {
-      "group_id_a": "5d89d9a67a717c4d7378f65355162a2500152949",
-      "group_id_b": "80e3cbea1671031fef984802b371c2128f0d6a92",
-      "distance": 7,
-      "xid_a": "1F91434057F011E7A695406186009F3A",
-      "xid_b": "98BBFF7B16D811E2B3CE6C626D41E503"
-    },
-    {
-      "group_id_a": "63f0ff0304d418f9c0731f36f53376418a957712",
-      "group_id_b": "7191b7e18de0b6337ad9480b2c8fbc7b933e1ee3",
-      "distance": 7,
-      "xid_a": "9CDF5F83D08D11DFBD52000C766D2371",
-      "xid_b": "786E90C3904811E080250010DCCFBEC5"
-    },
-    {
-      "group_id_a": "63f0ff0304d418f9c0731f36f53376418a957712",
-      "group_id_b": "76e5c206dc99a7bb81c0e2f903b8c7f3724e5749",
-      "distance": 7,
-      "xid_a": "9CDF5F83D08D11DFBD52000C766D2371",
-      "xid_b": "A0C4FC45B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "63f0ff0304d418f9c0731f36f53376418a957712",
-      "group_id_b": "d39a0ff868be2d0f75bdf19be6ef52c37536ed17",
-      "distance": 7,
-      "xid_a": "9CDF5F83D08D11DFBD52000C766D2371",
-      "xid_b": "B071AB9A85AA11E2BF1F525400E46D25"
-    },
-    {
-      "group_id_a": "6540c5f4974b7e8f00e41ba46bb947d245b0ef3b",
-      "group_id_b": "c9bd17eec79e4f3bc8f554b8de61b0c711842b1b",
-      "distance": 7,
-      "xid_a": "D7C77BF4D39411E8A2B874D435EEBE90",
-      "xid_b": "3D28CFA2D37A11E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "6660e68b344324f892c6aff67ca21a6f57df75b4",
-      "group_id_b": "711155a4c11fdf31313d84d13404c732572aff51",
-      "distance": 7,
-      "xid_a": "A14CE89DB67611DF820F00166F1163D4",
-      "xid_b": "A1188788B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "6660e68b344324f892c6aff67ca21a6f57df75b4",
-      "group_id_b": "76e5c206dc99a7bb81c0e2f903b8c7f3724e5749",
-      "distance": 7,
-      "xid_a": "A14CE89DB67611DF820F00166F1163D4",
-      "xid_b": "A0C4FC45B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "6966d89e9a99420d98ecdbdb109b8b7294d5c7cc",
-      "group_id_b": "9dc922a288c999b9d63d9cf792ea1838f0518f00",
-      "distance": 7,
-      "xid_a": "abf2e23c25524ad1a521384e3c269226",
-      "xid_b": "84D97DD3D0BE11EABE1F74D435EEBE90"
-    },
-    {
-      "group_id_a": "6aa433a3aea946aee642a210e4afc259af80b178",
-      "group_id_b": "a7fc8a6fc045ab2e3a6dadd9383ec42cc17a206d",
-      "distance": 7,
-      "xid_a": "8E99AAAE04F111E3A4F66C626D41E503",
-      "xid_b": "41C27DEE604411E4A30B0024BE7CD9AC"
-    },
-    {
-      "group_id_a": "70f3673e6695da778738d98f1df57069ab855cb8",
-      "group_id_b": "abcde7850ec1968df1b8413361293be0c13746b0",
-      "distance": 7,
-      "xid_a": "E8E1A572D37911E8A2B874D435EEBE90",
-      "xid_b": "20CF3B62D37911E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "71e3d73f98d683dfa45b2aca90dce0c90eb3e1ce",
-      "group_id_b": "dac69d651b0b2cd6e6ec9622673e06e7174333e7",
-      "distance": 7,
-      "xid_a": "A0C50F82B67611DF820F00166F1163D4",
-      "xid_b": "A14CE7B3B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "76e5c206dc99a7bb81c0e2f903b8c7f3724e5749",
-      "group_id_b": "99cffbf645f1b2b1ece3026a82628b3794d22fde",
-      "distance": 7,
-      "xid_a": "A0C4FC45B67611DF820F00166F1163D4",
-      "xid_b": "64FE8984D39711E8A2B874D435EEBE90"
+      "group_id_a": "1585f2f521d7084dee697fd1e7208d4dcae5b281",
+      "group_id_b": "849f0857391ebe983a9dcf1518e4f8eb86c63cdf",
+      "distance": 10,
+      "xid_a": "A14CE4DAB67611DF820F00166F1163D4",
+      "xid_b": "A1187577B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Distinctive visible structures align: the same corner building with identical roof chimneys and dormer, the same shop signs and window pattern, the same horse-d",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
       "group_id_a": "77cfbee93b08a4fe66de8e986406a94f66d4cff7",
       "group_id_b": "bb389f6e32a3ed111c5b7dec8bd07b643837b705",
-      "distance": 7,
+      "distance": 10,
       "xid_a": "4AFD0D3028B111E6BCEA406186009F3A",
-      "xid_b": "A0C4FE98B67611DF820F00166F1163D4"
+      "xid_b": "A0C4FE98B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "The same narrow cobblestone street is photographed from the same position with matching building geometry: the left facade with upper window and oval sign, the",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "780d84c2a036b5e45794077f2a9795f82a1506ab",
-      "group_id_b": "d76565804fef3ff9efdfbab8af864e342b72e2f0",
-      "distance": 7,
-      "xid_a": "A11885F0B67611DF820F00166F1163D4",
-      "xid_b": "E196E90E651811E6A555000C76270B94"
+      "group_id_a": "010afd26c420fa63e08e7522500c4a603b16c9d5",
+      "group_id_b": "b6656bd637ec606d3847803f0fd7f65ce212d225",
+      "distance": 11,
+      "xid_a": "7E800411266F11E6B917406186009F3A",
+      "xid_b": "A0C503A4B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "The same street perspective and distinctive structures align: the curved tram tracks in the cobblestones, overhead trolley wires with the same attachment points",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "79852b7773f5bbbdaf4080b7576243232d1bbf3e",
-      "group_id_b": "a7f16b7d5a29ac9cd1d77b3588993c4e43a38e20",
-      "distance": 7,
-      "xid_a": "B02951246D7111E88D0474D435EEBE90",
-      "xid_b": "DCFD08796D5F11E88D0474D435EEBE90"
+      "group_id_a": "020a1ec02aaf4e5a2526e0f1da956910cf6bede2",
+      "group_id_b": "795d1b1e9e802a8b68ff89f88d932a63be891d4f",
+      "distance": 11,
+      "xid_a": "A14CEA0CB67611DF820F00166F1163D4",
+      "xid_b": "37754E48F18C11DFBD80000C766D2371",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.96,
+      "llm_reason": "The distinctive chapel altar composition aligns: the same central altarpiece and small altar table, paired flanking statues on columns, matching stained-glass/\u0142",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "79852b7773f5bbbdaf4080b7576243232d1bbf3e",
-      "group_id_b": "caa652874a8d96ff999fcb5bf5abce5419ddf3f0",
-      "distance": 7,
-      "xid_a": "B02951246D7111E88D0474D435EEBE90",
-      "xid_b": "100748248C0911E8A45074D435EEBE90"
+      "group_id_a": "05ae96d9ad6b744e32a1bb4cfe9246a28f50275d",
+      "group_id_b": "d6349cfe939230fc1657fd11cdc0a42f565027af",
+      "distance": 11,
+      "xid_a": "D649881204F611E3A4F66C626D41E503",
+      "xid_b": "5AFC3A4A04F711E3A4F66C626D41E503",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The same arched stone gate, paired open doors, circular archive stamps in identical positions, rooflines, balcony/window placement, cobblestone pattern, and ivy",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "79852b7773f5bbbdaf4080b7576243232d1bbf3e",
-      "group_id_b": "e494f02631ed370400218b934e5dd66d4ac0e7ea",
-      "distance": 7,
-      "xid_a": "B02951246D7111E88D0474D435EEBE90",
-      "xid_b": "515C7CE76D7211E88D0474D435EEBE90"
+      "group_id_a": "0e3e2bcf044fed812e1c63e50e773b1048bce779",
+      "group_id_b": "ec578090df4dd01e714de0a43b282a4ca650d5a7",
+      "distance": 11,
+      "xid_a": "A118895BB67611DF820F00166F1163D4",
+      "xid_b": "B341895DBB1011E3A31E0024BE7CD9AC",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.9,
+      "llm_reason": "The same facade details align: the left wall lantern, two upper multi-pane windows with shutters, the central small balcony/railing below them, the lower paired",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "7cb1608163d5b096961bc25772ad4a74caa2f4a7",
-      "group_id_b": "e387549a0d44b78fbbc4d693fd1b37e44e2ee4b9",
-      "distance": 7,
-      "xid_a": "501D77F8E72D11E3AC530024D626C8BC",
-      "xid_b": "A1187D16B67611DF820F00166F1163D4"
+      "group_id_a": "3c1b6e11d8b8ba62247d5a732f7a1cc0a1652b71",
+      "group_id_b": "c0a3191a475af2b1339ed545359aac8b76d2262f",
+      "distance": 11,
+      "xid_a": "06117A015B1811E7A808406186009F3A",
+      "xid_b": "A118810FB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Distinctive visible structures align: the same riverbank and path, the central white house with attached dark shed, the long building with dormers on the right,",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "7ddde1588756a4b127cc7772ec9945cf1deb00fd",
-      "group_id_b": "daab0a29d0ffb7cfbaf06435bef2f35962e27f45",
-      "distance": 7,
-      "xid_a": "6222C9400AE711E7A90B406186009F3A",
-      "xid_b": "4791020989B111E8853174D435EEBE90"
+      "group_id_a": "43081b4958b432aafa990adf28a611e5f62602c6",
+      "group_id_b": "f650edd719ea4d689b3d2392319524cd4b0ca7b0",
+      "distance": 11,
+      "xid_a": "5AA65B0BF25A11E4AA40406186009F3A",
+      "xid_b": "9BE18276F46A11E7A828406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "The distinctive interior structure aligns: the central dark monument panel, paired sculpted female figures on both sides, decorative frieze and wreath above, fl",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "80e3cbea1671031fef984802b371c2128f0d6a92",
-      "group_id_b": "8acea3237795bb57dccaaff1026d2df98b202a68",
-      "distance": 7,
-      "xid_a": "98BBFF7B16D811E2B3CE6C626D41E503",
-      "xid_b": "A0C50178B67611DF820F00166F1163D4"
+      "group_id_a": "04de4ac0d7b8afd691eef85dafeadeb86af795f2",
+      "group_id_b": "b945dcce1333403e765fcbf39be9cd254f4fba66",
+      "distance": 12,
+      "xid_a": "FA130655B9A711E39F720024BE7CD9AC",
+      "xid_b": "A0C4FAC4B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Distinctive visible structures align: the same gym interior perspective, ceiling beams, hanging rings and rope cluster, central ladder/ropes, pommel horse, long",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "80e3cbea1671031fef984802b371c2128f0d6a92",
-      "group_id_b": "c263dafaf38d9ec1fae6f1ad4f13b4fa92488b81",
-      "distance": 7,
-      "xid_a": "98BBFF7B16D811E2B3CE6C626D41E503",
-      "xid_b": "46F5603E6F0011E88F4674D435EEBE90"
+      "group_id_a": "769e73eea3ee79f86ddcf6251b2d05266c61bf79",
+      "group_id_b": "df81d0d4adf6f34fc9872c7ad53a81fa031a2670",
+      "distance": 12,
+      "xid_a": "A11885D6B67611DF820F00166F1163D4",
+      "xid_b": "72C7EF6124AD11E9B9F9406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.96,
+      "llm_reason": "Distinctive visible structures align: the ornate central building with the same roofline, dormers, pediment, and storefront signage; the tall column/lamp in the",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "823dcd73b96246b3de4d19b974df7d781293ed15",
-      "group_id_b": "fcb5166c8e06afaaa44fde5ee8119dfdea7e365c",
-      "distance": 7,
-      "xid_a": "E82896C468B211E8B58B74D435EEBE90",
-      "xid_b": "A1187DFAB67611DF820F00166F1163D4"
+      "group_id_a": "a64ec3662bcc43f6abecd497487f1589a44f2ff7",
+      "group_id_b": "a6c2ec6763db50dd88990506395271b3ef88ba2d",
+      "distance": 12,
+      "xid_a": "A1187B04B67611DF820F00166F1163D4",
+      "xid_b": "3B295B91266E11E6B917406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The distinctive baroque church with twin towers, the large dark building on the left, the ornate corner building on the right, the streetlamp positions, and the",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "8245530b264b7bd366a9898c97f1aaa86bf9d798",
-      "group_id_b": "8690a5b7d898331cc8b9d26a3684347da66be1cc",
-      "distance": 7,
-      "xid_a": "EDB685736D5B11E88D0474D435EEBE90",
-      "xid_b": "81125AD16D8C11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "8245530b264b7bd366a9898c97f1aaa86bf9d798",
-      "group_id_b": "b2d479865862e989a30f5ca12f3c8f86c9673014",
-      "distance": 7,
-      "xid_a": "EDB685736D5B11E88D0474D435EEBE90",
-      "xid_b": "7EC3DD616D6211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "8245530b264b7bd366a9898c97f1aaa86bf9d798",
-      "group_id_b": "da9356927ec5f116f4b13728ea8ad669d018f539",
-      "distance": 7,
-      "xid_a": "EDB685736D5B11E88D0474D435EEBE90",
-      "xid_b": "8B8337C56D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "838ebdcf82b6ab394f674848ee3738b891bdaeeb",
-      "group_id_b": "ee022b8ac7f4e6cec629f23c00c7b78eb8c28970",
-      "distance": 7,
-      "xid_a": "A0C50F64B67611DF820F00166F1163D4",
-      "xid_b": "A0C51722B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "83cfd560936d8930f82a979c71528247f12b86d7",
-      "group_id_b": "b50f502d99a94d218c1168ea103b10809e53dbec",
-      "distance": 7,
-      "xid_a": "496451990C9111E2AEA36C626D41E503",
-      "xid_b": "84861B090C9111E2AEA36C626D41E503"
-    },
-    {
-      "group_id_a": "847d1b5ddbc5aa171103c5cac00e00417ffae2a7",
-      "group_id_b": "dac69d651b0b2cd6e6ec9622673e06e7174333e7",
-      "distance": 7,
-      "xid_a": "A14CE787B67611DF820F00166F1163D4",
-      "xid_b": "A14CE7B3B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "85f64cf834ed5f56284fd8ce31becbcdba51711e",
-      "group_id_b": "ca7118c90cc1698fa4349385b2336b342ae2a17f",
-      "distance": 7,
-      "xid_a": "F74BDF81227A11E6AC04406186009F3A",
-      "xid_b": "A0C5171EB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "8690a5b7d898331cc8b9d26a3684347da66be1cc",
-      "group_id_b": "8b8db3d8db12c3d611239ea3f59014849e963c68",
-      "distance": 7,
-      "xid_a": "81125AD16D8C11E88D0474D435EEBE90",
-      "xid_b": "1BF674726D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "8690a5b7d898331cc8b9d26a3684347da66be1cc",
-      "group_id_b": "e02c4e8708da2b9dffb3dd9b3fb09eae46934cf2",
-      "distance": 7,
-      "xid_a": "81125AD16D8C11E88D0474D435EEBE90",
-      "xid_b": "BCA6DAE76D7B11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "8690a5b7d898331cc8b9d26a3684347da66be1cc",
-      "group_id_b": "f050f32c724cefead82402df557929b658d285cf",
-      "distance": 7,
-      "xid_a": "81125AD16D8C11E88D0474D435EEBE90",
-      "xid_b": "89E2BE516D6C11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "87938fdf3de1c6c58d77eb4e12b6346b2f2d37c3",
-      "group_id_b": "c25a95906be829466217a55e66a75a756fbe2308",
-      "distance": 7,
-      "xid_a": "C3E4A1CB669211E481D7D4BED94BB14D",
-      "xid_b": "21233CA563DC11E89CE474D435EEBE90"
-    },
-    {
-      "group_id_a": "8b8db3d8db12c3d611239ea3f59014849e963c68",
-      "group_id_b": "a96a54d92e23f1360c8027b946e3c2c8de6a1a58",
-      "distance": 7,
-      "xid_a": "1BF674726D7211E88D0474D435EEBE90",
-      "xid_b": "375D55916D6811E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "8b8db3d8db12c3d611239ea3f59014849e963c68",
-      "group_id_b": "caa652874a8d96ff999fcb5bf5abce5419ddf3f0",
-      "distance": 7,
-      "xid_a": "1BF674726D7211E88D0474D435EEBE90",
-      "xid_b": "287947048C0911E8A45074D435EEBE90"
-    },
-    {
-      "group_id_a": "8cb62640a31be302d03cbff80cbe2479489f59e6",
-      "group_id_b": "a27cf243468468239017fe36f3460ad1d6ae74b4",
-      "distance": 7,
-      "xid_a": "A0C51168B67611DF820F00166F1163D4",
-      "xid_b": "A14CE12DB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "99ebea37a5f7bdd1ffb8fb9ca843f32944a550ce",
-      "group_id_b": "d8442a26b32d2bb80c43446e54e0d36c0c672e7a",
-      "distance": 7,
-      "xid_a": "376823E2D1C711E69F29406186009F3A",
-      "xid_b": "A0C5110FB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "9f19784bd0a2ba9800df009232148decd6d31d29",
-      "group_id_b": "cc3bddd929eb4acc9885dbe45c9f691e9c2de44c",
-      "distance": 7,
-      "xid_a": "A0C4F70CB67611DF820F00166F1163D4",
-      "xid_b": "A1187451B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "a46196c010ba8df038ff89613b1f2a15399d6820",
-      "group_id_b": "ef3aaed05ad05f4f4a631bd87368e968161abacc",
-      "distance": 7,
-      "xid_a": "2A3AE3B02CA811E69BD5406186009F3A",
-      "xid_b": "A1186C29B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "a7f16b7d5a29ac9cd1d77b3588993c4e43a38e20",
-      "group_id_b": "a96a54d92e23f1360c8027b946e3c2c8de6a1a58",
-      "distance": 7,
-      "xid_a": "DCFD08796D5F11E88D0474D435EEBE90",
-      "xid_b": "375D55916D6811E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "a809ef2105c711f5d84e00a30a114ab1ec5cb9c6",
-      "group_id_b": "d13558e3afa789d5d85470b2cd9f3c73a3ee6f01",
-      "distance": 7,
-      "xid_a": "767D68C590EB11E8B3B474D435EEBE90",
-      "xid_b": "55A2672D90EA11E8B3B474D435EEBE90"
-    },
-    {
-      "group_id_a": "ab88514862501484e2a7fce4973cc49872515a3d",
-      "group_id_b": "bb5d4937abb72d12e5a92352f2f77bc78f28008b",
-      "distance": 7,
-      "xid_a": "A0C50327B67611DF820F00166F1163D4",
-      "xid_b": "A1187FC9B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "b2d479865862e989a30f5ca12f3c8f86c9673014",
-      "group_id_b": "f050f32c724cefead82402df557929b658d285cf",
-      "distance": 7,
-      "xid_a": "7EC3DD616D6211E88D0474D435EEBE90",
-      "xid_b": "89E2BE516D6C11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "c4882c05671b9bb4106f47e0982ce2f00a01e751",
-      "group_id_b": "ccfd6a40518ffaa42d69d76a69e53daa292cde16",
-      "distance": 7,
-      "xid_a": "FDCF854F3E9E11E1B434000BCDD04BFA",
-      "xid_b": "80F82062E84211E4BB7A0024BE7CD9AC"
+      "group_id_a": "a91f5168b4137be10e9ed5afdc42aa9cafdf8c20",
+      "group_id_b": "e9d3343fbe6ec954c8a2e700d3b3f652932d23bd",
+      "distance": 12,
+      "xid_a": "c27e8edc11da47dcaaf4203f27c3c267",
+      "xid_b": "A854384FB83F11E5AA08D4BED94BB14D",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The same panoramic view aligns throughout: the foreground open snowy/bright field with identical mound patterns, the tree line at lower left, the walled yard/ro",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
       "group_id_a": "c6daa3ece0f17576561c7a2e5b6be5c70bd0edcb",
       "group_id_b": "dfc565e14f0dea5d3209cd96a8ac5d133aef11c3",
-      "distance": 7,
+      "distance": 12,
       "xid_a": "74E39BA2AA9511E3A45A0024BE7CD9AC",
-      "xid_b": "BBC4F4D5A93411E3839F0024BE7CD9AC"
+      "xid_b": "BBC4F4D5A93411E3839F0024BE7CD9AC",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The same Gothic relief panel is visible with matching crucifix in the center, the clustered figures and shield-like forms at upper left, the seated figure with\u5706",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "ca007e706856b39f471ecc76a0fbd9561c64d12a",
-      "group_id_b": "dad62c1933be4882ccc3b9087bb3117e804414d9",
-      "distance": 7,
-      "xid_a": "903AF8EC084311E0BDAD000C766D2371",
-      "xid_b": "A63B0B7E306A11EABE1474D435EEBE90"
+      "group_id_a": "52ebfa100448633527cc8ebc9aff58433c184579",
+      "group_id_b": "9d5406bada144d1f84b40ccd29261a18c6f7f0c6",
+      "distance": 13,
+      "xid_a": "E78DF04D29EF11E9A7CF406186009F3A",
+      "xid_b": "A0C4F863B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.96,
+      "llm_reason": "Distinctive visible structures align: the baroque church with twin towers and curved side apse, the ornate multi-story building immediately to its right, the sl",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "d48bbbf29d71521edcde498694754340f573f19f",
-      "group_id_b": "f34cce767ea2d0ccad9f9061b8cf98dd41712768",
-      "distance": 7,
-      "xid_a": "1DEAB06076C011E2BF17525400E46D25",
-      "xid_b": "A14CE5F3B67611DF820F00166F1163D4"
+      "group_id_a": "6981b9caaa27ebcc55f8cf7ec709d38eed767b18",
+      "group_id_b": "95dfa29769108125916fcd7ecfd382b4b4bfbc9d",
+      "distance": 13,
+      "xid_a": "426C02E628A211E6BCEA406186009F3A",
+      "xid_b": "A14CE6B8B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Distinctive visible structures align: the same large steep-roofed central building with the arched window and chimney, the same lower roof and shop entrance at\u5de6",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "e369dc55bdc61fc02b0319f7eb8ad2d8283246ae",
-      "group_id_b": "f3ab40731a31ddae2102027980fc967377ac4cda",
-      "distance": 7,
-      "xid_a": "1C826A99663A11E2A1036C626D41E503",
-      "xid_b": "A1186C79B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "ee68f40e7348f9d52c07d598825af4412b757909",
-      "group_id_b": "f6cc20a768d83644717c0fb998309b87fd9d319a",
-      "distance": 7,
-      "xid_a": "411870ede3bc44a299b19364b24d1346",
-      "xid_b": "83687E81B84011E5AA08D4BED94BB14D"
-    },
-    {
-      "group_id_a": "f277dff118daffcae7c5e2e351addfb190fe23c9",
-      "group_id_b": "f650edd719ea4d689b3d2392319524cd4b0ca7b0",
-      "distance": 7,
-      "xid_a": "50999ABF29FE11E9A7CF406186009F3A",
-      "xid_b": "FF7F637EF46811E7A828406186009F3A"
-    },
-    {
-      "group_id_a": "f7771495aa6b52bdfdadd2d01b7251b72651b9b9",
-      "group_id_b": "f9f7806e10d8c56ed00423b06522eb2c1b16fe87",
-      "distance": 7,
-      "xid_a": "A0C5180FB67611DF820F00166F1163D4",
-      "xid_b": "14A1218696A311E6BE20406186009F3A"
-    },
-    {
-      "group_id_a": "00dd52ef2a388cb7d0a3115920f0d281eb399be1",
-      "group_id_b": "05081acb81de4b9c921a52267b5c420a6fb44383",
-      "distance": 8,
-      "xid_a": "A0C5182FB67611DF820F00166F1163D4",
-      "xid_b": "A546B5D68B1311E2BF22525400E46D25"
-    },
-    {
-      "group_id_a": "00dd52ef2a388cb7d0a3115920f0d281eb399be1",
-      "group_id_b": "2aa835d1c1205bf2dc7d1669455e539a74e91228",
-      "distance": 8,
-      "xid_a": "A0C5182FB67611DF820F00166F1163D4",
-      "xid_b": "FDCF850B3E9E11E1B434000BCDD04BFA"
-    },
-    {
-      "group_id_a": "00dd52ef2a388cb7d0a3115920f0d281eb399be1",
-      "group_id_b": "9cf68117edf6cb9925eb5fe9099b773b21b69d56",
-      "distance": 8,
-      "xid_a": "A0C5182FB67611DF820F00166F1163D4",
-      "xid_b": "A0C4FE97B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "00dd52ef2a388cb7d0a3115920f0d281eb399be1",
-      "group_id_b": "d2da82e4f52a1d43ca076684215d8fe077e9b3b1",
-      "distance": 8,
-      "xid_a": "A0C5182FB67611DF820F00166F1163D4",
-      "xid_b": "06F343AB8B3211E2BF22525400E46D25"
-    },
-    {
-      "group_id_a": "01fbd653a879070300d534cdcb81d739dec5563a",
-      "group_id_b": "4d3753e0dc69b6e2e94e2d21f0dfdcce5933f716",
-      "distance": 8,
-      "xid_a": "A14CEB64B67611DF820F00166F1163D4",
-      "xid_b": "A14CEB63B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "7693553ea8985e8eea451ca175ce3d522941cae8",
-      "distance": 8,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "A0C51801B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "8acea3237795bb57dccaaff1026d2df98b202a68",
-      "distance": 8,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "A0C50178B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "02430ab94ed1014ff45a34a4608ea5882f846604",
-      "group_id_b": "a3b6e9a95e1898c7ffc0c4e8767f742f7002c7c8",
-      "distance": 8,
-      "xid_a": "908BDCF6923011E2BF28525400E46D25",
-      "xid_b": "A11884ECB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "0407f0c4e763120bc309056588730070edf6a53d",
-      "group_id_b": "22af00129f5a07a540719942947b452a472333bb",
-      "distance": 8,
-      "xid_a": "CE36049A8D5C11E2BF25525400E46D25",
-      "xid_b": "838F73E995F611E2BF2A525400E46D25"
-    },
-    {
-      "group_id_a": "0407f0c4e763120bc309056588730070edf6a53d",
-      "group_id_b": "27ecfc07aeb5aafed026a2ee93c9a121300e254a",
-      "distance": 8,
-      "xid_a": "CE36049A8D5C11E2BF25525400E46D25",
-      "xid_b": "A14CE285B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "0407f0c4e763120bc309056588730070edf6a53d",
-      "group_id_b": "7c5761b167a232000593c432375566cafabcec66",
-      "distance": 8,
-      "xid_a": "CE36049A8D5C11E2BF25525400E46D25",
-      "xid_b": "D45AE6079B9711E6A59B406186009F3A"
-    },
-    {
-      "group_id_a": "0417dff74d646ec7334b174f79693376200b9cfd",
-      "group_id_b": "f763ae6d19cacd842a532a518b205d44da0fc4cc",
-      "distance": 8,
-      "xid_a": "3BBBBBD0038511E0BDA5000C766D2371",
-      "xid_b": "A0C4F6AEB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "04cbaeafbebcb13c27d01eb45c090cb7b862466a",
-      "group_id_b": "228d7c958002c963d3e1f573303b14367a21100f",
-      "distance": 8,
-      "xid_a": "4E1BB5BAB61411E59BFF406186009F3A",
-      "xid_b": "9A3FD23D903F11E080250010DCCFBEC5"
-    },
-    {
-      "group_id_a": "05081acb81de4b9c921a52267b5c420a6fb44383",
-      "group_id_b": "9cf68117edf6cb9925eb5fe9099b773b21b69d56",
-      "distance": 8,
-      "xid_a": "A546B5D68B1311E2BF22525400E46D25",
-      "xid_b": "A0C4FE97B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "05081acb81de4b9c921a52267b5c420a6fb44383",
-      "group_id_b": "a29096dbbef0afbbebbec134e64809c95e6d883d",
-      "distance": 8,
-      "xid_a": "A546B5D68B1311E2BF22525400E46D25",
-      "xid_b": "6B672B8A9F4C11E18C606C626D41E503"
-    },
-    {
-      "group_id_a": "07547260053e85369a79f795ac8b8f4987300676",
-      "group_id_b": "802c429f52ffefedaebc9247da1a9859d88aa7c2",
-      "distance": 8,
-      "xid_a": "19D2D8A2923011E2BF28525400E46D25",
-      "xid_b": "3AA80FEF60A811E293B96C626D41E503"
-    },
-    {
-      "group_id_a": "07547260053e85369a79f795ac8b8f4987300676",
-      "group_id_b": "d6c28b67b483ce498446f09978a71859a550bb1e",
-      "distance": 8,
-      "xid_a": "19D2D8A2923011E2BF28525400E46D25",
-      "xid_b": "6B126392B97611E3AFA20024BE7CD9AC"
-    },
-    {
-      "group_id_a": "076636609f807f9d42a03e3356840c234cf87919",
-      "group_id_b": "7ed7224e42774b662f90b734f411e9be0b19f7ee",
-      "distance": 8,
-      "xid_a": "4CD1E252917111E8B9E274D435EEBE90",
-      "xid_b": "A2CC906D90EB11E8B3B474D435EEBE90"
-    },
-    {
-      "group_id_a": "085fcdca605d837221c188d1881081ba503c712c",
-      "group_id_b": "82d498494509f45449e5b9fc58736302c61e221d",
-      "distance": 8,
-      "xid_a": "9BF36F7062B711E6A552000C76270B94",
-      "xid_b": "98359FD4647811E6A554000C76270B94"
-    },
-    {
-      "group_id_a": "0ad636a4b94f79cad0e9d565c63cf1b748849da2",
-      "group_id_b": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "distance": 8,
-      "xid_a": "679EEB1CB59911E388980024BE7CD9AC",
-      "xid_b": "147B745795FC11E2BF2A525400E46D25"
-    },
-    {
-      "group_id_a": "0b76ad72b6ee19ceec5381f8e3b1db97e15982e5",
-      "group_id_b": "229740234a8a83ab96db491f0dea37eee9b6e3ca",
-      "distance": 8,
-      "xid_a": "AF29CC42D37911E8A2B874D435EEBE90",
-      "xid_b": "CBDA0172D37911E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "0b76ad72b6ee19ceec5381f8e3b1db97e15982e5",
-      "group_id_b": "2363ca5e802b8703d4fd687982d3fa99396676ae",
-      "distance": 8,
-      "xid_a": "AF29CC42D37911E8A2B874D435EEBE90",
-      "xid_b": "87F5FB64D39411E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "0b76ad72b6ee19ceec5381f8e3b1db97e15982e5",
-      "group_id_b": "6540c5f4974b7e8f00e41ba46bb947d245b0ef3b",
-      "distance": 8,
-      "xid_a": "AF29CC42D37911E8A2B874D435EEBE90",
-      "xid_b": "D7C77BF4D39411E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "0b76ad72b6ee19ceec5381f8e3b1db97e15982e5",
-      "group_id_b": "cd79b4c1ee2cadbc6abf18994fee08ce223aef6e",
-      "distance": 8,
-      "xid_a": "AF29CC42D37911E8A2B874D435EEBE90",
-      "xid_b": "EC51FEF2D37711E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "122d0eb06a3047e395cdbab96e71c36cac3f9e42",
-      "group_id_b": "4b87dcb2de6f85aadaca778c167004add74d2d42",
-      "distance": 8,
-      "xid_a": "7D0BF14D23B511E0BDC7000C766D2371",
-      "xid_b": "A0C4FED1B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "12fc8c4d638b95c272a2afbe849c1889390d6f18",
-      "group_id_b": "263cd6a65fe182043890cc70ce81ee42a6ac512c",
-      "distance": 8,
-      "xid_a": "F76D999F903F11E080250010DCCFBEC5",
-      "xid_b": "A1188BCCB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "12fc8c4d638b95c272a2afbe849c1889390d6f18",
-      "group_id_b": "eb2ed43f8c0584d73f186e03e87605bbf8108163",
-      "distance": 8,
-      "xid_a": "F76D999F903F11E080250010DCCFBEC5",
-      "xid_b": "DFDE801F2BED11E69C9A406186009F3A"
-    },
-    {
-      "group_id_a": "135cc7c0bea424cefccdeea4100fef892015b63c",
-      "group_id_b": "535623cf7e471c86d08332242ef872192e2dd803",
-      "distance": 8,
-      "xid_a": "A1188500B67611DF820F00166F1163D4",
-      "xid_b": "A0C4FC43B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "135cc7c0bea424cefccdeea4100fef892015b63c",
-      "group_id_b": "967d1f58acf63fe58b35116686f668e739cd7519",
-      "distance": 8,
-      "xid_a": "A1188500B67611DF820F00166F1163D4",
-      "xid_b": "A11887A2B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "1418ccd96de2486e4ab77e6b2dde7593852343c1",
-      "group_id_b": "c10166da1459fa2e3113fed864dc1d317ccf9ea4",
-      "distance": 8,
-      "xid_a": "A0C511ABB67611DF820F00166F1163D4",
-      "xid_b": "5647FCF3120F11E28E4C6C626D41E503"
-    },
-    {
-      "group_id_a": "158128f89b22206f4112e26c0306b03d7e96d1d1",
-      "group_id_b": "5d3ee7777f02222fe3ace93acb12f239b08e4e8b",
-      "distance": 8,
-      "xid_a": "F25D00999A7811E4A736406186009F3A",
-      "xid_b": "A14CDC53B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "158c04127072f456b3bd114638cedae1ec325076",
-      "group_id_b": "8d9c8abfa4dc29f0d39e5c199951ce6144756f39",
-      "distance": 8,
-      "xid_a": "341CFE150D5F11E295A66C626D41E503",
-      "xid_b": "A14CE9EAB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "15f9ee90790b4b5e5a40fea5749e797bb57c7c78",
-      "group_id_b": "30aa796e1b8f436db56a8dead31ef9dd977b4c88",
-      "distance": 8,
-      "xid_a": "B548B4325C5511E0801C0010DCCFBEC5",
-      "xid_b": "521016665C5611E0801C0010DCCFBEC5"
-    },
-    {
-      "group_id_a": "15f9ee90790b4b5e5a40fea5749e797bb57c7c78",
-      "group_id_b": "7781ee386cb6394a279a2a8913fa9528bfe7319f",
-      "distance": 8,
-      "xid_a": "B548B4325C5511E0801C0010DCCFBEC5",
-      "xid_b": "A0C4F89BB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "15f9ee90790b4b5e5a40fea5749e797bb57c7c78",
-      "group_id_b": "b3564356258884784f2a54fb42f81fb05a431e1e",
-      "distance": 8,
-      "xid_a": "B548B4325C5511E0801C0010DCCFBEC5",
-      "xid_b": "62DEDE8812CC11E2A6B56C626D41E503"
-    },
-    {
-      "group_id_a": "17c99370000577ea35cd2ab79710a4a194f551b0",
-      "group_id_b": "27d8895541aac9aa817e000ce97d67137da65ce0",
-      "distance": 8,
-      "xid_a": "474CF3816D6211E88D0474D435EEBE90",
-      "xid_b": "4710AEA76D7B11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "17c99370000577ea35cd2ab79710a4a194f551b0",
-      "group_id_b": "8b8db3d8db12c3d611239ea3f59014849e963c68",
-      "distance": 8,
-      "xid_a": "474CF3816D6211E88D0474D435EEBE90",
-      "xid_b": "1BF674726D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "17c99370000577ea35cd2ab79710a4a194f551b0",
-      "group_id_b": "a7f16b7d5a29ac9cd1d77b3588993c4e43a38e20",
-      "distance": 8,
-      "xid_a": "474CF3816D6211E88D0474D435EEBE90",
-      "xid_b": "652B08F16D6D11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "17c99370000577ea35cd2ab79710a4a194f551b0",
-      "group_id_b": "bd7bcea1499b18c6f518924cb79b3e7ede007a4a",
-      "distance": 8,
-      "xid_a": "474CF3816D6211E88D0474D435EEBE90",
-      "xid_b": "040DFB5A21F711E8B26274D435EEBE90"
-    },
-    {
-      "group_id_a": "17c99370000577ea35cd2ab79710a4a194f551b0",
-      "group_id_b": "e494f02631ed370400218b934e5dd66d4ac0e7ea",
-      "distance": 8,
-      "xid_a": "474CF3816D6211E88D0474D435EEBE90",
-      "xid_b": "515C7CE76D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "1ac2f74b1cd3a8e2c75e5ac0ac52fb0a1ad0c5f3",
-      "group_id_b": "43ab2a5e88f690bdd50e0d28f4919d622ac1a36d",
-      "distance": 8,
-      "xid_a": "1F26E5773A1B11E3B532406186009F3A",
-      "xid_b": "F0A8AE8D73CC11E898CF74D435EEBE90"
-    },
-    {
-      "group_id_a": "1bf17e8b2b7cfe96a0d579477b3569cc46b07984",
-      "group_id_b": "b64b4b5add4ec2a8d5396219328da70178c75ce7",
-      "distance": 8,
-      "xid_a": "A1187103B67611DF820F00166F1163D4",
-      "xid_b": "78A86A36431F11E8B92874D435EEBE90"
-    },
-    {
-      "group_id_a": "1db1b8d16631282ad62e0ac770ae128dac83cdac",
-      "group_id_b": "e9743c2b6faf647a49555e21e84779b833f83884",
-      "distance": 8,
-      "xid_a": "A14CEB79B67611DF820F00166F1163D4",
-      "xid_b": "4F2600DDE28F11E89F1B74D435EEBE90"
-    },
-    {
-      "group_id_a": "1e79ada8e892725a43487710efad42ed1a0acd1d",
-      "group_id_b": "a29096dbbef0afbbebbec134e64809c95e6d883d",
-      "distance": 8,
-      "xid_a": "A1187C16B67611DF820F00166F1163D4",
-      "xid_b": "6B672B8A9F4C11E18C606C626D41E503"
-    },
-    {
-      "group_id_a": "1eff975c029de5421142118d1866883be840f85b",
-      "group_id_b": "7dc495772aa8dc4ccf69be732dbfa1416d7fe5e7",
-      "distance": 8,
-      "xid_a": "503EE899584911E88F1F74D435EEBE90",
-      "xid_b": "48998A3D306C11EABE1474D435EEBE90"
-    },
-    {
-      "group_id_a": "1fb471cd378dea3b939764c3d11f54ee2ae295b8",
-      "group_id_b": "ab88514862501484e2a7fce4973cc49872515a3d",
-      "distance": 8,
-      "xid_a": "99F3D0677C3F11E2BF19525400E46D25",
-      "xid_b": "A0C50327B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "2047707c6deb5f3924aea8dabc8d92e88d3457d3",
-      "group_id_b": "353bbed2e18001253bc706c3cdeece4b5178465b",
-      "distance": 8,
-      "xid_a": "CAA80D99BDC411E493C10024BE7CD9AC",
-      "xid_b": "A11883EEB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "3706b2aff2be3f4a0f80b60659d4a34afc4651ee",
-      "distance": 8,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "D00D43206EEA11E88F4674D435EEBE90"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "3c5a62f724fa2d834bbb513d6493c50f990b1e7e",
-      "distance": 8,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "8DBC5918074811E48CE60024BE7CD9AC"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "55fc4591ba140e75f5f2a902fdcd902535b66262",
-      "distance": 8,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "D677BC4F946711E1A7806C626D41E503"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "5d89d9a67a717c4d7378f65355162a2500152949",
-      "distance": 8,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "1F91434057F011E7A695406186009F3A"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "90b5352c5440dc598e37d072c91d27ded50558fd",
-      "distance": 8,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "A11876F8B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "a29096dbbef0afbbebbec134e64809c95e6d883d",
-      "distance": 8,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "6B672B8A9F4C11E18C606C626D41E503"
-    },
-    {
-      "group_id_a": "23619fd94d385e623499854b58743a01fe9bf789",
-      "group_id_b": "bacd80b7293eb209150c3a1f9d61da7c89005892",
-      "distance": 8,
-      "xid_a": "CAF851B2056411E1BEBC000C766D2371",
-      "xid_b": "A0C518BBB67611DF820F00166F1163D4"
+      "group_id_a": "cc9dd150d4e5dcbbbcfd7e0441da59d3b7695299",
+      "group_id_b": "e5c8c3f4c578938a474a233f705869c091f26432",
+      "distance": 13,
+      "xid_a": "A14CE5A5B67611DF820F00166F1163D4",
+      "xid_b": "A11884C6B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.95,
+      "llm_reason": "Distinctive visible structures align: the ornate school facade with the central pediment and arched windows, the left-side street opening, the central streetcar",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
       "group_id_a": "23910dca3a8b0ec658729c5a35dfc772e4c86af7",
       "group_id_b": "62b40ac6609b301bfe114044abf1fa249b7d2299",
-      "distance": 8,
+      "distance": 14,
       "xid_a": "A0C51777B67611DF820F00166F1163D4",
-      "xid_b": "1E3160C0BB3711E3A31E0024BE7CD9AC"
+      "xid_b": "1E3160C0BB3711E3A31E0024BE7CD9AC",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The distinctive crib rail curve in the foreground, the row of children lying on mattresses, the wall hook strip, the small square wall hatch, the hanging pull-c",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "243569032babdce9d7845117113bc2171aa4a430",
-      "group_id_b": "b065714824a663c0a82b33c9deeb049dabae4eec",
-      "distance": 8,
-      "xid_a": "2458dce3647c4a57bbe2141bca67f878",
-      "xid_b": "A01A7DF9E03311E3A3D40024BE7CD9AC"
+      "group_id_a": "24d6b690c3d002bea5f1d1a154b6a46f73a84c95",
+      "group_id_b": "ba5593c18bb4cf01936847ff07ca7d6c15fea81d",
+      "distance": 14,
+      "xid_a": "A1186E13B67611DF820F00166F1163D4",
+      "xid_b": "FDCF853D3E9E11E1B434000BCDD04BFA",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Distinctive visible structures align: the same ruined courtyard with the central tall brick chimney/gable, the left balcony and wall openings, the right narrow\u7834",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "2436c1557db8f6fbf156ff0e768b2f2bea1a671c",
-      "group_id_b": "c18b99656a3a40c1084ebd3e5c9ee6404f73bd89",
-      "distance": 8,
-      "xid_a": "82178B39D2E111E880E4406186009F3A",
-      "xid_b": "ED4231B7DB6C11E3BB45406186009F3A"
+      "group_id_a": "257607806e4ec38b1f672680b6eedeef059502ec",
+      "group_id_b": "2919076c87c30e208c74484380e5ea19288bac93",
+      "distance": 14,
+      "xid_a": "4BDE7ABFDB7E11DFBD5E000C766D2371",
+      "xid_b": "A0C50B95B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.96,
+      "llm_reason": "Distinctive visible structures align: the suspension bridge towers and cable geometry at left, the low riverbank buildings and small bridge/pier near center, St",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "255d859c0ddcf180c99679b98b23cd1a7b7a49d5",
-      "group_id_b": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "distance": 8,
-      "xid_a": "A0C4F92EB67611DF820F00166F1163D4",
-      "xid_b": "27FD131195FB11E2BF2A525400E46D25"
+      "group_id_a": "2a3b0817c07d13c9859f5091f07d092525690876",
+      "group_id_b": "786079d64fd443ca7a859b1f7755b1b0572a93bb",
+      "distance": 14,
+      "xid_a": "00200ee4594245d3a6c2ee2011769234",
+      "xid_b": "CC159703843611E484D2406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Distinctive visible structures align: the same rough stone chamber walls, the arched recess/opening on the right with the small rectangular object inside, the L",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "255d859c0ddcf180c99679b98b23cd1a7b7a49d5",
-      "group_id_b": "ab88514862501484e2a7fce4973cc49872515a3d",
-      "distance": 8,
-      "xid_a": "A0C4F92EB67611DF820F00166F1163D4",
-      "xid_b": "A0C50327B67611DF820F00166F1163D4"
+      "group_id_a": "3f00d23c7eab741cb0a5dec03f8d5e5b69d9edc5",
+      "group_id_b": "54021c63c602cae1e66ccbc6305fb35c4a662b0e",
+      "distance": 14,
+      "xid_a": "90589695E75C11E49A60406186009F3A",
+      "xid_b": "2E476492E73F11E49A60406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.96,
+      "llm_reason": "The same carved/plastered pillar face fills the left center with matching floral relief patterns, edge chips, dark vertical scratches, and the same overhead\u6881/ce",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "25e6b07a93e23d50caf41917594d7cd5dcffe956",
-      "group_id_b": "9d662f9d795b6a4459585049b21f4341d6b3aa4f",
-      "distance": 8,
-      "xid_a": "A1186EB3B67611DF820F00166F1163D4",
-      "xid_b": "03FD472C85B011E2BF1F525400E46D25"
+      "group_id_a": "6013635824f7b5ed367d4daf3639ba5391dfd9c4",
+      "group_id_b": "ef84587159e17d401d7e96ff38d17a7e2a3643e4",
+      "distance": 14,
+      "xid_a": "5D3C17BC193711E28B046C626D41E503",
+      "xid_b": "96427754193711E28B046C626D41E503",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Both images show the same stairwell photograph: the diagonal enclosed stair/bridge runs from lower right to upper left at the same angle, the upper landing with",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "25e73cceaa302672aabf0e92f93a2072b92814c5",
-      "group_id_b": "93169837b9c666993a851a85ce41ef8caf6f0eaf",
-      "distance": 8,
-      "xid_a": "A0C4FB67B67611DF820F00166F1163D4",
-      "xid_b": "A1186ABCB67611DF820F00166F1163D4"
+      "group_id_a": "81a74b9c9f5cb50a446f5d674794aee7fbd3e761",
+      "group_id_b": "972787bde64ac1c70144407db67da2942c86bb08",
+      "distance": 14,
+      "xid_a": "A1186860B67611DF820F00166F1163D4",
+      "xid_b": "804AC549172611E0BDBB000C766D2371",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The facade, roofline statues and balustrade, central ornate pediment, window and balcony positions, open doorways, cobblestone foreground, left-side adjacent ar",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "263cd6a65fe182043890cc70ce81ee42a6ac512c",
-      "group_id_b": "4d7057760377ee2236879c1ecfb9e8eae429e783",
-      "distance": 8,
-      "xid_a": "A1188BCCB67611DF820F00166F1163D4",
-      "xid_b": "C351C3C29E3611E3B7D600110989F46F"
+      "group_id_a": "ee68f40e7348f9d52c07d598825af4412b757909",
+      "group_id_b": "f6cc20a768d83644717c0fb998309b87fd9d319a",
+      "distance": 14,
+      "xid_a": "411870ede3bc44a299b19364b24d1346",
+      "xid_b": "83687E81B84011E5AA08D4BED94BB14D",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.97,
+      "llm_reason": "The same distinctive panorama aligns: the row of dark buildings at left, the pale blank side wall near center, the curved river behind it, the tree-lined embank",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "26697a7a6b67ffda001bf9477631730cd31b62d5",
-      "group_id_b": "624658fa386038dd325b52f9813a868c34b2bb82",
-      "distance": 8,
-      "xid_a": "A0C4FCA0B67611DF820F00166F1163D4",
-      "xid_b": "0c5b9e08fe954e7b8c86b8ecd948d752"
+      "group_id_a": "023b5a47624cf6d0e724d57c3cd8526a9c1639c7",
+      "group_id_b": "696f398897e632a1ad68e9ba550994aa3db5ef68",
+      "distance": 15,
+      "xid_a": "BCF16C3E32D711E0BDD9000C766D2371",
+      "xid_b": "A0C4F500B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Distinctive structures align throughout: the curved ornate ceiling and wall panels, the shell-topped alcove with painted panels and bust on a pedestal, the oval",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "27d8895541aac9aa817e000ce97d67137da65ce0",
-      "group_id_b": "4b4212aa59118831739042951a40fb40f03c8824",
-      "distance": 8,
-      "xid_a": "4710AEA76D7B11E88D0474D435EEBE90",
-      "xid_b": "31C170E16D6711E88D0474D435EEBE90"
+      "group_id_a": "0b03cb472ad845ff29999138dcd469f515d39c39",
+      "group_id_b": "4d3753e0dc69b6e2e94e2d21f0dfdcce5933f716",
+      "distance": 15,
+      "xid_a": "A14CEB65B67611DF820F00166F1163D4",
+      "xid_b": "A14CEB63B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Both images show the same manuscript sheet with matching large decorative initial lettering across the top, the same dense text block layout, the same central/d",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "27d8895541aac9aa817e000ce97d67137da65ce0",
-      "group_id_b": "8245530b264b7bd366a9898c97f1aaa86bf9d798",
-      "distance": 8,
-      "xid_a": "4710AEA76D7B11E88D0474D435EEBE90",
-      "xid_b": "EDB685736D5B11E88D0474D435EEBE90"
+      "group_id_a": "12c78370e96db68b86cb062b0b9092f0b1c11c75",
+      "group_id_b": "da2e6938c6c3f50b291b57e0cb558ec9ecc77e96",
+      "distance": 15,
+      "xid_a": "A0C503B1B67611DF820F00166F1163D4",
+      "xid_b": "A1188581B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The distinctive Gothic vaulted ceiling ribs, wall paintings, central covered table, benches, ornate chair at lower left, fireplace/arched alcoves on the right,-",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "27d8895541aac9aa817e000ce97d67137da65ce0",
-      "group_id_b": "d375db456ab70641c3381a7a03d624bbf93288aa",
-      "distance": 8,
-      "xid_a": "4710AEA76D7B11E88D0474D435EEBE90",
-      "xid_b": "456535D16D6411E88D0474D435EEBE90"
+      "group_id_a": "14c034b22ea6134130d017095a5a1fb1efb81798",
+      "group_id_b": "29bb1b03026a1f166f8fabbb767a29fc0a9db624",
+      "distance": 15,
+      "xid_a": "01BEC72D808611E4AAB4406186009F3A",
+      "xid_b": "A1188712B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Distinctive visible structures align: the same foreground ruin walls including the rounded masonry block at left, central pitted wall, white right wall with a\u95e8/",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "27ecfc07aeb5aafed026a2ee93c9a121300e254a",
-      "group_id_b": "5c8b83bcfbffde9059f2be85ebd01e1bb3641e37",
-      "distance": 8,
-      "xid_a": "A14CE285B67611DF820F00166F1163D4",
-      "xid_b": "A118852AB67611DF820F00166F1163D4"
+      "group_id_a": "1aae46fc820c43bce6cff6aa97247f32b2794263",
+      "group_id_b": "8adf9b60c30c1cbe699767de44d04345764bfd42",
+      "distance": 15,
+      "xid_a": "A1188D09B67611DF820F00166F1163D4",
+      "xid_b": "A0C5112EB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.93,
+      "llm_reason": "Distinctive visible structures align: the central boxy modern building with the same window grid and entrance canopy, the long left wing with matching rows of/\u7a97",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "27ecfc07aeb5aafed026a2ee93c9a121300e254a",
-      "group_id_b": "7c5761b167a232000593c432375566cafabcec66",
-      "distance": 8,
-      "xid_a": "A14CE285B67611DF820F00166F1163D4",
-      "xid_b": "D45AE6079B9711E6A59B406186009F3A"
+      "group_id_a": "27246cce185d1939c2149837eaa509a7da8be8ce",
+      "group_id_b": "5be11165d640711e38dc4caa7363ec11e67f5af4",
+      "distance": 15,
+      "xid_a": "FDCF854D3E9E11E1B434000BCDD04BFA",
+      "xid_b": "A9D7E0CFE84211E4BB7A0024BE7CD9AC",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "The photographed interior aligns exactly: the large arched doorway, ornate central hanging clock/light fixture, rows of pendant lamps, balcony and wall panels,-",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "27ecfc07aeb5aafed026a2ee93c9a121300e254a",
-      "group_id_b": "8bce313ee670fab37b321f1b078ff56a2bbca808",
-      "distance": 8,
-      "xid_a": "A14CE285B67611DF820F00166F1163D4",
-      "xid_b": "8DF0BA5C8D6511E2BF25525400E46D25"
+      "group_id_a": "31623e06fdb26ac0a3e22a3fce4113675240aa70",
+      "group_id_b": "c4f44bda1ffbc416e2835a1919798aa0b5b3a5a0",
+      "distance": 15,
+      "xid_a": "A0C511DDB67611DF820F00166F1163D4",
+      "xid_b": "A0C4FE41B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "The church facade aligns in perspective and framing, including the central arched window, upper bell niche, side statue niches, stair railings, left storefront/",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "27ecfc07aeb5aafed026a2ee93c9a121300e254a",
-      "group_id_b": "ac6fdd79bf99d8b2655ead70a00d4a5197f89e5a",
-      "distance": 8,
-      "xid_a": "A14CE285B67611DF820F00166F1163D4",
-      "xid_b": "A0C50621B67611DF820F00166F1163D4"
+      "group_id_a": "3fb889b319a96fc7772d3c7837dc2cf45a148e96",
+      "group_id_b": "761d251acd4bd37f453ffc8b2eb416bbd807eab1",
+      "distance": 15,
+      "xid_a": "FDCF85043E9E11E1B434000BCDD04BFA",
+      "xid_b": "6B80C3919A7811E4A736406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The distinctive street geometry and building layout align: the high brick wall and lamp on the left, the large sloped tiled roof on the left, the long row of g#",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "2a943208f05ee73ac6076a1d23bcd1f70991b548",
-      "group_id_b": "821f19dc48b1946da8b9145bf99272a9fbcae4f0",
-      "distance": 8,
-      "xid_a": "CED698F2EB2211E3ABDE0024BE7CD9AC",
-      "xid_b": "B859367FF63311E3AB180024BE7CD9AC"
+      "group_id_a": "8cb62640a31be302d03cbff80cbe2479489f59e6",
+      "group_id_b": "a27cf243468468239017fe36f3460ad1d6ae74b4",
+      "distance": 15,
+      "xid_a": "A0C51168B67611DF820F00166F1163D4",
+      "xid_b": "A14CE12DB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.88,
+      "llm_reason": "The same sculptural group aligns throughout: the kneeling hunter's profile and cap, the stag's raised head and antler branches, the small cross above the antler",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "2a943208f05ee73ac6076a1d23bcd1f70991b548",
-      "group_id_b": "9bc56287099c7cb11949fe33a07a84bcac82420b",
-      "distance": 8,
-      "xid_a": "CED698F2EB2211E3ABDE0024BE7CD9AC",
-      "xid_b": "71C50A5A121711E28E4C6C626D41E503"
+      "group_id_a": "158128f89b22206f4112e26c0306b03d7e96d1d1",
+      "group_id_b": "763b7d923936afa35d4080dac2217402cb446cb8",
+      "distance": 16,
+      "xid_a": "F25D00999A7811E4A736406186009F3A",
+      "xid_b": "FDCF85473E9E11E1B434000BCDD04BFA",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The same ruined building with tall chimney on the left, the same central sloped roof cluster with chimney, the same foreground rubble wall/opening, and the same",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "2a943208f05ee73ac6076a1d23bcd1f70991b548",
-      "group_id_b": "a7f16b7d5a29ac9cd1d77b3588993c4e43a38e20",
-      "distance": 8,
-      "xid_a": "CED698F2EB2211E3ABDE0024BE7CD9AC",
-      "xid_b": "DCFD08796D5F11E88D0474D435EEBE90"
+      "group_id_a": "24c6f584cdc829c9de70ad4403ac6d2ca8031e42",
+      "group_id_b": "99ed28853ed4a5dabe20d8f01d6ae73b44def67f",
+      "distance": 16,
+      "xid_a": "0390BD0D9FB311E38B756C626D41E503",
+      "xid_b": "A0C50509B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The photographed content aligns throughout: the same church-like building with round windows and roofline at left, the same row of multi-story buildings with ar",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "2aa835d1c1205bf2dc7d1669455e539a74e91228",
-      "group_id_b": "3f47a2001b9363b6fbe46c2f859c5edc1f3ba9e9",
-      "distance": 8,
-      "xid_a": "FDCF850B3E9E11E1B434000BCDD04BFA",
-      "xid_b": "F1212404DFB811E5A81274D435EEBE90"
+      "group_id_a": "30425cdff958f835726ab7c053c16e08a2011e55",
+      "group_id_b": "5f0a7b930bc9a7793788f8090636471d61fff723",
+      "distance": 16,
+      "xid_a": "A0C509F8B67611DF820F00166F1163D4",
+      "xid_b": "A1188B5BB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The same distinctive courtyard structures align: the long left wooden gallery railing and tiled roof, the central diagonal stair/brace leading to the rear upper",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
-      "group_id_a": "2aa835d1c1205bf2dc7d1669455e539a74e91228",
-      "group_id_b": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "distance": 8,
-      "xid_a": "FDCF850B3E9E11E1B434000BCDD04BFA",
-      "xid_b": "B8EE346E95FA11E2BF2A525400E46D25"
-    },
-    {
-      "group_id_a": "2ae7353b09aff6597af37acf2d525b556c096f03",
-      "group_id_b": "f0fed452320f942110bdb888b6578af09f072155",
-      "distance": 8,
-      "xid_a": "E02AD8B3F65811DFBD85000C766D2371",
-      "xid_b": "F14538EFBB6611E594BE74D435EEBE90"
-    },
-    {
-      "group_id_a": "2c3308cadae89bac529d1b8a6017a832a1b9b835",
-      "group_id_b": "5d59e50cce0626d59b4be9fa86b16e585d12e5e9",
-      "distance": 8,
-      "xid_a": "1954DDA863D511E296F46C626D41E503",
-      "xid_b": "9068E286DC2D11E3A3310024BE7CD9AC"
-    },
-    {
-      "group_id_a": "2c64769eb047dbbc0f4b8dc3aa493975e4e2ae8f",
-      "group_id_b": "5d344b7adf65a5ae648d8708488a4ff9bd1feba4",
-      "distance": 8,
-      "xid_a": "CE294153A74B11E6BBBD406186009F3A",
-      "xid_b": "621FB8B0289A11E6BCEA406186009F3A"
-    },
-    {
-      "group_id_a": "2cfe96b45f863e419c4fd636e044722b2df12c64",
-      "group_id_b": "63f0ff0304d418f9c0731f36f53376418a957712",
-      "distance": 8,
-      "xid_a": "3066A305E72C11E3AC530024D626C8BC",
-      "xid_b": "9CDF5F83D08D11DFBD52000C766D2371"
-    },
-    {
-      "group_id_a": "30aa796e1b8f436db56a8dead31ef9dd977b4c88",
-      "group_id_b": "7ed707979c6cd6dde4ec2233c0d53ed640938cad",
-      "distance": 8,
-      "xid_a": "521016665C5611E0801C0010DCCFBEC5",
-      "xid_b": "A1186C8DB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "31bf99d93813812073e06d1db6d0d3b440921eb1",
-      "group_id_b": "c2a2ab97e3a93c53253e1925c0fbf7fa4d664701",
-      "distance": 8,
-      "xid_a": "A1187170B67611DF820F00166F1163D4",
-      "xid_b": "A0C4FF3DB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "31fc7949ac0b6f5c31eb60ba007a88807121ea2b",
-      "group_id_b": "61e74c8f3d9f980c3156062cb3f3893f03eaad40",
-      "distance": 8,
-      "xid_a": "A14CE4FDB67611DF820F00166F1163D4",
-      "xid_b": "A0C4F788B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "320155bf63d1c3b04be608512346548353fd4b5c",
-      "group_id_b": "91fda31d22ed5f4cf04e6bf975bc1075a7ede7b3",
-      "distance": 8,
-      "xid_a": "9FA1A66FA0D811E1BEE9000C766D2371",
-      "xid_b": "e980e8f4b4284ef5b487804ad74af153"
-    },
-    {
-      "group_id_a": "32e2dca5344ce6fc3a272df567ec40976f849a92",
-      "group_id_b": "bb50a5159b9adfa776fca4d29445fe319bc9fd04",
-      "distance": 8,
-      "xid_a": "482A585D17AA11E294C46C626D41E503",
-      "xid_b": "7B7CD28E824C11E2BF1E525400E46D25"
-    },
-    {
-      "group_id_a": "3706b2aff2be3f4a0f80b60659d4a34afc4651ee",
-      "group_id_b": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "distance": 8,
-      "xid_a": "D00D43206EEA11E88F4674D435EEBE90",
-      "xid_b": "B8EE346E95FA11E2BF2A525400E46D25"
-    },
-    {
-      "group_id_a": "3706b2aff2be3f4a0f80b60659d4a34afc4651ee",
-      "group_id_b": "90b5352c5440dc598e37d072c91d27ded50558fd",
-      "distance": 8,
-      "xid_a": "D00D43206EEA11E88F4674D435EEBE90",
-      "xid_b": "A11876F8B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "39121906f5943a9fe33de3db706efc1ca0a2382e",
-      "group_id_b": "48d68b561c9ec8de4d13633e99ea6764d5157e93",
-      "distance": 8,
-      "xid_a": "A0C50740B67611DF820F00166F1163D4",
-      "xid_b": "3310B6BC62A211E6A552000C76270B94"
-    },
-    {
-      "group_id_a": "39121906f5943a9fe33de3db706efc1ca0a2382e",
-      "group_id_b": "fbab9983b5033d8933254cbd0c4a8d910b377dcc",
-      "distance": 8,
-      "xid_a": "A0C50740B67611DF820F00166F1163D4",
-      "xid_b": "A0C50F13B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "397972ea17a2b8ba41db3c1fca5868892b03f432",
-      "group_id_b": "8dd5f77ccbc9abff49a7f03061ab2d60908209c7",
-      "distance": 8,
-      "xid_a": "203E298ED65711E18B876C626D41E503",
-      "xid_b": "BCD33C0ED65611E18B876C626D41E503"
-    },
-    {
-      "group_id_a": "39fe7ce8edf9d6ee49d35338bc4adc4e49887751",
-      "group_id_b": "821f19dc48b1946da8b9145bf99272a9fbcae4f0",
-      "distance": 8,
-      "xid_a": "2F375419070B11E286836C626D41E503",
-      "xid_b": "B859367FF63311E3AB180024BE7CD9AC"
-    },
-    {
-      "group_id_a": "3a2aeee94d79ecfe8f9f15776f401fc34125e9cf",
-      "group_id_b": "b50f502d99a94d218c1168ea103b10809e53dbec",
-      "distance": 8,
-      "xid_a": "24CA81B90C9111E2AEA36C626D41E503",
-      "xid_b": "84861B090C9111E2AEA36C626D41E503"
-    },
-    {
-      "group_id_a": "3ad10ee47ca85df1096c20f40a594a68cc27a944",
-      "group_id_b": "ca6a52b5cf2cf6a439e57e4196371af376fc456c",
-      "distance": 8,
-      "xid_a": "D34119F49EA411E1AB206C626D41E503",
-      "xid_b": "A11873EDB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "3c5a62f724fa2d834bbb513d6493c50f990b1e7e",
-      "group_id_b": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "distance": 8,
-      "xid_a": "8DBC5918074811E48CE60024BE7CD9AC",
-      "xid_b": "B8EE346E95FA11E2BF2A525400E46D25"
-    },
-    {
-      "group_id_a": "3c5a62f724fa2d834bbb513d6493c50f990b1e7e",
-      "group_id_b": "9cf68117edf6cb9925eb5fe9099b773b21b69d56",
-      "distance": 8,
-      "xid_a": "8DBC5918074811E48CE60024BE7CD9AC",
-      "xid_b": "A0C4FE97B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "3d175c287a486fc1dce764508661954fdeb36d4f",
-      "group_id_b": "daab0a29d0ffb7cfbaf06435bef2f35962e27f45",
-      "distance": 8,
-      "xid_a": "A14CDA83B67611DF820F00166F1163D4",
-      "xid_b": "4791020989B111E8853174D435EEBE90"
-    },
-    {
-      "group_id_a": "3f47a2001b9363b6fbe46c2f859c5edc1f3ba9e9",
-      "group_id_b": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "distance": 8,
-      "xid_a": "F1212404DFB811E5A81274D435EEBE90",
-      "xid_b": "B8EE346E95FA11E2BF2A525400E46D25"
-    },
-    {
-      "group_id_a": "3f47a2001b9363b6fbe46c2f859c5edc1f3ba9e9",
-      "group_id_b": "55fc4591ba140e75f5f2a902fdcd902535b66262",
-      "distance": 8,
-      "xid_a": "F1212404DFB811E5A81274D435EEBE90",
-      "xid_b": "D677BC4F946711E1A7806C626D41E503"
-    },
-    {
-      "group_id_a": "4054833a0a97f796fdb6bc70d6c57a1cd714d5e8",
-      "group_id_b": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "distance": 8,
-      "xid_a": "1759EE9AF63411E3AB180024BE7CD9AC",
-      "xid_b": "CDE8F73F960011E2BF2A525400E46D25"
-    },
-    {
-      "group_id_a": "4054833a0a97f796fdb6bc70d6c57a1cd714d5e8",
-      "group_id_b": "bb9612eac3484fe82cdbab4f5472b68f3c4eca22",
-      "distance": 8,
-      "xid_a": "1759EE9AF63411E3AB180024BE7CD9AC",
-      "xid_b": "4C8CBD58362911E1BECE000C766D2371"
-    },
-    {
-      "group_id_a": "430ef9ee5f892a941b1b91cbba7586a33495b29e",
-      "group_id_b": "9384afcc5623d26d3c48347f54414c30451c78dd",
-      "distance": 8,
-      "xid_a": "A14CE3D1B67611DF820F00166F1163D4",
-      "xid_b": "CAF29A485F5211E8A52374D435EEBE90"
-    },
-    {
-      "group_id_a": "43da15bbc3e87de8d3b2a2d1ac47676efd994c7d",
-      "group_id_b": "f277dff118daffcae7c5e2e351addfb190fe23c9",
-      "distance": 8,
-      "xid_a": "A11875DFB67611DF820F00166F1163D4",
-      "xid_b": "50999ABF29FE11E9A7CF406186009F3A"
-    },
-    {
-      "group_id_a": "486593cc9dba757153544de3f0cdc780915aad0c",
-      "group_id_b": "618ee0d1cd31a760294df1cec29232e3cdbd0239",
-      "distance": 8,
-      "xid_a": "A11877A3B67611DF820F00166F1163D4",
-      "xid_b": "A1188996B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "48d53294396d5259de1aa26bd85a3bf0a0d9644b",
-      "group_id_b": "7312d535f313217c50afcec1bf58273a4ad2b702",
-      "distance": 8,
-      "xid_a": "1F58696085AC11E2BF1F525400E46D25",
-      "xid_b": "32A7926BA6C311E8B44374D435EEBE90"
-    },
-    {
-      "group_id_a": "48d68b561c9ec8de4d13633e99ea6764d5157e93",
-      "group_id_b": "b8081918a08191c3635c573b59fc8d2e1f48da50",
-      "distance": 8,
-      "xid_a": "3310B6BC62A211E6A552000C76270B94",
-      "xid_b": "A0C505AEB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "49fd8f426624db5b7fbde974bc64e6036dde5efd",
-      "group_id_b": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "distance": 8,
-      "xid_a": "A0C4F96BB67611DF820F00166F1163D4",
-      "xid_b": "147B745795FC11E2BF2A525400E46D25"
-    },
-    {
-      "group_id_a": "49fd8f426624db5b7fbde974bc64e6036dde5efd",
-      "group_id_b": "eda027b4e6ba16f93ade1e9bcb33ea9f470f2d1b",
-      "distance": 8,
-      "xid_a": "A0C4F96BB67611DF820F00166F1163D4",
-      "xid_b": "DED301CA648911E6A554000C76270B94"
-    },
-    {
-      "group_id_a": "4a10136e319eecef982532c2e2ce0a5851328074",
-      "group_id_b": "ca298e0764a632cc23acdd24afab2973df6ff2e1",
-      "distance": 8,
-      "xid_a": "A14CE9A2B67611DF820F00166F1163D4",
-      "xid_b": "1C51E7CCC73B11EA983A406186009F3A"
-    },
-    {
-      "group_id_a": "4a10136e319eecef982532c2e2ce0a5851328074",
-      "group_id_b": "efc24e671f2d40726a523acb1c56fe7a7b481619",
-      "distance": 8,
-      "xid_a": "A14CE9A2B67611DF820F00166F1163D4",
-      "xid_b": "A14CE589B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "4aada6e27fffb9de3e0a5d38411c3b54ca93ab30",
-      "group_id_b": "8b8db3d8db12c3d611239ea3f59014849e963c68",
-      "distance": 8,
-      "xid_a": "157A73C16D6F11E88D0474D435EEBE90",
-      "xid_b": "1BF674726D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "4b4212aa59118831739042951a40fb40f03c8824",
-      "group_id_b": "9dc69d3329d1f74118d70be81bad35e6ba0f53b0",
-      "distance": 8,
-      "xid_a": "31C170E16D6711E88D0474D435EEBE90",
-      "xid_b": "A0C5090AB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "4b4212aa59118831739042951a40fb40f03c8824",
-      "group_id_b": "e494f02631ed370400218b934e5dd66d4ac0e7ea",
-      "distance": 8,
-      "xid_a": "31C170E16D6711E88D0474D435EEBE90",
-      "xid_b": "515C7CE76D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "4b87dcb2de6f85aadaca778c167004add74d2d42",
-      "group_id_b": "fbf59001113d4038f5640f949a7296b57e1dc6ff",
-      "distance": 8,
-      "xid_a": "A0C4FED1B67611DF820F00166F1163D4",
-      "xid_b": "FDCF85203E9E11E1B434000BCDD04BFA"
-    },
-    {
-      "group_id_a": "4ccb7c62104cc0160be39a25efd7c16fed9ff9ad",
-      "group_id_b": "82d498494509f45449e5b9fc58736302c61e221d",
-      "distance": 8,
-      "xid_a": "A1188639B67611DF820F00166F1163D4",
-      "xid_b": "98359FD4647811E6A554000C76270B94"
-    },
-    {
-      "group_id_a": "4ccb7c62104cc0160be39a25efd7c16fed9ff9ad",
-      "group_id_b": "e212bec5eb3fd5bc2f284c58b91e33006238310b",
-      "distance": 8,
-      "xid_a": "A1188639B67611DF820F00166F1163D4",
-      "xid_b": "A1187419B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "4d7057760377ee2236879c1ecfb9e8eae429e783",
-      "group_id_b": "ac3948e3b6940f7793c8b44c7dd37c18ab662d9d",
-      "distance": 8,
-      "xid_a": "C351C3C29E3611E3B7D600110989F46F",
-      "xid_b": "8AEC36EF77B111E3B7C300110989F46F"
-    },
-    {
-      "group_id_a": "4e6ee52493c79f96a28acddcfd8f30933b2a58fa",
-      "group_id_b": "b515410ee11f356b810a087677460511dec30a3c",
-      "distance": 8,
-      "xid_a": "A0C51705B67611DF820F00166F1163D4",
-      "xid_b": "A0C51367B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "502dadd8e6c29b7a1c7a0060575edf805434e7b3",
-      "group_id_b": "eda027b4e6ba16f93ade1e9bcb33ea9f470f2d1b",
-      "distance": 8,
-      "xid_a": "A11873ABB67611DF820F00166F1163D4",
-      "xid_b": "DED301CA648911E6A554000C76270B94"
+      "group_id_a": "3c057d9c4e3336c1797db62565006805e3cd3dac",
+      "group_id_b": "87b3ff88b61d4bb1b5692c3b606a59bcdb7dc758",
+      "distance": 16,
+      "xid_a": "979FE569233F11E2A12A406186009F3A",
+      "xid_b": "32cb1a45b36d4012a72b54324b81a8aa",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The same panoramic village view aligns throughout: the riverbank and curving road at left, the two tall chimneys near the left-center factory buildings, the sl\u1796",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     },
     {
       "group_id_a": "50cbf3b89c782dc26dca3cd159fd1277b2b3c70a",
       "group_id_b": "60c0d3b56d0213697f495ec9a843d0d9060c3d43",
-      "distance": 8,
+      "distance": 16,
       "xid_a": "debee7f765ed4f61adc9eed58b5421bd",
-      "xid_b": "A0C5071CB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "54abe82198f3960e040ec2aec7b86529c2be5530",
-      "distance": 8,
-      "xid_a": "27FD131195FB11E2BF2A525400E46D25",
-      "xid_b": "A1187E05B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "5d59e50cce0626d59b4be9fa86b16e585d12e5e9",
-      "distance": 8,
-      "xid_a": "27FD131195FB11E2BF2A525400E46D25",
-      "xid_b": "9068E286DC2D11E3A3310024BE7CD9AC"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "5d89d9a67a717c4d7378f65355162a2500152949",
-      "distance": 8,
-      "xid_a": "B8EE346E95FA11E2BF2A525400E46D25",
-      "xid_b": "1F91434057F011E7A695406186009F3A"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "69d27c5b8a6dedc0138fbb81882fba7678cfc3ec",
-      "distance": 8,
-      "xid_a": "CDE8F73F960011E2BF2A525400E46D25",
-      "xid_b": "A0C5100CB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "6c31c288772f115134171081c7d655110ff7dcb5",
-      "distance": 8,
-      "xid_a": "CDE8F73F960011E2BF2A525400E46D25",
-      "xid_b": "9AD9C48A908711E2BF26525400E46D25"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "7693553ea8985e8eea451ca175ce3d522941cae8",
-      "distance": 8,
-      "xid_a": "B8EE346E95FA11E2BF2A525400E46D25",
-      "xid_b": "A0C51801B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "7ce8f970cbedcfcc66661fdaad1c0866d99d8294",
-      "distance": 8,
-      "xid_a": "1A21762395FA11E2BF2A525400E46D25",
-      "xid_b": "1047D0EA824C11E2BF1E525400E46D25"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "81a35afed26932baaa6dd173d5d355b369e056a4",
-      "distance": 8,
-      "xid_a": "147B745795FC11E2BF2A525400E46D25",
-      "xid_b": "A1187602B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "9d662f9d795b6a4459585049b21f4341d6b3aa4f",
-      "distance": 8,
-      "xid_a": "F690718495FA11E2BF2A525400E46D25",
-      "xid_b": "03FD472C85B011E2BF1F525400E46D25"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "ab88514862501484e2a7fce4973cc49872515a3d",
-      "distance": 8,
-      "xid_a": "27FD131195FB11E2BF2A525400E46D25",
-      "xid_b": "A0C50327B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "ac6fdd79bf99d8b2655ead70a00d4a5197f89e5a",
-      "distance": 8,
-      "xid_a": "F690718495FA11E2BF2A525400E46D25",
-      "xid_b": "A0C50621B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "ba77765610a7c8aa09db09251ffb6e2f4bba3793",
-      "distance": 8,
-      "xid_a": "CDE8F73F960011E2BF2A525400E46D25",
-      "xid_b": "A1187218B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "d76565804fef3ff9efdfbab8af864e342b72e2f0",
-      "distance": 8,
-      "xid_a": "1A21762395FA11E2BF2A525400E46D25",
-      "xid_b": "E196E90E651811E6A555000C76270B94"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "e82a9a2628ed9bc6a0b1c012c56aff11beb378f4",
-      "distance": 8,
-      "xid_a": "727502B3960011E2BF2A525400E46D25",
-      "xid_b": "1F5B1C5EF18611DFBD80000C766D2371"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "eda027b4e6ba16f93ade1e9bcb33ea9f470f2d1b",
-      "distance": 8,
-      "xid_a": "147B745795FC11E2BF2A525400E46D25",
-      "xid_b": "DED301CA648911E6A554000C76270B94"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "f914939d6ad6674df4259fb805adb894ccaaea98",
-      "distance": 8,
-      "xid_a": "1A21762395FA11E2BF2A525400E46D25",
-      "xid_b": "A0C5041EB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "52512dc10c6139a45a2b6fdb106b96c2ae120e86",
-      "group_id_b": "ffde493e294668c59329fb4155f841f18e371b86",
-      "distance": 8,
-      "xid_a": "B8EE346E95FA11E2BF2A525400E46D25",
-      "xid_b": "967CAB0F60A811E293B96C626D41E503"
-    },
-    {
-      "group_id_a": "56ccc6db1a720ea9034f9fba9df2a0b82bc46fae",
-      "group_id_b": "8e1975f2b5a7c0233641d1c60f7fffd6c802945a",
-      "distance": 8,
-      "xid_a": "9ECFAEB8D52F11E39F890024BE7CD9AC",
-      "xid_b": "3FEC08D40BBB11E2AEA36C626D41E503"
-    },
-    {
-      "group_id_a": "57fbb6727b0530e2a651cc176b383ef25c77e2bf",
-      "group_id_b": "d7f1a0f9faebbe68432a2353efd31b69bb073e12",
-      "distance": 8,
-      "xid_a": "A14CE32BB67611DF820F00166F1163D4",
-      "xid_b": "A118795DB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "5b0658098b7534b069405d157f7a34d579e12769",
-      "group_id_b": "bcbd080d248a415b15800d8428c76fffe136804f",
-      "distance": 8,
-      "xid_a": "45008572D37911E8A2B874D435EEBE90",
-      "xid_b": "A11877A7B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "5b808bf1e0c70ebdfba2a123b6a28f9a843abf46",
-      "group_id_b": "698696e3326bebc7c2d09ce420e5ccd57ce6f137",
-      "distance": 8,
-      "xid_a": "4B66913E87E611E2BF21525400E46D25",
-      "xid_b": "A14CE713B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "5c8b83bcfbffde9059f2be85ebd01e1bb3641e37",
-      "group_id_b": "980405000292d23abb715b6743ce525a5a45c59f",
-      "distance": 8,
-      "xid_a": "A118852AB67611DF820F00166F1163D4",
-      "xid_b": "4B695DBA4F2411E6A549000C76270B94"
-    },
-    {
-      "group_id_a": "5f5032aedf0b1a131d0ac6ad3e8222c0f41c47ac",
-      "group_id_b": "a7f16b7d5a29ac9cd1d77b3588993c4e43a38e20",
-      "distance": 8,
-      "xid_a": "2e595e156a304d9dbab3aab052d6e09b",
-      "xid_b": "496EEAE16D6E11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "5fa5e4914812a4e08c9094e0f0699dfd2767f878",
-      "group_id_b": "883a22269dec1136c4c91f8a354c72cbfc85c109",
-      "distance": 8,
-      "xid_a": "0A1BF186297C11E6846C406186009F3A",
-      "xid_b": "7480C0BB69AC11E49F1F0024BE7CD9AC"
-    },
-    {
-      "group_id_a": "5fe239cab825c0d677c28925ccc3b74bb8502327",
-      "group_id_b": "91119c48f3b0f5001d4296af584900ad7b0b0fa6",
-      "distance": 8,
-      "xid_a": "A1186DE4B67611DF820F00166F1163D4",
-      "xid_b": "94EB62DB81C211E2BF1D525400E46D25"
-    },
-    {
-      "group_id_a": "5fe239cab825c0d677c28925ccc3b74bb8502327",
-      "group_id_b": "d3e46c99670e37aeb00348231c7e22a79ce75c03",
-      "distance": 8,
-      "xid_a": "A1186DE4B67611DF820F00166F1163D4",
-      "xid_b": "A11886A9B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "6030e1f05ee4893f631f4ed3764ef8eb5e0106cf",
-      "group_id_b": "e7bc02ffd67d15981c2541a07d195eb2ee85d62f",
-      "distance": 8,
-      "xid_a": "A14CDE87B67611DF820F00166F1163D4",
-      "xid_b": "A14CDEE8B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "6074231926f39feb46041e34b5fe6d78a8cc294a",
-      "group_id_b": "6fb15d57c3a38ee8b167f111a06c9cc59530064b",
-      "distance": 8,
-      "xid_a": "F8EE76C4D39511E8A2B874D435EEBE90",
-      "xid_b": "8797EAF4D39611E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "61456ddf6181858aaec603cfb97dc1ae5041d5b3",
-      "group_id_b": "a3d99d6078aa85c8c19df1a978d2e154661aab68",
-      "distance": 8,
-      "xid_a": "A1186823B67611DF820F00166F1163D4",
-      "xid_b": "A0C51A9BB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "618ee0d1cd31a760294df1cec29232e3cdbd0239",
-      "group_id_b": "e058e50bab179397830ad836955c1910170edaf1",
-      "distance": 8,
-      "xid_a": "A1187914B67611DF820F00166F1163D4",
-      "xid_b": "5064FFACB42111E39F7D0024BE7CD9AC"
-    },
-    {
-      "group_id_a": "61e74c8f3d9f980c3156062cb3f3893f03eaad40",
-      "group_id_b": "6b00e75b5f358b9a49f00daf001dd86939d0a75f",
-      "distance": 8,
-      "xid_a": "A0C4F788B67611DF820F00166F1163D4",
-      "xid_b": "A0C50B14B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "6252c3356bc223895901dbd9d652867456ddfb53",
-      "group_id_b": "980405000292d23abb715b6743ce525a5a45c59f",
-      "distance": 8,
-      "xid_a": "A14CDDE1B67611DF820F00166F1163D4",
-      "xid_b": "4B695DBA4F2411E6A549000C76270B94"
-    },
-    {
-      "group_id_a": "625e8a58d414b44f1392565a81e07e4ae67658c8",
-      "group_id_b": "bc38ae9e4378d10a86b4c4fc658df0e44331649b",
-      "distance": 8,
-      "xid_a": "54B546E8663911E2A1036C626D41E503",
-      "xid_b": "f547e444fd7d44bebebb2cf476fa633e"
-    },
-    {
-      "group_id_a": "64b0470554ba579198d8368baa773c4d7c02bfea",
-      "group_id_b": "894c64932a80ef56fe75636d2960fd12d1d173da",
-      "distance": 8,
-      "xid_a": "671142F4EB2011E3ABDE0024BE7CD9AC",
-      "xid_b": "BF4371CBCC8911E89DA974D435EEBE90"
-    },
-    {
-      "group_id_a": "6540c5f4974b7e8f00e41ba46bb947d245b0ef3b",
-      "group_id_b": "c4b0d81ddcdd76de0865745ce2dfd36b8bb63538",
-      "distance": 8,
-      "xid_a": "D7C77BF4D39411E8A2B874D435EEBE90",
-      "xid_b": "AA7CF0D4D39411E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "68584bad705d6eaf74e745bda1d0a9fa707b9478",
-      "group_id_b": "7b1b32f489a3676e9f7e544c85f2ef392dada301",
-      "distance": 8,
-      "xid_a": "B04DBB91A2EA11E4BEEFD4BED94BB14D",
-      "xid_b": "843528557f4b4258b08f809a4149452b"
-    },
-    {
-      "group_id_a": "6954c2d7cfd71c1a12b3caed26e38d84a636bf48",
-      "group_id_b": "ac7b3041903dac728efa56aca11f51cb518f8742",
-      "distance": 8,
-      "xid_a": "53CBF574E71211E3AC530024D626C8BC",
-      "xid_b": "A1188BA3B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "6a8926fe96500bd6a9882f6bf8ed5a66f3062cf7",
-      "group_id_b": "9d662f9d795b6a4459585049b21f4341d6b3aa4f",
-      "distance": 8,
-      "xid_a": "1AA59F02121A11E28E4C6C626D41E503",
-      "xid_b": "03FD472C85B011E2BF1F525400E46D25"
-    },
-    {
-      "group_id_a": "6a8926fe96500bd6a9882f6bf8ed5a66f3062cf7",
-      "group_id_b": "efe1a64b335eea3c940ea1a8220973a426f01602",
-      "distance": 8,
-      "xid_a": "1AA59F02121A11E28E4C6C626D41E503",
-      "xid_b": "A0C50136B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "6e3d4d11c7900b45cea708d97dad5c33be9c7f71",
-      "group_id_b": "a7f16b7d5a29ac9cd1d77b3588993c4e43a38e20",
-      "distance": 8,
-      "xid_a": "D77551290CA311E2AEA36C626D41E503",
-      "xid_b": "DCFD08796D5F11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "6f5f97a91a5f8f05bd8bfbda7a02c7101b18e27e",
-      "group_id_b": "7ce8f970cbedcfcc66661fdaad1c0866d99d8294",
-      "distance": 8,
-      "xid_a": "6B3FC89E6A2311E2BF13525400E46D25",
-      "xid_b": "1047D0EA824C11E2BF1E525400E46D25"
-    },
-    {
-      "group_id_a": "6f5f97a91a5f8f05bd8bfbda7a02c7101b18e27e",
-      "group_id_b": "d27e06228e2a923a253749c1d6f67f382e4c4bea",
-      "distance": 8,
-      "xid_a": "6B3FC89E6A2311E2BF13525400E46D25",
-      "xid_b": "A14CE5F9B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "70c90a34fcd692053e0b07922c480a4e233f1ca5",
-      "group_id_b": "c9bd17eec79e4f3bc8f554b8de61b0c711842b1b",
-      "distance": 8,
-      "xid_a": "848DE9D4D39711E8A2B874D435EEBE90",
-      "xid_b": "3D28CFA2D37A11E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "70f3673e6695da778738d98f1df57069ab855cb8",
-      "group_id_b": "c9bd17eec79e4f3bc8f554b8de61b0c711842b1b",
-      "distance": 8,
-      "xid_a": "E8E1A572D37911E8A2B874D435EEBE90",
-      "xid_b": "3D28CFA2D37A11E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "711155a4c11fdf31313d84d13404c732572aff51",
-      "group_id_b": "b7c30d5add8d36ea6c094da4fd5496894a85c5e7",
-      "distance": 8,
-      "xid_a": "A1188788B67611DF820F00166F1163D4",
-      "xid_b": "42b13646600145219ea3f9472069c720"
-    },
-    {
-      "group_id_a": "71e3d73f98d683dfa45b2aca90dce0c90eb3e1ce",
-      "group_id_b": "847d1b5ddbc5aa171103c5cac00e00417ffae2a7",
-      "distance": 8,
-      "xid_a": "A0C50F82B67611DF820F00166F1163D4",
-      "xid_b": "A14CE788B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "72c918fc5f7e5ce30027d05c0b7ef6e605ac6aef",
-      "group_id_b": "9d662f9d795b6a4459585049b21f4341d6b3aa4f",
-      "distance": 8,
-      "xid_a": "5412ab63824648ef8618176e2545639c",
-      "xid_b": "03FD472C85B011E2BF1F525400E46D25"
-    },
-    {
-      "group_id_a": "76e5c206dc99a7bb81c0e2f903b8c7f3724e5749",
-      "group_id_b": "d39a0ff868be2d0f75bdf19be6ef52c37536ed17",
-      "distance": 8,
-      "xid_a": "A0C4FC45B67611DF820F00166F1163D4",
-      "xid_b": "B071AB9A85AA11E2BF1F525400E46D25"
-    },
-    {
-      "group_id_a": "76e5c206dc99a7bb81c0e2f903b8c7f3724e5749",
-      "group_id_b": "daab0a29d0ffb7cfbaf06435bef2f35962e27f45",
-      "distance": 8,
-      "xid_a": "A0C4FC45B67611DF820F00166F1163D4",
-      "xid_b": "4791020989B111E8853174D435EEBE90"
-    },
-    {
-      "group_id_a": "76f7ae4f1da37e10c21f6103fa4b730368d9b810",
-      "group_id_b": "9cf68117edf6cb9925eb5fe9099b773b21b69d56",
-      "distance": 8,
-      "xid_a": "6E1DB92CDCC711E6B80F406186009F3A",
-      "xid_b": "A0C4FE97B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "781c52d3cadb28228870fd0381dc51cf80fcfb96",
-      "group_id_b": "8dcd414f8c115addb45f448ffaf10a908fc0638c",
-      "distance": 8,
-      "xid_a": "0DF6EE5DC34711E593B5406186009F3A",
-      "xid_b": "A14CDB00B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "79852b7773f5bbbdaf4080b7576243232d1bbf3e",
-      "group_id_b": "a96a54d92e23f1360c8027b946e3c2c8de6a1a58",
-      "distance": 8,
-      "xid_a": "B02951246D7111E88D0474D435EEBE90",
-      "xid_b": "375D55916D6811E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "79852b7773f5bbbdaf4080b7576243232d1bbf3e",
-      "group_id_b": "fb7b6e01f72375a01143bc467af506feffecfed1",
-      "distance": 8,
-      "xid_a": "B02951246D7111E88D0474D435EEBE90",
-      "xid_b": "E3625D010E2911E2935B6C626D41E503"
-    },
-    {
-      "group_id_a": "7a7ca1ead0c952fc11eaf726def1a9840a5a46af",
-      "group_id_b": "fcb5166c8e06afaaa44fde5ee8119dfdea7e365c",
-      "distance": 8,
-      "xid_a": "AC642F69E71211E3AC530024D626C8BC",
-      "xid_b": "A1187DFAB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "7cb1608163d5b096961bc25772ad4a74caa2f4a7",
-      "group_id_b": "80e3cbea1671031fef984802b371c2128f0d6a92",
-      "distance": 8,
-      "xid_a": "3B0C8A90E71111E3AC530024D626C8BC",
-      "xid_b": "98BBFF7B16D811E2B3CE6C626D41E503"
-    },
-    {
-      "group_id_a": "7ce8f970cbedcfcc66661fdaad1c0866d99d8294",
-      "group_id_b": "d27e06228e2a923a253749c1d6f67f382e4c4bea",
-      "distance": 8,
-      "xid_a": "1047D0EA824C11E2BF1E525400E46D25",
-      "xid_b": "A14CE5F9B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "7e64c593d740acde5f65fd45b1436582bbe86c4e",
-      "group_id_b": "d2da82e4f52a1d43ca076684215d8fe077e9b3b1",
-      "distance": 8,
-      "xid_a": "A0C50112B67611DF820F00166F1163D4",
-      "xid_b": "06F343AB8B3211E2BF22525400E46D25"
-    },
-    {
-      "group_id_a": "7ed707979c6cd6dde4ec2233c0d53ed640938cad",
-      "group_id_b": "bc2e76e132e1d8045c4e3c7ed711301b47f501e0",
-      "distance": 8,
-      "xid_a": "A11888B0B67611DF820F00166F1163D4",
-      "xid_b": "A1187526B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "7edd8cbdd2ec18bd190cc298f7d45cbab3870843",
-      "group_id_b": "a7f16b7d5a29ac9cd1d77b3588993c4e43a38e20",
-      "distance": 8,
-      "xid_a": "DD9767E16D7011E88D0474D435EEBE90",
-      "xid_b": "652B08F16D6D11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "7f815197dafa3adc94b48059af169d48457c4de7",
-      "group_id_b": "f34cce767ea2d0ccad9f9061b8cf98dd41712768",
-      "distance": 8,
-      "xid_a": "75E70FE2A85C11E3A595406186009F3A",
-      "xid_b": "A1186E2BB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "7fea1aaf1102bdad2861d73bdf772ecb732daf6f",
-      "group_id_b": "d3dfe26855ac285e51168cc6e6d5e7146db073c7",
-      "distance": 8,
-      "xid_a": "CA587642928411E49D49406186009F3A",
-      "xid_b": "F57CCC29E2BA11E4B65C0024BE7CD9AC"
-    },
-    {
-      "group_id_a": "8056e7ede0db5a70a0345676a35f42c1f54a5f20",
-      "group_id_b": "bb5d4937abb72d12e5a92352f2f77bc78f28008b",
-      "distance": 8,
-      "xid_a": "AAD4B0F5921B11E2BF28525400E46D25",
-      "xid_b": "A1187FC9B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "80e3cbea1671031fef984802b371c2128f0d6a92",
-      "group_id_b": "eda027b4e6ba16f93ade1e9bcb33ea9f470f2d1b",
-      "distance": 8,
-      "xid_a": "98BBFF7B16D811E2B3CE6C626D41E503",
-      "xid_b": "DED301CA648911E6A554000C76270B94"
-    },
-    {
-      "group_id_a": "81a35afed26932baaa6dd173d5d355b369e056a4",
-      "group_id_b": "eda027b4e6ba16f93ade1e9bcb33ea9f470f2d1b",
-      "distance": 8,
-      "xid_a": "A1187602B67611DF820F00166F1163D4",
-      "xid_b": "DED301CA648911E6A554000C76270B94"
-    },
-    {
-      "group_id_a": "827b0a6b924ef7bb057201f18ea5179ad6c7b188",
-      "group_id_b": "8f76f0178f84ee95853dc218371989d256881c8a",
-      "distance": 8,
-      "xid_a": "A0C4FD54B67611DF820F00166F1163D4",
-      "xid_b": "A0C504C9B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "82d498494509f45449e5b9fc58736302c61e221d",
-      "group_id_b": "98546337f9056c232245a4cf5c1e3178e5175d47",
-      "distance": 8,
-      "xid_a": "98359FD4647811E6A554000C76270B94",
-      "xid_b": "A118857FB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "842ad4bc894b21ea00d44bdca04257791c732d46",
-      "group_id_b": "d39a0ff868be2d0f75bdf19be6ef52c37536ed17",
-      "distance": 8,
-      "xid_a": "79a5b423a85c4c6ebe8b41f3e02f8f70",
-      "xid_b": "B071AB9A85AA11E2BF1F525400E46D25"
-    },
-    {
-      "group_id_a": "84cb250db526062ca2c3e5704fdde9652da7298f",
-      "group_id_b": "b065714824a663c0a82b33c9deeb049dabae4eec",
-      "distance": 8,
-      "xid_a": "DAC3C2FC69BE11E49F1F0024BE7CD9AC",
-      "xid_b": "A01A7DF9E03311E3A3D40024BE7CD9AC"
-    },
-    {
-      "group_id_a": "8690a5b7d898331cc8b9d26a3684347da66be1cc",
-      "group_id_b": "a96a54d92e23f1360c8027b946e3c2c8de6a1a58",
-      "distance": 8,
-      "xid_a": "81125AD16D8C11E88D0474D435EEBE90",
-      "xid_b": "375D55916D6811E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "8690a5b7d898331cc8b9d26a3684347da66be1cc",
-      "group_id_b": "caa652874a8d96ff999fcb5bf5abce5419ddf3f0",
-      "distance": 8,
-      "xid_a": "81125AD16D8C11E88D0474D435EEBE90",
-      "xid_b": "287947048C0911E8A45074D435EEBE90"
-    },
-    {
-      "group_id_a": "9021f38344bc39669348df65242e7d07a9a16631",
-      "group_id_b": "9fc9a8102667c31854674bd4090251fb58269365",
-      "distance": 8,
-      "xid_a": "A1188212B67611DF820F00166F1163D4",
-      "xid_b": "543432B9B03F11E3801E0024BE7CD9AC"
-    },
-    {
-      "group_id_a": "9021f38344bc39669348df65242e7d07a9a16631",
-      "group_id_b": "d48bbbf29d71521edcde498694754340f573f19f",
-      "distance": 8,
-      "xid_a": "A1188212B67611DF820F00166F1163D4",
-      "xid_b": "1DEAB06076C011E2BF17525400E46D25"
-    },
-    {
-      "group_id_a": "91119c48f3b0f5001d4296af584900ad7b0b0fa6",
-      "group_id_b": "d3e46c99670e37aeb00348231c7e22a79ce75c03",
-      "distance": 8,
-      "xid_a": "94EB62DB81C211E2BF1D525400E46D25",
-      "xid_b": "A11886A9B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "92b3957564feeff4ea2a59e3355da2b2653c1ab0",
-      "group_id_b": "a577e56672f5ea14cedcc6d8cca5fd3c176ba27a",
-      "distance": 8,
-      "xid_a": "A1188C67B67611DF820F00166F1163D4",
-      "xid_b": "A0C51684B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "9384afcc5623d26d3c48347f54414c30451c78dd",
-      "group_id_b": "a534c7f48495ee3e4742d577b6d77ad5354dc9da",
-      "distance": 8,
-      "xid_a": "CAF29A485F5211E8A52374D435EEBE90",
-      "xid_b": "D09C498ED65511E18B876C626D41E503"
-    },
-    {
-      "group_id_a": "991836545df88f646db276d330a26a545f391f69",
-      "group_id_b": "d3b2900536d6d4a09ac3c9b4e3ba78f5dddd7c07",
-      "distance": 8,
-      "xid_a": "A1187538B67611DF820F00166F1163D4",
-      "xid_b": "A0C50414B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "9bc56287099c7cb11949fe33a07a84bcac82420b",
-      "group_id_b": "e494f02631ed370400218b934e5dd66d4ac0e7ea",
-      "distance": 8,
-      "xid_a": "71C50A5A121711E28E4C6C626D41E503",
-      "xid_b": "515C7CE76D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "9cb17105c2a75698abcd3e5a749382e3afc19c34",
-      "group_id_b": "d938aa9aa2333258af08e452358f8d0057ae0011",
-      "distance": 8,
-      "xid_a": "A1187770B67611DF820F00166F1163D4",
-      "xid_b": "A1186C26B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "a6621eba79c7e2cb367115647fd62e043add0282",
-      "group_id_b": "e0bca52635eed1f4adceaa2f3008636529f67123",
-      "distance": 8,
-      "xid_a": "A1188777B67611DF820F00166F1163D4",
-      "xid_b": "A1188B9DB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "a7f16b7d5a29ac9cd1d77b3588993c4e43a38e20",
-      "group_id_b": "c3eb904d6a1eeb99c0664705650356ca9c7371ae",
-      "distance": 8,
-      "xid_a": "652B08F16D6D11E88D0474D435EEBE90",
-      "xid_b": "53987cc653bb488ea2aa62359451872b"
-    },
-    {
-      "group_id_a": "a7f16b7d5a29ac9cd1d77b3588993c4e43a38e20",
-      "group_id_b": "e494f02631ed370400218b934e5dd66d4ac0e7ea",
-      "distance": 8,
-      "xid_a": "DCFD08796D5F11E88D0474D435EEBE90",
-      "xid_b": "515C7CE76D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "a96a54d92e23f1360c8027b946e3c2c8de6a1a58",
-      "group_id_b": "c25a95906be829466217a55e66a75a756fbe2308",
-      "distance": 8,
-      "xid_a": "375D55916D6811E88D0474D435EEBE90",
-      "xid_b": "21233CA563DC11E89CE474D435EEBE90"
-    },
-    {
-      "group_id_a": "a96a54d92e23f1360c8027b946e3c2c8de6a1a58",
-      "group_id_b": "da9356927ec5f116f4b13728ea8ad669d018f539",
-      "distance": 8,
-      "xid_a": "375D55916D6811E88D0474D435EEBE90",
-      "xid_b": "8B8337C56D7211E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "ab88514862501484e2a7fce4973cc49872515a3d",
-      "group_id_b": "b64b4b5add4ec2a8d5396219328da70178c75ce7",
-      "distance": 8,
-      "xid_a": "A0C50327B67611DF820F00166F1163D4",
-      "xid_b": "78A86A36431F11E8B92874D435EEBE90"
-    },
-    {
-      "group_id_a": "ab88514862501484e2a7fce4973cc49872515a3d",
-      "group_id_b": "fcb5f0a1753116c1e0fb6a38cfbb552ba1ddc8e2",
-      "distance": 8,
-      "xid_a": "A0C50327B67611DF820F00166F1163D4",
-      "xid_b": "A0C4FB7DB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "abcde7850ec1968df1b8413361293be0c13746b0",
-      "group_id_b": "c4b0d81ddcdd76de0865745ce2dfd36b8bb63538",
-      "distance": 8,
-      "xid_a": "20CF3B62D37911E8A2B874D435EEBE90",
-      "xid_b": "AA7CF0D4D39411E8A2B874D435EEBE90"
-    },
-    {
-      "group_id_a": "ac3948e3b6940f7793c8b44c7dd37c18ab662d9d",
-      "group_id_b": "eb2ed43f8c0584d73f186e03e87605bbf8108163",
-      "distance": 8,
-      "xid_a": "8AEC36EF77B111E3B7C300110989F46F",
-      "xid_b": "DFDE801F2BED11E69C9A406186009F3A"
-    },
-    {
-      "group_id_a": "ac6fdd79bf99d8b2655ead70a00d4a5197f89e5a",
-      "group_id_b": "bda9215b739dfea7961ba44b7c4c0d12437e6a19",
-      "distance": 8,
-      "xid_a": "A0C50621B67611DF820F00166F1163D4",
-      "xid_b": "23623F52584811E4B8F46C626D41E503"
-    },
-    {
-      "group_id_a": "aca302e67eb0ef9ab2236591050fcf8358631908",
-      "group_id_b": "e0913e928375a7e1a1dd642bd8b8b6c30e985ba4",
-      "distance": 8,
-      "xid_a": "A0C513DBB67611DF820F00166F1163D4",
-      "xid_b": "C86B5177752E11E2BF16525400E46D25"
-    },
-    {
-      "group_id_a": "b065714824a663c0a82b33c9deeb049dabae4eec",
-      "group_id_b": "b842ace5dd9d8c3f5f253c198c1ae43838b9485f",
-      "distance": 8,
-      "xid_a": "A01A7DF9E03311E3A3D40024BE7CD9AC",
-      "xid_b": "E666DA0D9E9E11E1AB206C626D41E503"
-    },
-    {
-      "group_id_a": "b8081918a08191c3635c573b59fc8d2e1f48da50",
-      "group_id_b": "dfd3bc99bbae0a7cd19871d8862406365a192bf7",
-      "distance": 8,
-      "xid_a": "A0C505AEB67611DF820F00166F1163D4",
-      "xid_b": "875B70F95D5D11E6A54F000C76270B94"
-    },
-    {
-      "group_id_a": "bbfa045a41521ee7f689ef62f6de594bbd118a22",
-      "group_id_b": "caa652874a8d96ff999fcb5bf5abce5419ddf3f0",
-      "distance": 8,
-      "xid_a": "E6DC5002E69E11E89E7C74D435EEBE90",
-      "xid_b": "100748248C0911E8A45074D435EEBE90"
-    },
-    {
-      "group_id_a": "c15a2cf6b34a9aea3320beb096f7f866cdedf0f4",
-      "group_id_b": "d27e06228e2a923a253749c1d6f67f382e4c4bea",
-      "distance": 8,
-      "xid_a": "2D1D2C176ACA11E295C66C626D41E503",
-      "xid_b": "A14CE5F9B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "c25a95906be829466217a55e66a75a756fbe2308",
-      "group_id_b": "ef4af56746f103f3530510f8bdca605361ab0d13",
-      "distance": 8,
-      "xid_a": "21233CA563DC11E89CE474D435EEBE90",
-      "xid_b": "A1187083B67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "c3eb904d6a1eeb99c0664705650356ca9c7371ae",
-      "group_id_b": "e02c4e8708da2b9dffb3dd9b3fb09eae46934cf2",
-      "distance": 8,
-      "xid_a": "53987cc653bb488ea2aa62359451872b",
-      "xid_b": "BCA6DAE76D7B11E88D0474D435EEBE90"
-    },
-    {
-      "group_id_a": "c3eb904d6a1eeb99c0664705650356ca9c7371ae",
-      "group_id_b": "fcb5166c8e06afaaa44fde5ee8119dfdea7e365c",
-      "distance": 8,
-      "xid_a": "53987cc653bb488ea2aa62359451872b",
-      "xid_b": "A1187DFAB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "d3e46c99670e37aeb00348231c7e22a79ce75c03",
-      "group_id_b": "f60fdd81c0d1d1eba8c0afb52c313eac3db76cbe",
-      "distance": 8,
-      "xid_a": "A11886A9B67611DF820F00166F1163D4",
-      "xid_b": "16BF3331738D11E3B7C100110989F46F"
-    },
-    {
-      "group_id_a": "daab0a29d0ffb7cfbaf06435bef2f35962e27f45",
-      "group_id_b": "de461badccf79c99b9ab321904db3bd5324f67e7",
-      "distance": 8,
-      "xid_a": "4791020989B111E8853174D435EEBE90",
-      "xid_b": "A11866CDB67611DF820F00166F1163D4"
-    },
-    {
-      "group_id_a": "f13c930930c54121c392be245e5b7341fb224a8f",
-      "group_id_b": "f34cce767ea2d0ccad9f9061b8cf98dd41712768",
-      "distance": 8,
-      "xid_a": "47177277F8AC11DFBD8B000C766D2371",
-      "xid_b": "A1186804B67611DF820F00166F1163D4"
+      "xid_b": "A0C5071CB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The distinctive visible structures align: the seated white statue in the right foreground, the same corner apartment block with identical roofline and awnings,\u7684",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "543c37e07e8216baa0710b7bc556fcfc4fcfaa06",
+      "group_id_b": "59f9edf18007be037abd45ff872d21fff7e57032",
+      "distance": 16,
+      "xid_a": "A1188969B67611DF820F00166F1163D4",
+      "xid_b": "6e1b037ba13d40d5867bd1a61c2f5338",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Both images show the same cobblestone lane from the same perspective, with the identical left stone wall and balustrade, the same rectangular sign on the left,",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "b081a7a7417b26f0f10c897b5ee677f73dcc8287",
+      "group_id_b": "c073a1d57419394df99bf4ef2f35d4a304cbd67e",
+      "distance": 16,
+      "xid_a": "A14CE7FDB67611DF820F00166F1163D4",
+      "xid_b": "A14CDCF4B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.97,
+      "llm_reason": "The distinctive layout aligns: the same river foreground with three tree silhouettes in the same positions, the same embankment and small dock/boat at the right",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "02d46671b53fc4d56413d16be514dc3540e27656",
+      "group_id_b": "e765da5ca4dc32ff7773c80a338bb0f34aa981eb",
+      "distance": 17,
+      "xid_a": "A118736BB67611DF820F00166F1163D4",
+      "xid_b": "68F5E3DBB43511E39F7D0024BE7CD9AC",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.97,
+      "llm_reason": "The distinctive facade geometry aligns throughout: the central triangular pediment with the arched attic opening and rooftop statue, the paired circular painted",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "05fbebf87f0088b824e1e48df9ca83cec15c2758",
+      "group_id_b": "cccb7b43e0a232d7e3e7bc20bc27a51999703064",
+      "distance": 17,
+      "xid_a": "90AD52CC4DA211E1A9526C626D41E503",
+      "xid_b": "A0C502A0B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.95,
+      "llm_reason": "Distinctive structures align: the ornate corner building with the large arched entrance, roof statues, central streetlamp, right-side arched passage, left-side/",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "158128f89b22206f4112e26c0306b03d7e96d1d1",
+      "group_id_b": "5d3ee7777f02222fe3ace93acb12f239b08e4e8b",
+      "distance": 17,
+      "xid_a": "F25D00999A7811E4A736406186009F3A",
+      "xid_b": "A14CDC53B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Distinctive visible structures align: the tall dark ruined building with chimney on the left, the same foreground rubble wall and rectangular opening, the slant",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "1eea26f3dac6df9e5a20e3383a8ff6bd8228085d",
+      "group_id_b": "34a112691924e932e7fa42100c74282ccb0e8d47",
+      "distance": 17,
+      "xid_a": "A1186FEBB67611DF820F00166F1163D4",
+      "xid_b": "6833178FBE5F11E3BF7C406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The photographed content aligns: the twin spires of the Tyn Church, the ornate gable row and arcades in front, the left corner building, the right-side street,,",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "237065bbd24e74274bd2d552af448297976bcd21",
+      "group_id_b": "7cbb4d79b561fdd23426449bb18e32329e4f3d52",
+      "distance": 17,
+      "xid_a": "53796578B42C11E39F7D0024BE7CD9AC",
+      "xid_b": "A0C50C38B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Distinctive visible structures align: the left villa facade with arched porch, balcony, exterior stairs, patterned gable trim, the connected lower building with",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "2ab75297d2abff40d34cc26984d530e18090a76b",
+      "group_id_b": "90bc4f96c0a2a21d71a51ffd6e27fc341f3753ac",
+      "distance": 17,
+      "xid_a": "F924F3070A2411E1BEC1000C766D2371",
+      "xid_b": "A0C506D6B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The church facade, tower, roofline, tall arched windows, small square windows on the left tower, doorway positions, tree at right, cobblestone foreground, and a",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "2bb65ada3bf0ac2a0e58614a15e0d644352e7722",
+      "group_id_b": "d8a4a293329fc844fe7de6ae8d28490f6d7b77b2",
+      "distance": 17,
+      "xid_a": "A1186C36B67611DF820F00166F1163D4",
+      "xid_b": "3C45392A12E511E2A6B56C626D41E503",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The distinctive long institutional building aligns in perspective and detail: the left mansard-roofed wing, central raised tower with balcony, repeated window/b",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "2cd8d46e1598a48df05ae2be00a375fd3f8fc387",
+      "group_id_b": "70ea031aaedf4783f3daf8791ece0756027b26e9",
+      "distance": 17,
+      "xid_a": "8a423a039e1f4e14ab0d046caa047e52",
+      "xid_b": "A1187B4CB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.97,
+      "llm_reason": "The distinctive photographed content aligns: the same long corner building from the same perspective, identical roofline and dormer positions, matching window/b",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "407f3fe113a6922cdc7e0bfb2134974a79d14994",
+      "group_id_b": "b27dc071e1d4af14b380c941f66a08ca186c8bd7",
+      "distance": 17,
+      "xid_a": "A0C4F8A1B67611DF820F00166F1163D4",
+      "xid_b": "A0C50E4FB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.97,
+      "llm_reason": "The distinctive building geometry and object positions align: the ornate church facade on the left, the central row of gabled buildings, the decorated multi-bay",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "5c0e9ae85264bd620734d71d1396bae8fb85866e",
+      "group_id_b": "bbbcaa72c41ba86ca5e736837ca870646b90a181",
+      "distance": 17,
+      "xid_a": "0DA55D8A234011E2A12A406186009F3A",
+      "xid_b": "4d5c4ab5a87544f29cae7c208ec8ce46",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The distinctive landscape structure aligns: the factory and smoke plume on the far left, the arched viaduct, the dark foreground ridge, the sharp central rock/c",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "84b1aaee8bc6ef669198189e63fa33b12526232d",
+      "group_id_b": "deaf49a408f52b81eb8fcd0dd2f5b426573a0a8e",
+      "distance": 17,
+      "xid_a": "A0C51094B67611DF820F00166F1163D4",
+      "xid_b": "A118724EB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The same ornate corner building is photographed from the identical angle: the triangular pediment, rows of arched windows, decorative facade panels, shadow line",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "1ac2f74b1cd3a8e2c75e5ac0ac52fb0a1ad0c5f3",
+      "group_id_b": "43ab2a5e88f690bdd50e0d28f4919d622ac1a36d",
+      "distance": 18,
+      "xid_a": "1F26E5773A1B11E3B532406186009F3A",
+      "xid_b": "F0A8AE8D73CC11E898CF74D435EEBE90",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.97,
+      "llm_reason": "Distinctive visible structures align: the same Gothic cathedral facade with the left spire, central baroque tower, right buttresses, foreground rectangular roof",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "2551d37b8a9158f8ce73bcd6af343f7495fe849b",
+      "group_id_b": "2a45ef617f972a9976b191524f16aed3e20ad5cd",
+      "distance": 18,
+      "xid_a": "A0C4F464B67611DF820F00166F1163D4",
+      "xid_b": "A14CDC7FB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "Distinctive visible structures align: the central tall facade with arched attic opening, identical window and ornament layout, the same shop signs including A.",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "27ee9d1f61ece0750b0465e759d6eb566a24784b",
+      "group_id_b": "64527b0e675d700796e50a4fd422abae5d7cfae9",
+      "distance": 18,
+      "xid_a": "206BFCA6EB3011E3ABDE0024BE7CD9AC",
+      "xid_b": "A0C4FDF5B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The same facade, roofline, three visible dormers, chimney, window arrangement, snow-covered wall leading down the center, small lower-right roof, and tree trunk",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "42ef91a3d4470beccef0777e9a29607b61134bcb",
+      "group_id_b": "b3312e8d1df2d362f53de2a506d5110e515fe236",
+      "distance": 18,
+      "xid_a": "A14CE7F3B67611DF820F00166F1163D4",
+      "xid_b": "95322C7B96B611E6BE20406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The distinctive building geometry aligns throughout: the same corner facade with arched central doorway, identical rows of pedimented windows, matching roofline",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "43b417432ed66d646bcc894bc2dae9e5ca1320c3",
+      "group_id_b": "7473a61734ad4ec185a90e802a0d5caf9858b7c6",
+      "distance": 18,
+      "xid_a": "0DF035EFD0BE11EABE1F74D435EEBE90",
+      "xid_b": "0adca44ff9f84db5a0a3f0b20b678f7c",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.98,
+      "llm_reason": "The distinctive statue pose, sword and shield positions, pedestal shape, arched niche, adjacent window tracery, vertical stone blocks on the right, and diagonal",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    },
+    {
+      "group_id_a": "4a81b77aa5c14ed362e3242492eff6bb3edc6f90",
+      "group_id_b": "b578fddc475811a1d361c830f5884e4688782828",
+      "distance": 18,
+      "xid_a": "A1186961B67611DF820F00166F1163D4",
+      "xid_b": "A11871EFB67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.94,
+      "llm_reason": "Distinctive visible structures align: the same Baroque arched facade ornament, central multi-pane window, left drainpipe, lower wall stains, small rectangular/\u7ad6",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
     }
-  ]
+  ],
+  "llm_review": {
+    "source_candidates": "output/similarity/llm_first_pass_candidates.json",
+    "reviews": "output/similarity/llm_pair_reviews_second_pass.jsonl",
+    "source_pair_count": 80,
+    "reviewed_pair_count": 80,
+    "accepted_pair_count": 73,
+    "rejected_pair_count": 5,
+    "missing_review_count": 0,
+    "accepted_verdicts": [
+      "same_shot"
+    ],
+    "min_confidence": 0.85,
+    "manual_reject_count": 2,
+    "manual_rejects": [
+      {
+        "group_id_a": "6eb031e1007d5ee6977040d5289e7afac71ce9c3",
+        "group_id_b": "cf8c9c45a87df18b176d72ffcbc8e7e1a3865b3e",
+        "xid_a": "A0C50E5FB67611DF820F00166F1163D4",
+        "xid_b": "92c8b267043f4085b4cd79657f495a90",
+        "distance": 17,
+        "reason": "manual contact-sheet rejection"
+      },
+      {
+        "group_id_a": "4c8eecfc6a3778259edc474c0b33af0c4c23e913",
+        "group_id_b": "5d45252ac3efb2153bdc53690289641a84a0c3f9",
+        "xid_a": "A0C4F54BB67611DF820F00166F1163D4",
+        "xid_b": "A0C50BF2B67611DF820F00166F1163D4",
+        "distance": 18,
+        "reason": "manual contact-sheet rejection"
+      }
+    ],
+    "accepted_pair_count_before_manual_rejects": 75
+  }
 }

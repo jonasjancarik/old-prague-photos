@@ -48,13 +48,30 @@ async function loadReviewState(request, env) {
           group_id_a,
           group_id_b,
           verdict,
+          voter_key,
+          user_agent,
           created_at
         FROM merge_decisions
       `,
     ).all();
     mergeRows = mergesResult?.results || [];
   } catch (error) {
-    mergeRows = [];
+    try {
+      const mergesResult = await env.CORRECTIONS_DB.prepare(
+        `
+          SELECT
+            id,
+            group_id_a,
+            group_id_b,
+            verdict,
+            created_at
+          FROM merge_decisions
+        `,
+      ).all();
+      mergeRows = mergesResult?.results || [];
+    } catch (innerError) {
+      mergeRows = [];
+    }
   }
 
   const xidGroupMap = await loadXidGroupMap(request, env);
@@ -160,8 +177,11 @@ async function handlePost(request, env) {
   }
 
   const xidGroupMap = await loadXidGroupMap(request, env);
+  if (xidGroupMap.size === 0) {
+    return jsonResponse({ detail: "Chybí metadata skupin" }, 500);
+  }
   const mappedGroupId = xidGroupMap.get(xid) || "";
-  if (xidGroupMap.size > 0 && !mappedGroupId) {
+  if (!mappedGroupId) {
     return jsonResponse({ detail: "Neznámé xid" }, 400);
   }
   if (mappedGroupId && groupId && groupId !== mappedGroupId) {

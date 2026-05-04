@@ -32,12 +32,21 @@
           <p class="helper">
             Opravy polohy, kontrola podobných záběrů i revize skupin pomáhají zpřesnit mapu historických fotografií.
           </p>
-        </div>
-        <div class="help-mode-actions">
-          <a class="secondary report-button" href="./pomoc.html?mode=location">Oprava polohy</a>
-          <a class="primary report-button" href="./dup-review.html?mode=dedupe" data-mode-select="dedupe"
-            aria-current="page">Kontrola podobných záběrů</a>
-          <a class="secondary report-button" href="./group-review.html">Kontrola skupin</a>
+          <div class="help-mode-guide" aria-label="Rozdíl mezi režimy">
+            <a class="help-mode-card" href="./pomoc.html?mode=location">
+              <strong>Oprava polohy</strong>
+              <span>Řeší jen to, jestli špendlík na mapě sedí.</span>
+            </a>
+            <a class="help-mode-card is-current" href="./dup-review.html?mode=dedupe" data-mode-select="dedupe"
+              aria-current="page">
+              <strong>Podobné záběry</strong>
+              <span>Porovnává dvě skupiny a rozhoduje, jestli se mají sloučit.</span>
+            </a>
+            <a class="help-mode-card" href="./group-review.html">
+              <strong>Kontrola skupin</strong>
+              <span>Ověřuje, jestli verze v jedné skupině patří k sobě.</span>
+            </a>
+          </div>
         </div>
       </section>
 
@@ -45,6 +54,9 @@
         <div class="review-controls">
           <button class="secondary" type="button" id="prev-pair" disabled>
             Předchozí pár
+          </button>
+          <button class="secondary" type="button" id="undo-last" disabled>
+            Vrátit poslední hlas
           </button>
           <button class="vote vote-up" type="button" id="mark-same">
             Stejný záběr
@@ -58,6 +70,24 @@
         </div>
         <p class="helper review-source" id="pair-source">Zdroj páru: —</p>
         <p class="helper review-source is-hidden" id="pair-filter"></p>
+
+        <details class="workflow-help">
+          <summary>Co přesně tu rozhodujete?</summary>
+          <div class="workflow-help-body">
+            <div class="workflow-help-item">
+              <strong>Stejný záběr</strong>
+              <span>Skupiny ukazují tutéž fotografii, sken, ořez nebo sérii.</span>
+            </div>
+            <div class="workflow-help-item">
+              <strong>Různé záběry</strong>
+              <span>Jde o jiné místo, jiný úhel, jinou událost nebo jiný snímek.</span>
+            </div>
+            <div class="workflow-help-item">
+              <strong>Další pár</strong>
+              <span>Přeskočí nejistý pár bez uložení rozhodnutí.</span>
+            </div>
+          </div>
+        </details>
 
         <div class="review-grid">
           <div class="review-column">
@@ -95,4 +125,3 @@
       </section>
     </main>
   </div>
-

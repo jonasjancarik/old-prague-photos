@@ -2,6 +2,10 @@
 
 The viewer is a static frontend (Leaflet map + review UIs) with an optional backend for corrections. It can run locally via FastAPI or be deployed to Cloudflare Pages + D1.
 
+Community help docs:
+- maintainer reference: [Community Help Workflows](./community-voting.md)
+- Czech user-facing guide: [Komunitní pomoc](./komunitni-pomoc.md)
+
 ## Frontend source + build
 
 - React source: `viewer/react/`
@@ -78,12 +82,21 @@ Notes:
 Similarity generation contract:
 - `similarity_candidates.json`
   - Backward compatible keys: `generated_at`, `distance`, `hash_size`, `algo`, `pairs`
-  - New key: `pair_distance` (defaults to `8`)
+  - New key: `pair_distance` (defaults to `18`)
   - Pair schema unchanged: `group_id_a`, `group_id_b`, `distance`, `xid_a`, `xid_b`
+  - Optional LLM-reviewed outputs add top-level `llm_review` metadata and per-pair
+    `llm_verdict`, `llm_confidence`, `llm_reason`, `llm_model`, `llm_backend`
 - `series_version_clusters.json`
   - Backward compatible keys: `generated_at`, `distance`, `hash_size`, `algo`, `clusters`
-  - New key: `cluster_distance` (defaults to `10`)
+  - New key: `cluster_distance` (defaults to `32`)
   - Cluster schema unchanged: `series_id`, `version_id`, `xids`, `representative_xid`, `max_distance`
+
+Similarity hashes use `algo: "dhash-edge-mountcrop"`: scans that look like
+mounted prints are cropped to the central photo for hashing, then a 64-bit
+luminance dHash and 64-bit edge-structure hash are combined. Distances are
+Hamming distances over the combined 128-bit value. This keeps the duplicate
+queue from over-ranking unrelated scans that only share black borders, beige
+mounts, bright backgrounds, or broad horizontal tones.
 
 Hashing source order in `build_similarity.py`:
 - local stitched cache (`output/similarity/stitched`)
@@ -98,6 +111,11 @@ Hashing source order in `build_similarity.py`:
 - `/group-review.html` - per-group review (versions within a series)
 - `/dup-review.html` - visual duplicate review (merge decisions)
 - `/pomoc.html` - help page
+
+Group review progress:
+- `group-review.html` writes a dedicated backend vote separate from location corrections and merge decisions.
+- A series is treated as community-reviewed after `2` independent `ok` votes.
+- The reset button on the page only clears the browser-local hide list; it does not delete backend votes.
 
 Index page filtering behavior:
 - Year slider + toggles filter the active dataset.
@@ -121,7 +139,9 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `GET /api/corrections` - latest corrections (per group)
 - `POST /api/corrections` - submit correction / flag
 - `GET /api/merges` - latest merge decisions
-- `POST /api/merges` - submit merge decision
+- `POST /api/merges` - submit merge decision (`same`, `different`, `undo` for last-vote revert)
+- `GET /api/group-review-votes` - aggregated series-review votes (`ok_votes`, `done`)
+- `POST /api/group-review-votes` - submit series-review vote (`ok`, `undo`)
 - `GET /api/admin/review` - maintainer overview (pending corrections, flags, conflicts, recent merges)
 - `GET /api/admin/export?format=json|csv&since=...&limit=...` - maintainer export
 - `GET /api/preview-url?xid=...` - preview URL resolver (R2 tile probe -> feature preview/zoomify fallback)
@@ -131,7 +151,7 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `GET /api/dezoomify?xid=...&scanIndex=0` - FastAPI-only full-resolution JPEG download (tile stitch on server)
 
 Write API hardening:
-- `POST /api/verify`, `POST /api/corrections`, `POST /api/merges` require same-origin (`Origin`/`Referer` match).
+- `POST /api/verify`, `POST /api/corrections`, `POST /api/merges`, `POST /api/group-review-votes` require same-origin (`Origin`/`Referer` match).
 - Per-IP rate limits are enforced in D1.
 - Turnstile verification checks `success`, `hostname`, and expected `action`.
 - Recommended for production: protect `/admin*` and `/api/admin/*` at Cloudflare WAF/Access.
@@ -148,19 +168,24 @@ FastAPI serves the static app and stores corrections locally in JSONL files:
 Run:
 
 ```bash
-npm --prefix viewer/react run build
-uv run uvicorn viewer.app:app --reload \
-  --reload-dir viewer \
-  --reload-dir viewer/static \
-  --reload-include "*.html" \
-  --reload-include "*.css" \
-  --reload-include "*.js" \
-  --reload-include "*.geojson"
+npm run dev
 ```
 
 Open `http://127.0.0.1:8000`.
 
 Turnstile bypass is local-only: `TURNSTILE_BYPASS=1` is honored only on `localhost`/`127.0.0.1`/`::1`.
+
+## Local development (Cloudflare Pages + D1)
+
+For the production-like local path, run:
+
+```bash
+npm run dev:pages
+```
+
+This applies local D1 migrations, runs the React/static watcher in the background,
+and starts Wrangler Pages. Open the URL printed by Wrangler, typically
+`http://127.0.0.1:8788`.
 
 ## Cloudflare Pages + D1
 
@@ -183,8 +208,7 @@ npx wrangler d1 migrations apply CORRECTIONS_DB
 ### 3) Local Pages dev
 
 ```bash
-npm --prefix viewer/react run build
-TURNSTILE_BYPASS=1 npx wrangler pages dev viewer/static --local
+npm run dev:pages
 ```
 
 ### 4) Deploy

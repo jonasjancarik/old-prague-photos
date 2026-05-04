@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageFilter
 
 
 @dataclass(frozen=True)
@@ -112,7 +112,7 @@ def hamming_distance(a: int, b: int) -> int:
 
 
 def hash_to_hex(value: int, hash_size: int) -> str:
-    width = (hash_size * hash_size) // 4
+    width = max((hash_size * hash_size) // 4, (value.bit_length() + 3) // 4, 1)
     return f"{value:0{width}x}"
 
 
@@ -133,6 +133,30 @@ def dhash(image: Image.Image, hash_size: int) -> int:
             right = pixels[row_start + col + 1]
             value = (value << 1) | (1 if left > right else 0)
     return value
+
+
+def edge_hash(image: Image.Image, hash_size: int) -> int:
+    if hash_size < 2:
+        raise ValueError("hash_size must be >= 2")
+    resample = (
+        Image.Resampling.LANCZOS if hasattr(Image, "Resampling") else Image.LANCZOS
+    )
+    edge_image = (
+        image.convert("L")
+        .filter(ImageFilter.FIND_EDGES)
+        .resize((hash_size, hash_size), resample)
+    )
+    pixels = list(edge_image.getdata())
+    average = sum(pixels) / len(pixels) if pixels else 0
+    value = 0
+    for pixel in pixels:
+        value = (value << 1) | (1 if pixel > average else 0)
+    return value
+
+
+def visual_hash(image: Image.Image, hash_size: int) -> int:
+    component_bits = hash_size * hash_size
+    return (dhash(image, hash_size) << component_bits) | edge_hash(image, hash_size)
 
 
 def sanitize_scan_count(value: object) -> int:
@@ -227,6 +251,7 @@ def load_hash_cache(
     force: bool,
     hash_size: int,
     hash_profile: str,
+    expected_algo: str = "dhash",
 ) -> dict[tuple[str, int], HashCacheEntry]:
     if force or not path.exists():
         return {}
@@ -242,11 +267,11 @@ def load_hash_cache(
         xid = str(item.get("xid", "")).strip()
         group_id = str(item.get("group_id", "")).strip()
         cached_size = parse_int(item.get("hash_size"), 0)
-        algo = str(item.get("algo") or "").strip()
+        cached_algo = str(item.get("algo") or "").strip()
         cached_profile = str(item.get("hash_profile") or "").strip()
         if cached_size and cached_size != hash_size:
             continue
-        if algo and algo != "dhash":
+        if cached_algo and cached_algo != expected_algo:
             continue
         if cached_profile != hash_profile:
             continue
@@ -276,12 +301,13 @@ def append_hash_record(
     handle,
     record: HashCacheEntry,
     hash_size: int,
+    algo: str = "dhash",
 ) -> None:
     payload = {
         "xid": record.xid,
         "group_id": record.group_id,
         "hash": hash_to_hex(record.hash_value, hash_size),
-        "algo": "dhash",
+        "algo": algo,
         "hash_size": hash_size,
         "scan_index": record.scan_index,
         "hash_profile": record.hash_profile,

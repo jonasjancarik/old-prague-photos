@@ -7,6 +7,7 @@ const scripts = [
   './photo-meta.js',
   './grouping.js',
   './media-filter.js',
+  './session-verify.js',
   './group-review.js',
 ];
 
