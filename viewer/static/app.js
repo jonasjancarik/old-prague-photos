@@ -34,9 +34,17 @@ const state = {
   previewPromiseByXid: new Map(),
   previewPrefetchByUrl: new Map(),
   prefetchedPreviewUrls: new Set(),
+  previewProximityPrefetchedXids: new Set(),
   previewHoverToken: 0,
   previewHideTimer: null,
   previewActiveXid: "",
+  previewProximityTimer: null,
+  previewProximityRaf: 0,
+  previewProximityLastAt: 0,
+  previewProximityLastEvent: null,
+  previewProximityActiveGroupId: "",
+  clusterPreviewMarkers: [],
+  overlapPreviewMarkers: [],
   gridVisibleCount: 24,
   gridPageSize: 24,
   nearbyGroupIds: [],
@@ -106,6 +114,8 @@ const MAPY_ATTR = '&copy; <a href="https://www.mapy.cz">Mapy.cz</a>';
 const FULL_RES_CLIENT_MAX_PIXELS = 80_000_000;
 const FULL_RES_MODE_SERVER = "server";
 const FULL_RES_MODE_CLIENT = "client";
+const PREVIEW_PROXIMITY_RADIUS_PX = 48;
+const PREVIEW_PROXIMITY_THROTTLE_MS = 75;
 
 function setStatus(message, tone = "") {
   formStatus.textContent = message;
@@ -1865,6 +1875,109 @@ function prefetchPrimaryPreview(feature) {
   }
 }
 
+function prefetchPrimaryPreviewOnce(feature) {
+  const xid = String(feature?.properties?.id || "").trim();
+  if (!xid || state.previewProximityPrefetchedXids.has(xid)) return;
+  state.previewProximityPrefetchedXids.add(xid);
+  prefetchPrimaryPreview(feature);
+}
+
+function canUsePreviewProximityPrefetch() {
+  if (typeof window === "undefined") return false;
+  if (typeof window.matchMedia !== "function") return true;
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
+function getActivePreviewMarkerRefs() {
+  return state.clusteringEnabled
+    ? state.clusterPreviewMarkers
+    : state.overlapPreviewMarkers;
+}
+
+function getActivePreviewMarkerLayer() {
+  return state.clusteringEnabled ? state.cluster : state.overlapCluster;
+}
+
+function isPreviewMarkerVisible(marker, layer) {
+  if (!state.map || !marker || !layer || !state.map.hasLayer(layer)) return false;
+  if (typeof layer.getVisibleParent === "function") {
+    return layer.getVisibleParent(marker) === marker;
+  }
+  return state.map.hasLayer(marker);
+}
+
+function findNearestPreviewMarker(containerPoint) {
+  if (!state.map || !containerPoint) return null;
+  const refs = getActivePreviewMarkerRefs();
+  const layer = getActivePreviewMarkerLayer();
+  if (!Array.isArray(refs) || !refs.length || !layer) return null;
+
+  let nearest = null;
+  let nearestDistanceSq =
+    PREVIEW_PROXIMITY_RADIUS_PX * PREVIEW_PROXIMITY_RADIUS_PX;
+
+  refs.forEach((ref) => {
+    const marker = ref?.marker;
+    const group = ref?.group;
+    if (!marker || !group?.primary) return;
+
+    const markerPoint = state.map.latLngToContainerPoint(marker.getLatLng());
+    const dx = markerPoint.x - containerPoint.x;
+    const dy = markerPoint.y - containerPoint.y;
+    const distanceSq = dx * dx + dy * dy;
+    if (distanceSq >= nearestDistanceSq) return;
+    if (!isPreviewMarkerVisible(marker, layer)) return;
+
+    nearest = ref;
+    nearestDistanceSq = distanceSq;
+  });
+
+  return nearest;
+}
+
+function processPreviewProximityEvent() {
+  state.previewProximityRaf = 0;
+  state.previewProximityLastAt = Date.now();
+
+  const event = state.previewProximityLastEvent;
+  state.previewProximityLastEvent = null;
+  if (!event || !state.map) return;
+  if (event.originalEvent?.buttons) return;
+
+  const containerPoint =
+    event.containerPoint ||
+    (event.originalEvent
+      ? state.map.mouseEventToContainerPoint(event.originalEvent)
+      : null);
+  const nearest = findNearestPreviewMarker(containerPoint);
+  if (!nearest) {
+    state.previewProximityActiveGroupId = "";
+    return;
+  }
+
+  const groupId = String(nearest.group?.id || "");
+  if (groupId && groupId === state.previewProximityActiveGroupId) return;
+  state.previewProximityActiveGroupId = groupId;
+  prefetchPrimaryPreviewOnce(nearest.group.primary);
+}
+
+function schedulePreviewProximityCheck(event) {
+  if (!canUsePreviewProximityPrefetch()) return;
+  if (event?.originalEvent?.buttons) return;
+
+  state.previewProximityLastEvent = event;
+  if (state.previewProximityTimer || state.previewProximityRaf) return;
+
+  const elapsed = Date.now() - state.previewProximityLastAt;
+  const wait = Math.max(0, PREVIEW_PROXIMITY_THROTTLE_MS - elapsed);
+  state.previewProximityTimer = window.setTimeout(() => {
+    state.previewProximityTimer = null;
+    state.previewProximityRaf = window.requestAnimationFrame(
+      processPreviewProximityEvent,
+    );
+  }, wait);
+}
+
 function prefetchNextNearbyPreview() {
   const nearbyIds = Array.isArray(state.nearbyGroupIds) ? state.nearbyGroupIds : [];
   const nextIndex = Number(state.nearbyIndex) + 1;
@@ -2087,6 +2200,7 @@ function initMap() {
   state.map.on("moveend", () => {
     renderPhotoGrid();
   });
+  state.map.on("mousemove", schedulePreviewProximityCheck);
 }
 
 function toggleClustering(enabled) {
@@ -2103,6 +2217,7 @@ function toggleClustering(enabled) {
   }
 
   state.clusteringEnabled = enabled;
+  state.previewProximityActiveGroupId = "";
   if (!state.map) return;
 
   if (enabled) {
@@ -2118,6 +2233,9 @@ function addMarkers(groups, options = {}) {
   const { fitBounds = true } = options;
   state.cluster.clearLayers();
   state.overlapCluster.clearLayers();
+  state.clusterPreviewMarkers = [];
+  state.overlapPreviewMarkers = [];
+  state.previewProximityActiveGroupId = "";
 
   const bounds = L.latLngBounds();
 
@@ -2139,6 +2257,8 @@ function addMarkers(groups, options = {}) {
     // We create separate marker instances for each cluster group
     const m1 = L.marker([lat, lon], markerParams);
     const m2 = L.marker([lat, lon], markerParams);
+    state.clusterPreviewMarkers.push({ marker: m1, group });
+    state.overlapPreviewMarkers.push({ marker: m2, group });
 
     const setup = (m) => {
       m.on("click", () => {

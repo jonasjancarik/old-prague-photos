@@ -122,6 +122,7 @@ Index page filtering behavior:
 - Metadata search (`Hledat v metadatech fotek…`) further filters the same active dataset.
 - Map markers, total count, and photo grid use the combined filter result.
 - Address search mode (`Hledat adresu v Praze…`) does not filter photos; it only navigates the map.
+- On fine-pointer devices, map preview thumbnails are prefetched for the nearest visible marker when the cursor moves close to it; the popup still opens only on hover.
 
 Grouping rules:
 - Groups are based on identical `obsah + autor + datace`
