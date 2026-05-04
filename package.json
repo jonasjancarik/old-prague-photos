@@ -1,0 +1,8 @@
+{
+  "name": "old-prague-photos",
+  "private": true,
+  "scripts": {
+    "dev": "sh scripts/dev.sh",
+    "dev:pages": "sh scripts/dev-pages.sh"
+  }
+}

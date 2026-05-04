@@ -1,4 +1,4 @@
-  <div class="page">
+import{u as e,j as n,c as s}from"./useLegacyScripts-D2vOR0u_.js";const a=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Kontrola podobných záběrů</p>
@@ -33,20 +33,25 @@
             Opravy polohy, kontrola podobných záběrů i revize skupin pomáhají zpřesnit mapu historických fotografií.
           </p>
           <div class="help-mode-guide" aria-label="Rozdíl mezi režimy">
-            <a class="help-mode-card" href="./pomoc.html?mode=location">
+            <div>
               <strong>Oprava polohy</strong>
               <span>Řeší jen to, jestli špendlík na mapě sedí.</span>
-            </a>
-            <a class="help-mode-card is-current" href="./dup-review.html?mode=dedupe" data-mode-select="dedupe"
-              aria-current="page">
+            </div>
+            <div>
               <strong>Podobné záběry</strong>
               <span>Porovnává dvě skupiny a rozhoduje, jestli se mají sloučit.</span>
-            </a>
-            <a class="help-mode-card" href="./group-review.html">
+            </div>
+            <div>
               <strong>Kontrola skupin</strong>
               <span>Ověřuje, jestli verze v jedné skupině patří k sobě.</span>
-            </a>
+            </div>
           </div>
+        </div>
+        <div class="help-mode-actions">
+          <a class="secondary report-button" href="./pomoc.html?mode=location">Oprava polohy</a>
+          <a class="primary report-button" href="./dup-review.html?mode=dedupe" data-mode-select="dedupe"
+            aria-current="page">Kontrola podobných záběrů</a>
+          <a class="secondary report-button" href="./group-review.html">Kontrola skupin</a>
         </div>
       </section>
 
@@ -125,3 +130,4 @@
       </section>
     </main>
   </div>
+`,i=["https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./dup-review.js","./mode-picker.js"];function o(){return e(i),n.jsx("div",{dangerouslySetInnerHTML:{__html:a}})}s(document.getElementById("root")).render(n.jsx(o,{}));

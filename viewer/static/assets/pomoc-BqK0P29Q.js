@@ -1,4 +1,4 @@
-  <div class="page">
+import{u as a,j as n,c as e}from"./useLegacyScripts-DvZR5PmY.js";const s=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Pomoc s opravami</p>
@@ -151,3 +151,4 @@
       </div>
     </div>
   </div>
+`,o=["https://unpkg.com/leaflet@1.9.4/dist/leaflet.js","https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./pomoc.js","./mode-picker.js"];function t(){return a(o),n.jsx("div",{dangerouslySetInnerHTML:{__html:s}})}e(document.getElementById("root")).render(n.jsx(t,{}));

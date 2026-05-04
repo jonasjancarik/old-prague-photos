@@ -28,7 +28,10 @@ from src.utils.similarity_images import (
 
 DEFAULT_ARCHIVE_BASE_URL = "https://katalog.ahmp.cz/pragapublica"
 DEFAULT_DOWNLOAD_ROOT = "downloads/archive"
-HASH_PROFILE_VERSION = 2
+HASH_ALGO = "dhash-edge-mountcrop"
+HASH_PROFILE_VERSION = 4
+DEFAULT_PAIR_DISTANCE = 18
+DEFAULT_CLUSTER_DISTANCE = 32
 
 
 def resolve_distances(
@@ -36,8 +39,8 @@ def resolve_distances(
     pair_distance: int | None,
     cluster_distance: int | None,
 ) -> tuple[int, int]:
-    pair = 8 if pair_distance is None else pair_distance
-    cluster = 10 if cluster_distance is None else cluster_distance
+    pair = DEFAULT_PAIR_DISTANCE if pair_distance is None else pair_distance
+    cluster = DEFAULT_CLUSTER_DISTANCE if cluster_distance is None else cluster_distance
     if distance_alias is not None:
         if pair_distance is None:
             pair = distance_alias
@@ -80,19 +83,25 @@ def parse_args() -> argparse.Namespace:
         "--pair-distance",
         type=int,
         default=None,
-        help="Max Hamming distance for cross-series candidate pairs (default: 8)",
+        help=(
+            "Max Hamming distance for cross-series candidate pairs "
+            f"(default: {DEFAULT_PAIR_DISTANCE})"
+        ),
     )
     parser.add_argument(
         "--cluster-distance",
         type=int,
         default=None,
-        help="Max Hamming distance for in-series version clustering (default: 10)",
+        help=(
+            "Max Hamming distance for in-series version clustering "
+            f"(default: {DEFAULT_CLUSTER_DISTANCE})"
+        ),
     )
     parser.add_argument(
         "--hash-size",
         type=int,
         default=8,
-        help="Hash grid size (8 => 64-bit hash)",
+        help="Hash grid size (8 => 128-bit composite hash)",
     )
     parser.add_argument(
         "--limit",
@@ -161,8 +170,9 @@ def build_hash_profile(args: argparse.Namespace) -> str:
     r2_enabled = "1" if args.r2_tiles_base else "0"
     source_policy = "local_stitched>r2>feature_zoomify>archive_zoomify>preview"
     return (
-        f"dhash-v{HASH_PROFILE_VERSION}|hash_size={args.hash_size}|"
-        f"source_policy={source_policy}|r2_enabled={r2_enabled}|"
+        f"{HASH_ALGO}-v{HASH_PROFILE_VERSION}|hash_size={args.hash_size}|"
+        f"source_policy={source_policy}|preprocess=mounted_photo_crop_v1|"
+        f"r2_enabled={r2_enabled}|"
         f"stitch_target={args.stitch_target_long_side}|stitch_max_tiles={args.stitch_max_tiles}"
     )
 
@@ -199,7 +209,13 @@ def main() -> None:
     hash_profile = build_hash_profile(args)
 
     features = load_features(input_path, args.limit)
-    cache = load_hash_cache(hash_cache_path, args.force, args.hash_size, hash_profile)
+    cache = load_hash_cache(
+        hash_cache_path,
+        args.force,
+        args.hash_size,
+        hash_profile,
+        expected_algo=HASH_ALGO,
+    )
     total_scans = sum(len(item["scans"]) for item in features)
     if total_scans:
         print(f"Processing {total_scans} scans across {len(features)} photos")
@@ -303,7 +319,7 @@ def main() -> None:
                     image_height=hash_result.image_height,
                 )
                 records_by_key[key] = entry
-                append_hash_record(cache_handle, entry, args.hash_size)
+                append_hash_record(cache_handle, entry, args.hash_size, algo=HASH_ALGO)
                 hashed += 1
                 processed += 1
                 if report_every and processed % report_every == 0:
@@ -340,7 +356,7 @@ def main() -> None:
         "distance": args.pair_distance,
         "pair_distance": args.pair_distance,
         "hash_size": args.hash_size,
-        "algo": "dhash",
+        "algo": HASH_ALGO,
         "pairs": sorted(
             candidates,
             key=lambda item: (item["distance"], item["group_id_a"], item["group_id_b"]),
@@ -355,7 +371,7 @@ def main() -> None:
         "distance": args.cluster_distance,
         "cluster_distance": args.cluster_distance,
         "hash_size": args.hash_size,
-        "algo": "dhash",
+        "algo": HASH_ALGO,
         "clusters": clusters,
     }
     clusters_output_path.write_text(

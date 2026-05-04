@@ -1,4 +1,4 @@
-  <div class="page">
+import{u as a,j as n,c as e}from"./useLegacyScripts-D2vOR0u_.js";const o=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Pomoc s opravami</p>
@@ -31,20 +31,25 @@
             Opravy polohy, kontrola podobných záběrů i revize skupin pomáhají zpřesnit mapu historických fotografií.
           </p>
           <div class="help-mode-guide" aria-label="Rozdíl mezi režimy">
-            <a class="help-mode-card is-current" href="./pomoc.html?mode=location" data-mode-select="location"
-              aria-current="page">
+            <div>
               <strong>Oprava polohy</strong>
               <span>Řeší jen to, jestli špendlík na mapě sedí.</span>
-            </a>
-            <a class="help-mode-card" href="./dup-review.html?mode=dedupe">
+            </div>
+            <div>
               <strong>Podobné záběry</strong>
               <span>Porovnává dvě skupiny a rozhoduje, jestli se mají sloučit.</span>
-            </a>
-            <a class="help-mode-card" href="./group-review.html">
+            </div>
+            <div>
               <strong>Kontrola skupin</strong>
               <span>Ověřuje, jestli verze v jedné skupině patří k sobě.</span>
-            </a>
+            </div>
           </div>
+        </div>
+        <div class="help-mode-actions">
+          <a class="primary report-button" href="./pomoc.html?mode=location" data-mode-select="location"
+            aria-current="page">Oprava polohy</a>
+          <a class="secondary report-button" href="./dup-review.html?mode=dedupe">Kontrola podobných záběrů</a>
+          <a class="secondary report-button" href="./group-review.html">Kontrola skupin</a>
         </div>
       </section>
 
@@ -151,3 +156,4 @@
       </div>
     </div>
   </div>
+`,s=["https://unpkg.com/leaflet@1.9.4/dist/leaflet.js","https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./pomoc.js","./mode-picker.js"];function t(){return a(s),n.jsx("div",{dangerouslySetInnerHTML:{__html:o}})}e(document.getElementById("root")).render(n.jsx(t,{}));

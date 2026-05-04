@@ -1,4 +1,4 @@
-  <div class="page">
+import{u as s,j as n,c as e}from"./useLegacyScripts-DvZR5PmY.js";const a=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Kontrola skupin</p>
@@ -103,3 +103,4 @@
       </section>
     </main>
   </div>
+`,o=["https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./group-review.js"];function t(){return s(o),n.jsx("div",{dangerouslySetInnerHTML:{__html:a}})}e(document.getElementById("root")).render(n.jsx(t,{}));
