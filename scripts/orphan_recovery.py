@@ -43,7 +43,7 @@ def parse_args() -> argparse.Namespace:
     probe.add_argument(
         "--run-dir",
         required=True,
-        help="Run output directory (e.g. output/recovery/orphans/<run_id>)",
+        help="Run output directory (e.g. runs/recovery/orphans/<run_id>)",
     )
     probe.add_argument(
         "--archive-base-url",

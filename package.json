@@ -1,8 +1,13 @@
 {
   "name": "old-prague-photos",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "sh scripts/dev.sh",
-    "dev:pages": "sh scripts/dev-pages.sh"
+    "dev:pages": "sh scripts/dev-pages.sh",
+    "test": "npm run test:py && npm run test:api",
+    "test:py": "uv run pytest -q",
+    "test:api": "node --test functions/api/__tests__/*.mjs",
+    "build:viewer": "npm --prefix viewer/react run build"
   }
 }

@@ -1,8 +1,8 @@
 Ahoj Peter — TODO (Cloudflare Pages + D1 + viewer)
 
 1) Data build
-- `uv run cli export`
-- `python viewer/build_geojson.py` (vygeneruje `viewer/static/data/photos.geojson`)
+- `RUN_DIR=runs/<run-id>`
+- `uv run cli derive --run-dir "$RUN_DIR"` (vygeneruje run-local CSV + GeoJSON)
 
 2) Cloudflare login + D1
 - `npx wrangler login`

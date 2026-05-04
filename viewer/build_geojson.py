@@ -92,11 +92,7 @@ def compute_date_imprecise(
     return start == DATE_PLACEHOLDER_START or end == DATE_PLACEHOLDER_END
 
 
-def main() -> None:
-    args = parse_args()
-    input_path = Path(args.input)
-    output_path = Path(args.output)
-
+def build_geojson(input_path: Path, output_path: Path) -> int:
     features = []
     with input_path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
@@ -157,6 +153,15 @@ def main() -> None:
         json.dump(geojson, handle, ensure_ascii=False)
 
     print(f"Wrote {len(features)} features to {output_path}")
+    return len(features)
+
+
+def main() -> None:
+    args = parse_args()
+    build_geojson(
+        input_path=Path(args.input),
+        output_path=Path(args.output),
+    )
 
 
 if __name__ == "__main__":

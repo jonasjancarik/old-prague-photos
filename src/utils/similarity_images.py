@@ -360,6 +360,7 @@ def compute_hash_for_scan(
     download_root: Path,
     stitched_root: Path,
     no_download_cache: bool,
+    allow_archive_fallback: bool = False,
 ) -> HashResult:
     source_attempts: list[dict[str, str]] = []
     stitched_image_path, stitched_meta_path = stitched_cache_paths(
@@ -402,31 +403,32 @@ def compute_hash_for_scan(
                 }
             )
 
-    try:
-        archive_zoomify_img_path, _, _, _ = fetch_zoomify_meta(
-            session,
-            xid,
-            archive_base_url,
-            scan.scan_index,
-        )
-        return compute_zoomify_hash(
-            session=session,
-            zoomify_img_path=archive_zoomify_img_path,
-            image_source="archive_zoomify",
-            hash_size=hash_size,
-            stitch_target_long_side=stitch_target_long_side,
-            stitch_max_tiles=stitch_max_tiles,
-            stitched_image_path=stitched_image_path,
-            stitched_meta_path=stitched_meta_path,
-        )
-    except Exception as exc:
-        source_attempts.append(
-            {
-                "source": "archive_zoomify",
-                "path": "",
-                "error": str(exc),
-            }
-        )
+    if allow_archive_fallback:
+        try:
+            archive_zoomify_img_path, _, _, _ = fetch_zoomify_meta(
+                session,
+                xid,
+                archive_base_url,
+                scan.scan_index,
+            )
+            return compute_zoomify_hash(
+                session=session,
+                zoomify_img_path=archive_zoomify_img_path,
+                image_source="archive_zoomify",
+                hash_size=hash_size,
+                stitch_target_long_side=stitch_target_long_side,
+                stitch_max_tiles=stitch_max_tiles,
+                stitched_image_path=stitched_image_path,
+                stitched_meta_path=stitched_meta_path,
+            )
+        except Exception as exc:
+            source_attempts.append(
+                {
+                    "source": "archive_zoomify",
+                    "path": "",
+                    "error": str(exc),
+                }
+            )
 
     local_preview_path = None
     if not no_download_cache:

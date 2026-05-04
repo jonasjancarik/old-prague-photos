@@ -129,6 +129,7 @@ class BuildSimilarityTests(unittest.TestCase):
                     download_root=root,
                     stitched_root=root / "stitched",
                     no_download_cache=False,
+                    allow_archive_fallback=False,
                 )
         self.assertEqual(result, success)
         self.assertEqual(compute_zoomify_hash_mock.call_count, 1)
@@ -176,6 +177,7 @@ class BuildSimilarityTests(unittest.TestCase):
                     download_root=root,
                     stitched_root=root / "stitched",
                     no_download_cache=False,
+                    allow_archive_fallback=False,
                 )
         self.assertEqual(result, success)
         self.assertEqual(compute_zoomify_hash_mock.call_count, 2)
@@ -229,6 +231,7 @@ class BuildSimilarityTests(unittest.TestCase):
                     download_root=root,
                     stitched_root=root / "stitched",
                     no_download_cache=False,
+                    allow_archive_fallback=True,
                 )
         self.assertEqual(result, success)
         self.assertEqual(compute_zoomify_hash_mock.call_count, 3)
@@ -238,6 +241,52 @@ class BuildSimilarityTests(unittest.TestCase):
             "https://archive.example/zoomify/X1",
         )
         fetch_zoomify_meta_mock.assert_called_once()
+
+    def test_compute_hash_for_scan_skips_archive_fallback_by_default(self) -> None:
+        scan = ScanInput(
+            scan_index=0,
+            preview_url="https://preview.example/p.jpg",
+            feature_zoomify_path="https://feature.example/zoomify/x1",
+        )
+        success = HashResult(
+            hash_value=987,
+            image_source="preview",
+            render_mode="preview_original",
+            image_width=200,
+            image_height=100,
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            with patch(
+                "src.utils.similarity_images.load_local_stitched_hash",
+                return_value=None,
+            ), patch(
+                "src.utils.similarity_images.compute_zoomify_hash",
+                side_effect=RuntimeError("zoomify unavailable"),
+            ), patch(
+                "src.utils.similarity_images.fetch_zoomify_meta",
+            ) as fetch_zoomify_meta_mock, patch(
+                "src.utils.similarity_images.compute_preview_hash",
+                return_value=success,
+            ) as compute_preview_hash_mock:
+                result = compute_hash_for_scan(
+                    session=object(),
+                    xid="X1",
+                    scan=scan,
+                    archive_base_url="https://archive.example",
+                    r2_tiles_base="https://r2.example/tiles",
+                    hash_size=8,
+                    stitch_target_long_side=1024,
+                    stitch_max_tiles=16,
+                    download_root=root,
+                    stitched_root=root / "stitched",
+                    no_download_cache=False,
+                )
+
+        self.assertEqual(result, success)
+        fetch_zoomify_meta_mock.assert_not_called()
+        compute_preview_hash_mock.assert_called_once()
 
     def test_load_hash_cache_requires_hash_profile(self) -> None:
         with TemporaryDirectory() as tmpdir:
@@ -375,6 +424,23 @@ class BuildSimilarityTests(unittest.TestCase):
         self.assertEqual(build_similarity.resolve_distances(7, None, None), (7, 7))
         self.assertEqual(build_similarity.resolve_distances(7, 5, None), (5, 7))
         self.assertEqual(build_similarity.resolve_distances(7, 5, 6), (5, 6))
+
+    def test_hash_profile_records_archive_fallback_policy(self) -> None:
+        namespace = type(
+            "Args",
+            (),
+            {
+                "r2_tiles_base": "",
+                "allow_archive_fallback": False,
+                "hash_size": 8,
+                "stitch_target_long_side": 1024,
+                "stitch_max_tiles": 16,
+            },
+        )()
+        profile = build_similarity.build_hash_profile(namespace)
+
+        self.assertIn("archive_fallback=0", profile)
+        self.assertIn("source_policy=local_stitched>r2>feature_zoomify>preview", profile)
 
 
 if __name__ == "__main__":

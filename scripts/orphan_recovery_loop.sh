@@ -5,11 +5,11 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
 LOOP_ID="${1:-$(date +%Y%m%d-%H%M%S)-loop}"
-LOOP_DIR="output/recovery/orphans/${LOOP_ID}"
+LOOP_DIR="${LOOP_DIR:-runs/recovery/orphans/${LOOP_ID}}"
 LOOP_LOG="${LOOP_DIR}/loop.log"
 HISTORY_FILE="${LOOP_DIR}/history.jsonl"
 STATE_FILE="${LOOP_DIR}/loop_state.json"
-STOP_FILE="${STOP_FILE:-output/recovery/orphans/STOP_LOOP}"
+STOP_FILE="${STOP_FILE:-runs/recovery/orphans/STOP_LOOP}"
 ORPHAN_LIST_PATH="${ORPHAN_LIST_PATH:-viewer/static/data/orphan_xids.json}"
 PHOTOS_GEOJSON_PATH="${PHOTOS_GEOJSON_PATH:-viewer/static/data/photos.geojson}"
 
@@ -29,7 +29,7 @@ UPDATE_TRACKED_DATASETS="${UPDATE_TRACKED_DATASETS:-0}"
 mkdir -p "$LOOP_DIR"
 : > "$LOOP_LOG"
 
-echo "$LOOP_DIR" > output/recovery/orphans/LATEST_LOOP
+echo "$LOOP_DIR" > runs/recovery/orphans/LATEST_LOOP
 
 log() {
   local msg="$1"
@@ -78,12 +78,13 @@ while true; do
   cycle=$((cycle + 1))
   RUN_ID="$(date +%Y%m%d-%H%M%S)-c${cycle}"
   RUN_DIR="${LOOP_DIR}/${RUN_ID}"
-  mkdir -p "$RUN_DIR"
-  echo "$RUN_DIR" > output/recovery/orphans/LATEST_RUN
+  cycle_ok=1
+  run_cmd "init-run" uv run cli run init "$RUN_DIR" --from-output || cycle_ok=0
+  echo "$RUN_DIR" > runs/recovery/orphans/LATEST_RUN
   write_state "running" "$cycle" "$RUN_DIR"
   log "cycle_start cycle=${cycle} run_dir=${RUN_DIR}"
 
-  cycle_ok=1
+  CURRENT_PHOTOS_GEOJSON="$PHOTOS_GEOJSON_PATH"
 
   run_cmd "probe" uv run python scripts/orphan_recovery.py probe \
     --input "$ORPHAN_LIST_PATH" \
@@ -95,30 +96,32 @@ while true; do
 
   run_cmd "seed-retry" uv run python scripts/orphan_recovery.py seed-retry \
     --run-dir "$RUN_DIR" \
-    --failed-file output/failed_xids.jsonl || cycle_ok=0
+    --failed-file "$RUN_DIR/collect/failed_xids.jsonl" || cycle_ok=0
 
   pass=1
   while [ "$pass" -le "$COLLECT_PASSES" ]; do
-    run_cmd "collect-pass-${pass}" env ARCHIVE_RECORD_DELAY_S="$COLLECT_DELAY" CONCURRENT_REQUESTS="$COLLECT_CONCURRENCY" uv run cli collect --retry-failed || cycle_ok=0
+    run_cmd "collect-pass-${pass}" env ARCHIVE_RECORD_DELAY_S="$COLLECT_DELAY" CONCURRENT_REQUESTS="$COLLECT_CONCURRENCY" uv run cli run collect "$RUN_DIR" --retry-failed || cycle_ok=0
     pass=$((pass + 1))
   done
 
   if [ "$UPDATE_TRACKED_DATASETS" -eq 1 ]; then
-    run_cmd "backfill-scan-metadata" uv run python scripts/backfill_scan_metadata.py || cycle_ok=0
-    run_cmd "export" uv run cli export || cycle_ok=0
-    run_cmd "build-geojson" uv run python viewer/build_geojson.py || cycle_ok=0
+    run_cmd "backfill-scan-metadata" uv run python scripts/backfill_scan_metadata.py \
+      --raw-dir "$RUN_DIR/collect/raw_records" \
+      --geo-dir "$RUN_DIR/geolocation/ok" || cycle_ok=0
+    run_cmd "derive" uv run cli derive --run-dir "$RUN_DIR" || cycle_ok=0
+    CURRENT_PHOTOS_GEOJSON="$RUN_DIR/viewer-data/photos.geojson"
   else
     log "skip_dataset_refresh update_tracked_datasets=${UPDATE_TRACKED_DATASETS}"
   fi
 
   run_cmd "build-subset" uv run python scripts/orphan_recovery.py build-subset \
     --run-dir "$RUN_DIR" \
-    --photos "$PHOTOS_GEOJSON_PATH" || cycle_ok=0
+    --photos "$CURRENT_PHOTOS_GEOJSON" || cycle_ok=0
 
   run_cmd "finalize" uv run python scripts/orphan_recovery.py finalize \
     --run-dir "$RUN_DIR" \
-    --photos "$PHOTOS_GEOJSON_PATH" \
-    --raw-dir output/raw_records \
+    --photos "$CURRENT_PHOTOS_GEOJSON" \
+    --raw-dir "$RUN_DIR/collect/raw_records" \
     --downloads-root downloads/archive \
     --output-orphans "$ORPHAN_LIST_PATH" || cycle_ok=0
 

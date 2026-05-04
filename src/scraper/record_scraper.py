@@ -311,6 +311,7 @@ class RecordScraper:
         record_ids: List[str],
         existing_ids: Set[str],
         failed_ids_path: str | None = None,
+        raw_records_dir: str | Path = "output/raw_records",
     ) -> List[Record]:
         start_time = time.perf_counter()
         urls_to_scrape = [
@@ -341,7 +342,7 @@ class RecordScraper:
             for url in urls_to_scrape:
                 record, time_taken, failure = await self.scrape_record(url)
                 if record:
-                    record.save()  # Save immediately after scraping
+                    record.save(raw_records_dir)
                     records.append(record)
                     completed += 1
                 else:

@@ -1,9 +1,11 @@
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
-from collect import (
+from src.pipeline.collect import (
     dedupe_keep_order,
+    main_async,
     parse_failed_xids,
     parse_missing_details_xids,
     record_missing_scan_details,
@@ -80,6 +82,41 @@ class CollectRetryFailedTests(unittest.TestCase):
 
     def test_dedupe_keep_order(self) -> None:
         self.assertEqual(dedupe_keep_order(["A", "B", "A", "", "C"]), ["A", "B", "C"])
+
+
+class CollectPathTests(unittest.IsolatedAsyncioTestCase):
+    async def test_retry_missing_details_uses_custom_raw_records_dir(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            raw_records_dir = root / "run" / "collect" / "raw_records"
+            raw_records_dir.mkdir(parents=True)
+            (raw_records_dir / "A1.json").write_text(
+                '{"xid":"A1","scan_count":2,"scan_previews":["p",""],"scan_zoomify_paths":["z","z2"]}',
+                encoding="utf-8",
+            )
+            missing_details_path = root / "run" / "collect" / "missing_details_xids.json"
+
+            with patch.dict(
+                "os.environ",
+                {
+                    "RESCRAPE_MISSING_DETAILS": "True",
+                    "RETRY_FAILED_RECORDS": "False",
+                    "FETCH_IDS_ONLY": "True",
+                    "GET_RECORD_IDS": "False",
+                    "RESCRAPE_EXISTING_RECORDS": "True",
+                },
+            ):
+                await main_async(
+                    record_ids_path=root / "run" / "collect" / "available_record_ids.json",
+                    failed_xids_path=root / "run" / "collect" / "failed_xids.jsonl",
+                    missing_details_path=missing_details_path,
+                    raw_records_dir=raw_records_dir,
+                )
+
+            self.assertEqual(
+                missing_details_path.read_text(encoding="utf-8"),
+                '[\n  "A1"\n]\n',
+            )
 
 
 if __name__ == "__main__":

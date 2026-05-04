@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite build --watch",
-    "build": "vite build",
+    "dev": "node scripts/clean-static-assets.mjs && vite build --watch",
+    "build": "node scripts/clean-static-assets.mjs && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

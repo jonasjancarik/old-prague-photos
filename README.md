@@ -4,7 +4,7 @@ This project scrapes, processes, and geolocates historical photos of Prague from
 
 ## What is in this repo
 
-- Data pipeline (scrape -> filter -> geolocate -> export)
+- Reproducible data pipeline (scrape -> filter -> geolocate -> export -> manifest)
 - Optional LLM-assisted geolocation for unstructured addresses
 - Similarity tooling for visually matching scans
 - Web viewer (static frontend + optional Cloudflare Pages + D1 backend)
@@ -15,6 +15,7 @@ This project scrapes, processes, and geolocates historical photos of Prague from
 - [uv](https://docs.astral.sh/uv/) package manager
 - Mapy.cz API key for geolocation
 - (Optional) Gemini API key for LLM batch geolocation
+- Node.js/npm for the viewer and Pages function tests
 
 ## Setup
 
@@ -78,8 +79,8 @@ ARCHIVE_FETCH_RETRIES="4"
 ARCHIVE_MAX_ROWS="10000"
 # Optional: only fetch IDs (skip record scraping)
 FETCH_IDS_ONLY="1"
-# Optional: nav progress file for resume
-NAV_PROGRESS_FILE="output/nav_partition_progress.json"
+# Optional: nav progress file for direct scraper debugging; run-directory commands set this automatically
+NAV_PROGRESS_FILE="runs/current/collect/nav_partition_progress.json"
 # Optional: resume nav progress file (default true)
 NAV_RESUME="1"
 # Optional: limit nav child nodes per run
@@ -92,78 +93,87 @@ NAV_ALLOW_PARTIAL="1"
 
 ## Pipeline overview (detailed)
 
-The pipeline is a sequence of scripts. Each step reads from `output/` and writes new artifacts there. Note: `output/` is tracked in git, so do not store large image downloads there.
+For the supported non-web pipeline contract, run-directory layout, and script
+classifications, see:
+- [Pipeline Contract](docs/pipeline-contract.md)
+- [Script Inventory](docs/script-inventory.md)
 
-### 1) Collect (`collect.py`)
+The non-web pipeline runs against an explicit run directory. Each stage reads
+and writes within that directory, and `manifest.json` records the resulting
+artifacts and run state. Some historical `output/` snapshots are still tracked;
+seed them into a run directory with `uv run cli run init <run-dir> --from-output`
+when you need to inspect or preserve them.
+
+### 1) Collect
 
 - Fetches record IDs and scrapes per-record metadata.
 - Outputs:
-  - `output/available_record_ids.json` (current ID set)
-  - `output/raw_records/*.json` (scraped records)
-  - `output/failed_xids.jsonl` (failures from the latest collect run)
-  - `output/missing_details_xids.json` (candidate IDs selected by `--rescrape-missing-details`)
-  - `output/nav_partition_progress.json` (resume cache when using nav partition)
+  - `<run-dir>/collect/available_record_ids.json` (current ID set)
+  - `<run-dir>/collect/raw_records/*.json` (scraped records)
+  - `<run-dir>/collect/failed_xids.jsonl` (failures from the latest collect run)
+  - `<run-dir>/collect/missing_details_xids.json` (candidate IDs selected by `--rescrape-missing-details`)
+  - `<run-dir>/collect/nav_partition_progress.json` (resume cache when using nav partition)
 
 Useful flags:
 - `--ids-only` (stop after ID list)
 - `--no-fetch-ids` (reuse cached IDs)
 - `--rescrape` (overwrite existing raw records)
-- `--retry-failed` (retry only IDs from `output/failed_xids.jsonl`; implies `--rescrape --no-fetch-ids`)
+- `--retry-failed` (retry only IDs from `<run-dir>/collect/failed_xids.jsonl`; implies `--rescrape --no-fetch-ids`)
 - `--rescrape-missing-details` (retry only records with incomplete scan metadata; implies `--rescrape --no-fetch-ids`)
 
-### 2) Filter (`filter.py`)
+### 2) Filter
 
 Splits raw records into categories based on structured house numbers (čp.).
 
 Outputs (JSON):
-- `output/filtered/records_with_cp.json`
-- `output/filtered/records_with_cp_in_record_obsah.json`
-- `output/filtered/records_without_cp.json`
+- `<run-dir>/filter/records_with_cp.json`
+- `<run-dir>/filter/records_with_cp_in_record_obsah.json`
+- `<run-dir>/filter/records_without_cp.json`
 
 ### 3) Geolocate (Mapy.cz)
 
 Geocodes records with structured house numbers via Mapy.cz.
 
 Outputs:
-- `output/geolocation/ok/*.json` (successful)
-- `output/geolocation/failed/*.json` (failed)
+- `<run-dir>/geolocation/ok/*.json` (successful)
+- `<run-dir>/geolocation/failed/*.json` (failed)
 
 ### 4) Geolocate (LLM batch, optional)
 
 For unstructured addresses, use the Gemini batch API to extract addresses, then geocode.
 
 Commands:
-- `uv run cli geolocate llm submit`
-- `uv run cli geolocate llm status`
-- `uv run cli geolocate llm collect`
-- `uv run cli geolocate llm process`
+- `uv run cli run geolocate-llm submit <run-dir>`
+- `uv run cli run geolocate-llm status <run-dir>`
+- `uv run cli run geolocate-llm collect <run-dir>`
+- `uv run cli run geolocate-llm process <run-dir>`
 
 Outputs:
-- `output/batch_results/*` (raw batch responses)
-- `output/geolocation/ok/*.json` (successes, includes LLM metadata)
+- `<run-dir>/geolocation/llm/batch_results/*` (raw batch responses)
+- `<run-dir>/geolocation/ok/*.json` (successes, includes LLM metadata)
 
-### 5) Export (`export.py`)
+### 5) Export
 
 Flattens records into the final dataset.
 
 Output:
-- `output/old_prague_photos.csv`
+- `<run-dir>/export/old_prague_photos.csv`
 
-If you updated scan metadata in `output/raw_records` but want to avoid re-running geolocation,
+If you updated scan metadata in `<run-dir>/collect/raw_records` but want to avoid re-running geolocation,
 backfill scan fields into geolocated records first:
 
 ```bash
-uv run python scripts/backfill_scan_metadata.py
+uv run python scripts/backfill_scan_metadata.py \
+  --raw-dir "$RUN_DIR/collect/raw_records" \
+  --geo-dir "$RUN_DIR/geolocation/ok"
 ```
 
 ### 6) Build GeoJSON for the viewer
 
-```bash
-python viewer/build_geojson.py
-```
+Run `uv run cli derive --run-dir "$RUN_DIR"`.
 
 Outputs:
-- `viewer/static/data/photos.geojson`
+- `<run-dir>/viewer-data/photos.geojson`
 
 ## Running the pipeline
 
@@ -171,45 +181,137 @@ Outputs:
 # Show all commands
 uv run cli --help
 
-# Full pipeline
-uv run cli pipeline
+# Full synchronous pipeline
+RUN_DIR=runs/$(date -u +%Y%m%dT%H%M%SZ)
+ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli run pipeline "$RUN_DIR"
 
 # Individual steps
-uv run cli collect
-uv run cli filter
-uv run cli geolocate mapy
-uv run cli export
+uv run cli run collect "$RUN_DIR"
+uv run cli run geolocate-mapy "$RUN_DIR"
+uv run cli derive --run-dir "$RUN_DIR"
 ```
+
+### Verification gates
+
+```bash
+npm test
+npm run build:viewer
+```
+
+`npm test` runs the Python suite through `uv run pytest -q` and the Cloudflare
+Pages function tests through Node's built-in test runner.
+
+### Run-directory snapshots
+
+The cleaned-up pipeline boundary is a run directory. A run directory separates
+collected snapshots from derived outputs:
+
+```text
+runs/<run-id>/
+  config.json
+  manifest.json
+  stage_log.jsonl
+  collect/available_record_ids.json
+  collect/failed_xids.jsonl
+  collect/missing_details_xids.json
+  collect/nav_partition_progress.json
+  collect/raw_records/
+  filter/
+  geolocation/ok/
+  geolocation/failed/
+  geolocation/llm/batches.json
+  geolocation/llm/prompts.json
+  geolocation/llm/batch_requests/
+  geolocation/llm/batch_results/
+  export/old_prague_photos.csv
+  viewer-data/photos.geojson
+```
+
+Create an empty run directory:
+
+```bash
+uv run cli run init runs/$(date -u +%Y%m%dT%H%M%SZ)
+```
+
+Run the synchronous pipeline in one command:
+
+```bash
+RUN_DIR=runs/$(date -u +%Y%m%dT%H%M%SZ)
+ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli run pipeline "$RUN_DIR"
+```
+
+`run pipeline` covers archive collection, Mapy.cz geolocation, and deterministic
+derived outputs. Each completed run stage appends to `stage_log.jsonl` and
+refreshes `manifest.json`.
+
+Collect directly into a run directory. This writes IDs, raw records, failed
+record logs, missing-details selections, and nav resume state under `collect/`:
+
+```bash
+RUN_DIR=runs/$(date -u +%Y%m%dT%H%M%SZ)
+uv run cli run init "$RUN_DIR"
+ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli run collect "$RUN_DIR"
+```
+
+Geolocate that run with Mapy.cz. The command refreshes the run-local filtered
+category files from `collect/raw_records/` before writing geolocation results:
+
+```bash
+uv run cli run geolocate-mapy "$RUN_DIR"
+```
+
+Optionally use Gemini Batch geolocation for unstructured or failed records in
+the same run directory:
+
+```bash
+uv run cli run geolocate-llm submit "$RUN_DIR" --include-failed-cp
+uv run cli run geolocate-llm status "$RUN_DIR"
+uv run cli run geolocate-llm collect "$RUN_DIR"
+uv run cli run geolocate-llm process "$RUN_DIR"
+uv run cli derive --run-dir "$RUN_DIR"
+```
+
+Seed a run directory from the current historical `output/` snapshot:
+
+```bash
+uv run cli run init runs/current-output --from-output
+```
+
+Rebuild the no-network derived outputs from a snapshot:
+
+```bash
+uv run cli derive --run-dir runs/current-output
+```
+
+`derive` currently covers the deterministic cleanup/export path:
+filter raw records, export geolocated records to CSV, build GeoJSON, and write
+a run-local manifest. It intentionally does not call the archive, Mapy.cz, or
+Gemini; use `uv run cli run collect`, `uv run cli run geolocate-mapy`, and
+`uv run cli run geolocate-llm ...` for the networked stages.
 
 ### End-to-end playbooks
 
 Full run from zero (from scrape to viewer data, includes geolocation calls):
 
 ```bash
-ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli collect && \
-uv run cli filter && \
-uv run cli geolocate mapy && \
-uv run cli export && \
-uv run python viewer/build_geojson.py && \
-uv run python download_archive_images.py --previews-only
+RUN_DIR=runs/$(date -u +%Y%m%dT%H%M%SZ)
+ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli run pipeline "$RUN_DIR"
 ```
 
 Refresh scan/preview metadata without re-running geolocation:
 
 ```bash
-ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli collect --rescrape-missing-details && \
-uv run python scripts/backfill_scan_metadata.py && \
-uv run cli export && \
-uv run python viewer/build_geojson.py && \
-uv run python download_archive_images.py --previews-only
+ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli run collect "$RUN_DIR" --rescrape-missing-details
+uv run python scripts/backfill_scan_metadata.py --raw-dir "$RUN_DIR/collect/raw_records" --geo-dir "$RUN_DIR/geolocation/ok"
+uv run cli derive --run-dir "$RUN_DIR"
 ```
 
 ### Resume tips
 
-- Full ID refresh: `NAV_RESUME=0 uv run cli collect --ids-only`
-- Reuse cached IDs: `uv run cli collect --no-fetch-ids`
-- Re-scrape all current IDs: `uv run cli collect --no-fetch-ids --rescrape`
-- For a resumable full refresh, move `output/raw_records` aside and run without `--rescrape`.
+- Full ID refresh: `NAV_RESUME=0 uv run cli run collect "$RUN_DIR" --ids-only`
+- Reuse cached IDs: `uv run cli run collect "$RUN_DIR" --no-fetch-ids`
+- Re-scrape all current IDs: `uv run cli run collect "$RUN_DIR" --no-fetch-ids --rescrape`
+- For a resumable full refresh, move `<run-dir>/collect/raw_records` aside and run without `--rescrape`.
 
 ## Orphan recovery (gentle, readiness-gated)
 
@@ -223,8 +325,8 @@ Hard safety rule for archive traffic:
 
 ```bash
 RUN="$(date +%Y%m%d-%H%M%S)"
-RUN_DIR="output/recovery/orphans/$RUN"
-mkdir -p "$RUN_DIR"
+RUN_DIR="runs/recovery/orphans/$RUN"
+uv run cli run init "$RUN_DIR" --from-output
 ```
 
 ### 2) Probe orphan xids (resume-safe)
@@ -251,22 +353,23 @@ Outputs:
 ```bash
 uv run python scripts/orphan_recovery.py seed-retry \
   --run-dir "$RUN_DIR" \
-  --failed-file output/failed_xids.jsonl
+  --failed-file "$RUN_DIR/collect/failed_xids.jsonl"
 ```
 
 ### 4) Targeted rescrape (2 passes)
 
 ```bash
-ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli collect --retry-failed
-ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli collect --retry-failed
+ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli run collect "$RUN_DIR" --retry-failed
+ARCHIVE_RECORD_DELAY_S=5 CONCURRENT_REQUESTS=1 uv run cli run collect "$RUN_DIR" --retry-failed
 ```
 
 ### 5) Rebuild viewer data
 
 ```bash
-uv run python scripts/backfill_scan_metadata.py
-uv run cli export
-uv run python viewer/build_geojson.py
+uv run python scripts/backfill_scan_metadata.py \
+  --raw-dir "$RUN_DIR/collect/raw_records" \
+  --geo-dir "$RUN_DIR/geolocation/ok"
+uv run cli derive --run-dir "$RUN_DIR"
 ```
 
 ### 6) Build active subset for targeted downloads/similarity
@@ -325,7 +428,7 @@ uv run python build_similarity.py --r2-tiles-base "$R2_TILES_BASE"
 uv run python scripts/orphan_recovery.py finalize \
   --run-dir "$RUN_DIR" \
   --photos viewer/static/data/photos.geojson \
-  --raw-dir output/raw_records \
+  --raw-dir "$RUN_DIR/collect/raw_records" \
   --downloads-root downloads/archive \
   --output-orphans viewer/static/data/orphan_xids.json
 ```
@@ -414,6 +517,7 @@ Useful flags:
 - `--cluster-distance 32` (within-series version clustering; default, over 128-bit composite hash)
 - `--distance 18` (legacy alias; sets both unless explicit split flags are passed)
 - `--r2-tiles-base https://<r2-public-domain>/tiles`
+- `--allow-archive-fallback` (disabled by default; permits direct archive requests after local/R2/feature sources fail)
 - `--stitch-target-long-side 1024`
 - `--stitch-max-tiles 16`
 - `--hash-size 8` (128-bit composite hash)
@@ -466,7 +570,7 @@ Build output stays in `viewer/static/` (served by FastAPI / Wrangler Pages).
 
 ```bash
 npm --prefix viewer/react install
-npm --prefix viewer/react run build
+npm run build:viewer
 ```
 
 For iterative UI work, run watch mode in a second terminal:
@@ -505,4 +609,4 @@ See `docs/web-app.md` for full setup, API endpoints, and deployment.
 ## Utility scripts
 
 - `dezoomify.py`: download and stitch Zoomify tiles into a single image
-- `check.py`: debugging helper for geolocation results
+- `scripts/write_pipeline_manifest.py`: write output hashes/counts and run settings for reproducibility

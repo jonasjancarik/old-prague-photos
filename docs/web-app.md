@@ -37,7 +37,10 @@ The web app reads static data from `viewer/static/data/`:
 Generate inputs:
 
 ```bash
-python viewer/build_geojson.py
+RUN_DIR=runs/current-output
+uv run cli run init "$RUN_DIR" --from-output
+uv run cli derive --run-dir "$RUN_DIR"
+install -m 0644 "$RUN_DIR/viewer-data/photos.geojson" viewer/static/data/photos.geojson
 python build_similarity.py
 ```
 
@@ -45,8 +48,8 @@ Generate/update orphan exclusions (readiness-gated, gentle):
 
 ```bash
 RUN="$(date +%Y%m%d-%H%M%S)"
-RUN_DIR="output/recovery/orphans/$RUN"
-mkdir -p "$RUN_DIR"
+RUN_DIR="runs/recovery/orphans/$RUN"
+uv run cli run init "$RUN_DIR" --from-output
 
 uv run python scripts/orphan_recovery.py probe \
   --input viewer/static/data/orphan_xids.json \
@@ -59,7 +62,7 @@ uv run python scripts/orphan_recovery.py probe \
 uv run python scripts/orphan_recovery.py finalize \
   --run-dir "$RUN_DIR" \
   --photos viewer/static/data/photos.geojson \
-  --raw-dir output/raw_records \
+  --raw-dir "$RUN_DIR/collect/raw_records" \
   --downloads-root downloads/archive \
   --output-orphans viewer/static/data/orphan_xids.json
 ```

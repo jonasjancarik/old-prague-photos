@@ -8,7 +8,7 @@ usage() {
 ops.sh — běžné kroky (lokálně + Cloudflare)
 
 Použití:
-  ./ops.sh build-data           # export CSV + build GeoJSON
+  ./ops.sh build-data RUN_DIR   # derive run-local CSV + GeoJSON
   ./ops.sh build-similarity     # candidate páry podobných záběrů
   ./ops.sh dev-fastapi [port]   # lokální server (FastAPI)
                                # default: scan od 8000 na první volný port
@@ -45,8 +45,12 @@ PY
 
 case "$cmd" in
   build-data)
-    uv run cli export
-    python viewer/build_geojson.py
+    run_dir="${2:-}"
+    if [[ -z "$run_dir" ]]; then
+      echo "Missing RUN_DIR. Example: ./ops.sh build-data runs/current-output" >&2
+      exit 2
+    fi
+    uv run cli derive --run-dir "$run_dir"
     ;;
   build-similarity)
     python build_similarity.py

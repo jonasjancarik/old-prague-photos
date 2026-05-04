@@ -141,6 +141,13 @@ def parse_args() -> argparse.Namespace:
         help="Disable local download cache usage",
     )
     parser.add_argument(
+        "--allow-archive-fallback",
+        action=argparse.BooleanOptionalAction,
+        default=os.getenv("ALLOW_ARCHIVE_FALLBACK", "0").lower()
+        in {"1", "true", "yes", "y", "on"},
+        help="Allow direct archive requests when local/R2/feature sources fail",
+    )
+    parser.add_argument(
         "--stitch-target-long-side",
         type=int,
         default=1024,
@@ -168,11 +175,16 @@ def parse_args() -> argparse.Namespace:
 
 def build_hash_profile(args: argparse.Namespace) -> str:
     r2_enabled = "1" if args.r2_tiles_base else "0"
-    source_policy = "local_stitched>r2>feature_zoomify>archive_zoomify>preview"
+    archive_fallback = "1" if args.allow_archive_fallback else "0"
+    source_policy = "local_stitched>r2>feature_zoomify"
+    if args.allow_archive_fallback:
+        source_policy += ">archive_zoomify"
+    source_policy += ">preview"
     return (
         f"{HASH_ALGO}-v{HASH_PROFILE_VERSION}|hash_size={args.hash_size}|"
         f"source_policy={source_policy}|preprocess=mounted_photo_crop_v1|"
         f"r2_enabled={r2_enabled}|"
+        f"archive_fallback={archive_fallback}|"
         f"stitch_target={args.stitch_target_long_side}|stitch_max_tiles={args.stitch_max_tiles}"
     )
 
@@ -276,6 +288,7 @@ def main() -> None:
                         download_root=download_root,
                         stitched_root=stitched_root,
                         no_download_cache=args.no_download_cache,
+                        allow_archive_fallback=args.allow_archive_fallback,
                     )
                 except Exception as exc:
                     source_attempts = []
