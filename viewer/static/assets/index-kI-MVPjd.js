@@ -1,4 +1,4 @@
-import{u as n,j as a,c as e}from"./useLegacyScripts-DvZR5PmY.js";const s=`  <div class="page">
+import{u as n,j as a,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Archivní prohlížeč</p>

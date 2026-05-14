@@ -1800,7 +1800,14 @@ function prefetchPreviewAsset(url) {
       resolve();
     };
     image.decoding = "async";
-    image.onload = finish;
+    image.loading = "eager";
+    image.onload = () => {
+      if (typeof image.decode !== "function") {
+        finish();
+        return;
+      }
+      image.decode().catch(() => {}).finally(finish);
+    };
     image.onerror = finish;
     image.src = normalized;
   }).finally(() => {
@@ -1863,13 +1870,13 @@ function prefetchPrimaryPreview(feature) {
 
   const localPreview = getLocalPreviewForFeature(feature, 0);
   if (localPreview) {
-    prefetchPreviewAsset(localPreview);
+    prefetchPreviewAsset(localPreview).catch(() => {});
   }
 
   if (!state.r2TilesBase) {
     resolvePreviewUrl(feature)
       .then((resolvedUrl) => {
-        prefetchPreviewAsset(resolvedUrl);
+        prefetchPreviewAsset(resolvedUrl).catch(() => {});
       })
       .catch(() => {});
   }
@@ -2091,7 +2098,10 @@ function renderPreviewContent(url, options = {}) {
   if (!url) {
     return `<div class="photo-preview">${loading ? '<div class="preview-loading"></div>' : '<div class="preview-empty">Bez náhledu</div>'}</div>`;
   }
-  return `<div class="photo-preview"><img src="${url}" alt="Náhled fotografie" loading="lazy" /></div>`;
+  const normalizedUrl = String(url || "").trim();
+  return `<div class="photo-preview"><img src="${escapeHtml(
+    normalizedUrl,
+  )}" alt="Náhled fotografie" loading="eager" decoding="async" /></div>`;
 }
 
 function showPreviewAt(latlng, content) {
@@ -2140,10 +2150,13 @@ function handleMarkerHover(group, latlng) {
   state.previewActiveXid = xid;
 
   const hoverToken = (state.previewHoverToken += 1);
-  const localUrl = getPreviewFromFeature(feature);
+  const localUrl = getLocalPreviewForFeature(feature, 0);
   showPreviewAt(latlng, renderPreviewContent(localUrl, { loading: !localUrl }));
 
-  if (localUrl) return;
+  if (localUrl) {
+    prefetchPreviewAsset(localUrl).catch(() => {});
+    return;
+  }
   resolvePreviewUrl(feature).then((url) => {
     if (hoverToken !== state.previewHoverToken) return;
     if (!url) {
@@ -2151,6 +2164,7 @@ function handleMarkerHover(group, latlng) {
       return;
     }
     showPreviewAt(latlng, renderPreviewContent(url, { loading: false }));
+    prefetchPreviewAsset(url).catch(() => {});
   });
 }
 

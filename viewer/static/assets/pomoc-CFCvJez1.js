@@ -1,4 +1,4 @@
-import{u as a,j as n,c as e}from"./useLegacyScripts-XXn9Btyi.js";const s=`  <div class="page">
+import{u as a,j as n,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Pomoc s opravami</p>

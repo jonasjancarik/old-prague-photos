@@ -1,4 +1,4 @@
-import{u as e,j as n,c as s}from"./useLegacyScripts-DvZR5PmY.js";const a=`  <div class="page">
+import{u as e,j as n,c as s}from"./useLegacyScripts-Dsc3ed3e.js";const a=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Kontrola podobných záběrů</p>
