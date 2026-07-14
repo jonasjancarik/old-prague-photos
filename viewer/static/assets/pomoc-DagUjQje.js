@@ -1,4 +1,4 @@
-import{m as n}from"./loadLegacyScripts-3eKIZyXn.js";const a=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-Bx9VO4vc.js";const a=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Komunitní kontrola</p>

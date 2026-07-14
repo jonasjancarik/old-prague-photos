@@ -1871,16 +1871,68 @@ def _build_split_candidates(review_state: dict[str, Any]) -> list[dict[str, Any]
         if normalized_group_id:
             members_by_group.setdefault(normalized_group_id, []).append(xid)
 
-    return [
-        {
-            "group_id": item["group_id"],
-            "split_votes": item["split_votes"],
-            "required_split_votes": item["required_split_votes"],
-            "xids": sorted(members_by_group.get(item["group_id"], [])),
-        }
-        for item in build_group_review_vote_state()
-        if item.get("needs_split")
-    ]
+    features_by_xid = {
+        _normalize_id((feature.get("properties") or {}).get("id")): feature
+        for feature in load_photos().get("features", [])
+        if _normalize_id((feature.get("properties") or {}).get("id"))
+    }
+    candidates: list[dict[str, Any]] = []
+    for item in build_group_review_vote_state():
+        if not item.get("needs_split"):
+            continue
+        xids = sorted(members_by_group.get(item["group_id"], []))
+        members = []
+        for xid in xids:
+            feature = features_by_xid.get(xid, {})
+            props = feature.get("properties") or {}
+            coordinates = (feature.get("geometry") or {}).get("coordinates") or []
+            previews = props.get("scan_previews") or []
+            members.append(
+                {
+                    "xid": xid,
+                    "description": _normalize_id(props.get("description")),
+                    "date_label": _normalize_id(props.get("date_label")),
+                    "author": _normalize_id(props.get("author")),
+                    "signature": _normalize_id(props.get("signature")),
+                    "preview_url": _normalize_id(previews[0] if previews else ""),
+                    "lon": _to_finite_float(coordinates[0] if len(coordinates) > 0 else None),
+                    "lat": _to_finite_float(coordinates[1] if len(coordinates) > 1 else None),
+                }
+            )
+        candidates.append(
+            {
+                "group_id": item["group_id"],
+                "split_votes": item["split_votes"],
+                "required_split_votes": item["required_split_votes"],
+                "xids": xids,
+                "members": members,
+                "vote_history": [
+                    {
+                        "verdict": "split",
+                        "created_at": item.get("last_vote_at"),
+                    }
+                    for _ in range(int(item.get("split_votes") or 0))
+                ],
+            }
+        )
+    return candidates
+
+
+def _membership_history_payload() -> list[dict[str, Any]]:
+    history = []
+    for event in reversed(load_membership_events(GROUP_MEMBERSHIP_EVENTS_PATH)[-100:]):
+        history.append(
+            {
+                "id": event.get("id") or event.get("_seq"),
+                "source_group_id": event["source_group_id"],
+                "target_group_id": event["target_group_id"],
+                "xids": event["assignments"],
+                "reason": _normalize_id(event.get("reason")),
+                "curator": _normalize_id(event.get("curator")),
+                "created_at": event.get("received_at") or event.get("created_at"),
+            }
+        )
+    return history
 
 
 @app.get("/api/admin/review")
@@ -1895,6 +1947,7 @@ def get_admin_review(request: Request) -> JSONResponse:
     )
     merge_conflicts = _merge_conflict_pairs(merge_rows)
     split_candidates = _build_split_candidates(review_state)
+    membership_history = _membership_history_payload()
 
     pending_corrections = [
         {
@@ -1970,12 +2023,74 @@ def get_admin_review(request: Request) -> JSONResponse:
                 "mergeConflicts": len(merge_conflicts),
                 "recentMerges": len(recent_merges_payload),
                 "splitCandidates": len(split_candidates),
+                "membershipEvents": len(membership_history),
             },
             "pendingCorrections": pending_corrections,
             "unresolvedFlags": unresolved_flags,
             "conflictCandidates": conflict_candidates,
             "recentMerges": recent_merges_payload,
             "splitCandidates": split_candidates,
+            "membershipHistory": membership_history,
+        }
+    )
+
+
+@app.get("/api/admin/groups")
+def search_admin_groups(request: Request) -> JSONResponse:
+    _assert_admin(request)
+    query = _normalize_id(request.query_params.get("query")).lower()[:200]
+    if len(query) < 2:
+        return JSONResponse({"items": []})
+
+    review_state = build_review_state()
+    membership = review_state.get("resolvedGroupByXid", {})
+    groups: dict[str, dict[str, Any]] = {}
+    for feature in load_photos().get("features", []):
+        props = feature.get("properties") or {}
+        xid = _normalize_id(props.get("id"))
+        group_id = _normalize_id(membership.get(xid))
+        if not xid or not group_id:
+            continue
+        item = groups.setdefault(
+            group_id,
+            {
+                "group_id": group_id,
+                "member_count": 0,
+                "sample_xid": xid,
+                "description": _normalize_id(props.get("description")),
+                "match": False,
+            },
+        )
+        item["member_count"] += 1
+        searchable = " ".join(
+            _normalize_id(value)
+            for value in (
+                group_id,
+                xid,
+                props.get("description"),
+                props.get("signature"),
+                props.get("author"),
+                props.get("date_label"),
+            )
+        ).lower()
+        if query in searchable:
+            item["match"] = True
+            item["sample_xid"] = xid
+            item["description"] = _normalize_id(props.get("description"))
+
+    matches = [item for item in groups.values() if item["match"]]
+    matches.sort(
+        key=lambda item: (
+            not item["group_id"].lower().startswith(query),
+            item["group_id"],
+        )
+    )
+    return JSONResponse(
+        {
+            "items": [
+                {key: value for key, value in item.items() if key != "match"}
+                for item in matches[:20]
+            ]
         }
     )
 
@@ -1988,7 +2103,8 @@ def apply_admin_group_membership(
     _assert_admin(request)
     _assert_same_origin(request)
     source_group_id = _normalize_id(payload.source_group_id)
-    target_group_id = _normalize_id(payload.target_group_id)
+    requested_target_group_id = _normalize_id(payload.target_group_id)
+    target_group_id = requested_target_group_id
     if not target_group_id:
         target_group_id = f"series_{secrets.token_hex(16)}"
     if (
@@ -2030,7 +2146,12 @@ def apply_admin_group_membership(
         for xid, group_id in resolved_membership.items()
         if group_id == resolved_source_group_id
     )
-    if len(source_members) < 2:
+    if not source_members:
+        raise HTTPException(
+            status_code=400,
+            detail="Zdrojová skupina je prázdná",
+        )
+    if len(source_members) < 2 and not target_exists:
         raise HTTPException(
             status_code=400,
             detail="Zdrojovou skupinu nelze rozdělit",
@@ -2040,7 +2161,7 @@ def apply_admin_group_membership(
             status_code=409,
             detail="Některá fotografie už do zdrojové skupiny nepatří",
         )
-    if len(xids) >= len(source_members):
+    if len(xids) >= len(source_members) and not target_exists:
         raise HTTPException(
             status_code=400,
             detail="Ve zdrojové skupině musí něco zůstat",

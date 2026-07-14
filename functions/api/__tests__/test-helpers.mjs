@@ -195,11 +195,13 @@ export class FakeD1 {
     if (query.includes("insert into group_membership_events")) {
       const [sourceGroupId, targetGroupId, assignmentsJson, reason, curator] = args;
       this.groupMembershipEvents.push({
+        id: this.groupMembershipEvents.length + 1,
         source_group_id: sourceGroupId,
         target_group_id: targetGroupId,
         assignments_json: assignmentsJson,
         reason,
         curator,
+        created_at: "2026-01-01 00:00:00",
       });
     }
   }
@@ -235,6 +237,14 @@ export class FakeD1 {
     }
     if (query.includes("from group_membership_overrides")) {
       return { results: Array.from(this.groupMembershipOverrides.values()) };
+    }
+    if (query.includes("from group_membership_events")) {
+      return {
+        results: this.groupMembershipEvents
+          .slice()
+          .sort((left, right) => Number(right.id) - Number(left.id))
+          .slice(0, 100),
+      };
     }
     if (
       query.includes("from merge_decisions") ||

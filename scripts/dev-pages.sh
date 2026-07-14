@@ -28,4 +28,5 @@ trap cleanup EXIT INT TERM
 echo "Cloudflare Pages dev server will print its local URL below."
 echo "Frontend build watcher is running in the background."
 
-TURNSTILE_BYPASS="${TURNSTILE_BYPASS:-1}" run_wrangler pages dev viewer/static --local
+run_wrangler pages dev viewer/static --local \
+  --binding "TURNSTILE_BYPASS=${TURNSTILE_BYPASS:-1}"

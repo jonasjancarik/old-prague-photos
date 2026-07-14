@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { onRequest as correctionsOnRequest } from "../corrections.js";
 import { onRequest as adminExportOnRequest } from "../admin/export.js";
+import { onRequest as adminGroupsOnRequest } from "../admin/groups.js";
 import { onRequest as adminReviewOnRequest } from "../admin/review.js";
 import { onRequest as adminGroupMembershipOnRequest } from "../admin/group-membership.js";
 import { onRequest as configOnRequest } from "../config.js";
@@ -1183,6 +1184,109 @@ test("GET /api/admin/review exposes pending corrections", async () => {
   assert.equal(payload.counts.pendingCorrections, 1);
 });
 
+test("GET /api/admin/review includes visual evidence, votes, and membership history", async () => {
+  const env = makeEnv({
+    ASSETS: makePhotosAsset([
+      {
+        properties: {
+          id: "A1",
+          group_id: "group-a",
+          description: "Old Town square",
+          date_label: "1910",
+          author: "Photographer",
+          signature: "I 1",
+          scan_previews: ["https://images.example/A1.jpg"],
+        },
+        geometry: { type: "Point", coordinates: [14.4, 50.1] },
+      },
+      {
+        properties: { id: "A2", group_id: "group-a" },
+        geometry: { type: "Point", coordinates: [14.41, 50.11] },
+      },
+    ]),
+  });
+  env.CORRECTIONS_DB.groupReviewVotes.push(
+    {
+      id: 1,
+      group_id: "group-a",
+      verdict: "split",
+      voter_key: "voter-a",
+      created_at: "2026-01-01 10:00:00",
+    },
+    {
+      id: 2,
+      group_id: "group-a",
+      verdict: "split",
+      voter_key: "voter-b",
+      created_at: "2026-01-01 10:01:00",
+    },
+  );
+  env.CORRECTIONS_DB.groupMembershipEvents.push({
+    id: 3,
+    source_group_id: "group-old",
+    target_group_id: "group-a",
+    assignments_json: JSON.stringify(["A1"]),
+    reason: "Reassigned after review",
+    curator: "admin-token",
+    created_at: "2026-01-01 09:00:00",
+  });
+
+  const response = await adminReviewOnRequest({
+    request: makeRequest("/api/admin/review", {
+      method: "GET",
+      headers: { Authorization: "Bearer admin-test-token" },
+    }),
+    env,
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.splitCandidates[0].vote_history.length, 2);
+  assert.equal(payload.splitCandidates[0].members[0].description, "Old Town square");
+  assert.equal(payload.splitCandidates[0].members[0].lat, 50.1);
+  assert.deepEqual(payload.membershipHistory[0].xids, ["A1"]);
+  assert.equal(payload.membershipHistory[0].reason, "Reassigned after review");
+});
+
+test("GET /api/admin/groups searches existing series without exposing the full catalog", async () => {
+  const env = makeEnv({
+    ASSETS: makePhotosAsset([
+      {
+        properties: {
+          id: "A1",
+          group_id: "group-a",
+          description: "Old Town square",
+        },
+      },
+      {
+        properties: {
+          id: "A2",
+          group_id: "group-a",
+          description: "Old Town hall",
+        },
+      },
+      {
+        properties: {
+          id: "B1",
+          group_id: "group-b",
+          description: "New Town",
+        },
+      },
+    ]),
+  });
+  const response = await adminGroupsOnRequest({
+    request: makeRequest("/api/admin/groups?query=Old%20Town", {
+      method: "GET",
+      headers: { Authorization: "Bearer admin-test-token" },
+    }),
+    env,
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.items.length, 1);
+  assert.equal(payload.items[0].group_id, "group-a");
+  assert.equal(payload.items[0].member_count, 2);
+});
+
 test("GET /api/admin/review rejects unauthenticated requests", async () => {
   const env = makeEnv();
   const request = makeRequest("/api/admin/review", { method: "GET" });
@@ -1219,6 +1323,33 @@ test("POST /api/admin/group-membership atomically moves selected members", async
     env.CORRECTIONS_DB.groupMembershipOverrides.get("A2").group_id,
     "series_curated_a",
   );
+  assert.equal(env.CORRECTIONS_DB.groupMembershipEvents.length, 1);
+});
+
+test("curator can move an entire source group into an existing series", async () => {
+  const env = makeEnv({
+    ASSETS: makePhotosAsset([
+      { properties: { id: "A1", group_id: "group-a" } },
+      { properties: { id: "B1", group_id: "group-b" } },
+    ]),
+  });
+  const response = await adminGroupMembershipOnRequest({
+    request: makeRequest("/api/admin/group-membership", {
+      headers: {
+        Authorization: "Bearer admin-test-token",
+        Origin: "https://example.com",
+      },
+      jsonBody: {
+        source_group_id: "group-a",
+        target_group_id: "group-b",
+        xids: ["A1"],
+        reason: "Undo mistaken split",
+      },
+    }),
+    env,
+  });
+  assert.equal(response.status, 200);
+  assert.equal(env.CORRECTIONS_DB.groupMembershipOverrides.get("A1").group_id, "group-b");
   assert.equal(env.CORRECTIONS_DB.groupMembershipEvents.length, 1);
 });
 

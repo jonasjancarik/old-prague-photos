@@ -1,4 +1,4 @@
-import{m as n}from"./loadLegacyScripts-3eKIZyXn.js";const s=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-Bx9VO4vc.js";const s=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Admin</p>
@@ -89,9 +89,17 @@ import{m as n}from"./loadLegacyScripts-3eKIZyXn.js";const s=`  <div class="page"
       <section class="card">
         <div class="card-header">
           <h2>Skupiny navržené k rozdělení</h2>
-          <p class="card-subtitle">Vyberte fotografie, které mají přejít do nové samostatné skupiny.</p>
+          <p class="card-subtitle">Porovnejte fotografie a přesuňte je do nové nebo existující skupiny.</p>
         </div>
         <div id="list-splits" class="detail-list full-width"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>Historie přesunů mezi skupinami</h2>
+          <p class="card-subtitle">Každý přesun je zaznamenaný. Chybný přesun můžete vrátit.</p>
+        </div>
+        <div id="list-membership-history" class="detail-list full-width"></div>
       </section>
 
       <section class="card">

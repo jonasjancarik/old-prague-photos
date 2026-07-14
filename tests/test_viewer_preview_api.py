@@ -450,6 +450,14 @@ class ViewerPreviewApiTests(unittest.TestCase):
             before_payload["splitCandidates"][0]["xids"],
             ["LOCALONLY", "R2ONLY"],
         )
+        self.assertEqual(
+            before_payload["splitCandidates"][0]["members"][0]["xid"],
+            "LOCALONLY",
+        )
+        self.assertEqual(
+            len(before_payload["splitCandidates"][0]["vote_history"]),
+            2,
+        )
         self.assertEqual(split.status_code, 200)
         self.assertEqual(split.json()["moved_xids"], ["LOCALONLY"])
         self.assertEqual(
@@ -458,6 +466,11 @@ class ViewerPreviewApiTests(unittest.TestCase):
         )
         self.assertEqual(after.status_code, 200)
         self.assertEqual(after.json()["counts"]["splitCandidates"], 0)
+        self.assertEqual(after.json()["counts"]["membershipEvents"], 1)
+        self.assertEqual(
+            after.json()["membershipHistory"][0]["xids"],
+            ["LOCALONLY"],
+        )
         state = self.client.get("/api/review-state").json()
         self.assertEqual(
             state["resolvedGroupByXid"]["LOCALONLY"],
@@ -471,6 +484,38 @@ class ViewerPreviewApiTests(unittest.TestCase):
             self.group_membership_events_path.read_text(encoding="utf-8")
         )
         self.assertEqual(event["review_boundaries"]["group-shared"], 2)
+
+    def test_fastapi_admin_searches_existing_groups_and_reverses_a_full_move(self) -> None:
+        source = _feature("R2ONLY")
+        target = _feature("LOCALONLY")
+        source["properties"]["group_id"] = "group-source"
+        source["properties"]["description"] = "Source view"
+        target["properties"]["group_id"] = "group-target"
+        target["properties"]["description"] = "Old Town destination"
+        self._write_photos([source, target])
+
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            search = self.client.get(
+                "/api/admin/groups",
+                params={"query": "Old Town"},
+            )
+            moved = self.client.post(
+                "/api/admin/group-membership",
+                json={
+                    "source_group_id": "group-source",
+                    "target_group_id": "group-target",
+                    "xids": ["R2ONLY"],
+                    "reason": "Undo mistaken split",
+                },
+            )
+
+        self.assertEqual(search.status_code, 200)
+        self.assertEqual(search.json()["items"][0]["group_id"], "group-target")
+        self.assertEqual(moved.status_code, 200)
+        self.assertEqual(
+            self.client.get("/api/review-state").json()["resolvedGroupByXid"]["R2ONLY"],
+            "group-target",
+        )
 
     def test_candidate_cursor_changes_after_existing_group_membership_move(self) -> None:
         first = _feature("R2ONLY")

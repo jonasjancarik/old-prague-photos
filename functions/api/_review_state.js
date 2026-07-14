@@ -5,6 +5,9 @@ const SQLITE_DATETIME_PATTERN =
 let xidGroupCache = new Map();
 let xidGroupCacheExpiresAt = 0;
 let xidGroupCacheAsset = null;
+let photoFeatureCache = new Map();
+let photoFeatureCacheExpiresAt = 0;
+let photoFeatureCacheAsset = null;
 
 function normalizeId(value) {
   return String(value || "").trim();
@@ -348,6 +351,40 @@ async function fetchPhotosJson(request, env) {
   return response.json();
 }
 
+export async function loadPhotoFeatureMap(request, env) {
+  const now = Date.now();
+  if (env?.ASSETS !== photoFeatureCacheAsset) {
+    photoFeatureCache = new Map();
+    photoFeatureCacheExpiresAt = 0;
+    photoFeatureCacheAsset = env?.ASSETS || null;
+  }
+  if (now >= photoFeatureCacheExpiresAt) {
+    const mapping = new Map();
+    try {
+      const photos = await fetchPhotosJson(request, env);
+      const features = Array.isArray(photos?.features) ? photos.features : [];
+      features.forEach((feature) => {
+        const xid = normalizeId(feature?.properties?.id);
+        if (xid) mapping.set(xid, feature);
+      });
+      if (mapping.size === 0) {
+        throw new Error("Photo metadata contains no known photos");
+      }
+    } catch (error) {
+      if (photoFeatureCache.size > 0) {
+        photoFeatureCacheExpiresAt = now + 5_000;
+      } else {
+        throw error;
+      }
+    }
+    if (mapping.size > 0) {
+      photoFeatureCache = mapping;
+      photoFeatureCacheExpiresAt = now + PHOTOS_CACHE_TTL_MS;
+    }
+  }
+  return new Map(photoFeatureCache);
+}
+
 export async function loadXidGroupMap(request, env) {
   const now = Date.now();
   if (env?.ASSETS !== xidGroupCacheAsset) {
@@ -358,9 +395,8 @@ export async function loadXidGroupMap(request, env) {
   if (now >= xidGroupCacheExpiresAt) {
     const mapping = new Map();
     try {
-      const photos = await fetchPhotosJson(request, env);
-      const features = Array.isArray(photos?.features) ? photos.features : [];
-      features.forEach((feature) => {
+      const featureMap = await loadPhotoFeatureMap(request, env);
+      featureMap.forEach((feature) => {
         const props = feature?.properties || {};
         const xid = normalizeId(props.id);
         const groupId = normalizeId(props.group_id) || xid;

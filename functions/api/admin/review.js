@@ -1,4 +1,8 @@
-import { buildReviewState, loadXidGroupMap } from "../_review_state.js";
+import {
+  buildReviewState,
+  loadPhotoFeatureMap,
+  loadXidGroupMap,
+} from "../_review_state.js";
 import { authorizeAdmin } from "../_admin_auth.js";
 import { isMissingColumnError } from "../_db.js";
 
@@ -189,7 +193,15 @@ function buildSplitCandidates(voteRows, resolvedGroupByXid, groupRoots) {
   });
 
   const splitVotesByGroup = new Map();
+  const voteHistoryByGroup = new Map();
   latestByGroupVoter.forEach((row) => {
+    if (!voteHistoryByGroup.has(row.group_id)) {
+      voteHistoryByGroup.set(row.group_id, []);
+    }
+    voteHistoryByGroup.get(row.group_id).push({
+      verdict: row.verdict,
+      created_at: row.created_at || null,
+    });
     if (row.verdict !== "split") return;
     splitVotesByGroup.set(
       row.group_id,
@@ -209,8 +221,52 @@ function buildSplitCandidates(voteRows, resolvedGroupByXid, groupRoots) {
       split_votes: splitVotes,
       required_split_votes: 2,
       xids: (membersByGroup.get(groupId) || []).sort(),
+      vote_history: (voteHistoryByGroup.get(groupId) || [])
+        .slice()
+        .sort((left, right) => parseEventTime(right.created_at) - parseEventTime(left.created_at)),
     }))
     .sort((left, right) => right.split_votes - left.split_votes);
+}
+
+function photoEvidence(feature, xid) {
+  const props = feature?.properties || {};
+  const coordinates = Array.isArray(feature?.geometry?.coordinates)
+    ? feature.geometry.coordinates
+    : [];
+  const previews = Array.isArray(props.scan_previews) ? props.scan_previews : [];
+  return {
+    xid,
+    description: normalizeId(props.description),
+    date_label: normalizeId(props.date_label),
+    author: normalizeId(props.author),
+    signature: normalizeId(props.signature),
+    preview_url: normalizeId(previews[0]),
+    lon: toFiniteNumber(coordinates[0]),
+    lat: toFiniteNumber(coordinates[1]),
+  };
+}
+
+function parseMembershipHistory(rows) {
+  return (rows || []).map((row) => {
+    let xids = [];
+    try {
+      const parsed = JSON.parse(String(row.assignments_json || "[]"));
+      if (Array.isArray(parsed)) {
+        xids = parsed.map(normalizeId).filter(Boolean);
+      }
+    } catch (error) {
+      xids = [];
+    }
+    return {
+      id: row.id,
+      source_group_id: normalizeId(row.source_group_id),
+      target_group_id: normalizeId(row.target_group_id),
+      xids,
+      reason: normalizeId(row.reason),
+      curator: normalizeId(row.curator),
+      created_at: row.created_at || null,
+    };
+  });
 }
 
 async function queryRows(env, query) {
@@ -218,39 +274,9 @@ async function queryRows(env, query) {
   return result?.results || [];
 }
 
-export async function onRequest({ request, env }) {
-  if (request.method !== "GET") {
-    return jsonResponse({ detail: "Method Not Allowed" }, 405);
-  }
-  if (!env.CORRECTIONS_DB) {
-    return jsonResponse({ detail: "Chybí CORRECTIONS_DB" }, 500);
-  }
-  const authResponse = authorizeAdmin(request, env);
-  if (authResponse) return authResponse;
-
-  const correctionRows = await queryRows(
-    env,
-    `
-      SELECT
-        id,
-        xid,
-        group_id,
-        lat,
-        lon,
-        has_coordinates,
-        voter_key,
-        verdict,
-        message,
-        email,
-        user_agent,
-        created_at
-      FROM corrections
-    `,
-  );
-
-  let mergeRows = [];
+async function loadMergeRows(env) {
   try {
-    mergeRows = await queryRows(
+    return await queryRows(
       env,
       `
         SELECT
@@ -268,7 +294,7 @@ export async function onRequest({ request, env }) {
     if (!isMissingColumnError(error, ["voter_key", "user_agent"])) {
       throw error;
     }
-    mergeRows = await queryRows(
+    return queryRows(
       env,
       `
         SELECT
@@ -281,24 +307,80 @@ export async function onRequest({ request, env }) {
       `,
     );
   }
+}
 
-  const groupReviewVoteRows = await queryRows(
-    env,
-    `
-      SELECT
-        votes.source_event_id AS id,
-        votes.group_id,
-        votes.verdict,
-        votes.voter_key,
-        votes.created_at
-      FROM current_group_review_votes AS votes
-      LEFT JOIN group_review_resolutions AS resolutions
-        ON resolutions.group_id = votes.group_id
-      WHERE votes.source_event_id > COALESCE(resolutions.through_event_id, 0)
-    `,
-  );
+export async function onRequest({ request, env }) {
+  if (request.method !== "GET") {
+    return jsonResponse({ detail: "Method Not Allowed" }, 405);
+  }
+  if (!env.CORRECTIONS_DB) {
+    return jsonResponse({ detail: "Chybí CORRECTIONS_DB" }, 500);
+  }
+  const authResponse = authorizeAdmin(request, env);
+  if (authResponse) return authResponse;
 
-  const xidGroupMap = await loadXidGroupMap(request, env);
+  const [
+    correctionRows,
+    mergeRows,
+    groupReviewVoteRows,
+    membershipRows,
+    xidGroupMap,
+    photoFeatureMap,
+  ] = await Promise.all([
+    queryRows(
+      env,
+      `
+          SELECT
+            id,
+            xid,
+            group_id,
+            lat,
+            lon,
+            has_coordinates,
+            voter_key,
+            verdict,
+            message,
+            email,
+            user_agent,
+            created_at
+          FROM corrections
+      `,
+    ),
+    loadMergeRows(env),
+    queryRows(
+      env,
+      `
+          SELECT
+            votes.source_event_id AS id,
+            votes.group_id,
+            votes.verdict,
+            votes.voter_key,
+            votes.created_at
+          FROM current_group_review_votes AS votes
+          LEFT JOIN group_review_resolutions AS resolutions
+            ON resolutions.group_id = votes.group_id
+          WHERE votes.source_event_id > COALESCE(resolutions.through_event_id, 0)
+      `,
+    ),
+    queryRows(
+      env,
+      `
+          SELECT
+            id,
+            source_group_id,
+            target_group_id,
+            assignments_json,
+            reason,
+            curator,
+            created_at
+          FROM group_membership_events
+          ORDER BY id DESC
+          LIMIT 100
+      `,
+    ),
+    loadXidGroupMap(request, env),
+    loadPhotoFeatureMap(request, env),
+  ]);
   const reviewState = buildReviewState({
     correctionRows,
     mergeRows,
@@ -328,7 +410,13 @@ export async function onRequest({ request, env }) {
     groupReviewVoteRows,
     reviewState.resolvedGroupByXid,
     reviewState.groupRoots,
-  );
+  ).map((candidate) => ({
+    ...candidate,
+    members: candidate.xids.map((xid) =>
+      photoEvidence(photoFeatureMap.get(xid), xid),
+    ),
+  }));
+  const membershipHistory = parseMembershipHistory(membershipRows);
 
   const pendingCorrections = reviewState.groupCorrections
     .filter((item) => item?.correction_state === "pending" && item?.anchor_type === "correction")
@@ -394,11 +482,13 @@ export async function onRequest({ request, env }) {
       mergeConflicts: mergeConflicts.length,
       recentMerges: recentMerges.length,
       splitCandidates: splitCandidates.length,
+      membershipEvents: membershipHistory.length,
     },
     pendingCorrections,
     unresolvedFlags,
     conflictCandidates: [...locationConflicts, ...mergeConflicts],
     splitCandidates,
+    membershipHistory,
     recentMerges,
   };
 

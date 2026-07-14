@@ -1684,22 +1684,112 @@ textarea {
   margin-top: 12px;
 }
 
-.split-candidate {
+.detail-list.full-width .detail-item.split-candidate {
   display: grid;
   gap: 12px;
 }
 
 .split-member-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
 }
 
-.split-member {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.split-member-card {
+  display: grid;
+  grid-template-columns: auto 96px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(31, 30, 28, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.62);
   font-size: 0.9rem;
+}
+
+.split-member-card input {
+  margin-top: 6px;
+}
+
+.split-member-preview {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 72px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(31, 30, 28, 0.06);
+}
+
+.split-member-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.split-member-preview-empty {
+  padding: 6px;
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.split-member-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.split-member-copy strong {
+  line-height: 1.3;
+}
+
+.split-member-copy span {
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
+.split-member-id {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+}
+
+.split-vote-history {
+  margin: 0;
+}
+
+.detail-list.full-width .detail-item.membership-history-item {
+  display: grid;
+  gap: 8px;
+}
+
+.membership-history-item .helper {
+  margin: 0;
+}
+
+.membership-history-item button {
+  justify-self: start;
+}
+
+.membership-reversal-confirmation {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(195, 77, 47, 0.28);
+  border-radius: 12px;
+  background: rgba(195, 77, 47, 0.07);
+}
+
+.membership-reversal-confirmation p {
+  margin: 0;
+}
+
+.membership-reversal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .help-wrong-actions .helper {

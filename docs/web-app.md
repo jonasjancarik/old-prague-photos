@@ -174,14 +174,19 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
   Cursors are bound to both the community-state revision and deployed static
   data version; a stale cursor returns `409`, and the browser restarts from a
   current first page instead of skipping or duplicating work.
-- `GET /api/admin/review` - maintainer overview (pending corrections, flags, conflicts, recent merges)
+- `GET /api/admin/review` - maintainer overview (pending corrections, flags,
+  conflicts, split evidence and vote history, membership history, recent merges)
+- `GET /api/admin/groups?query=...` - bounded curator search for an existing
+  destination series by ID, XID, description, signature, author, or date
 - `GET /api/admin/export?format=json|csv&since=...&limit=...` - maintainer export
   (projected group state is included only when both its D1 revision and deployed
   data version are current)
   - filtering/order/limit run in D1; JSON reports `groupStateCurrent=false`
     instead of scanning all history when the materialized group state is stale
 - `POST /api/admin/group-membership` - atomically move selected XIDs into a new
-  or specified series and append a curator audit event
+  or existing series and append a curator audit event. A complete source series
+  may move only into an existing destination, which makes mistaken splits
+  reversible without allowing an accidental rename into a new empty series.
 - `GET /api/preview-url?xid=...` - preview URL resolver (R2 tile probe -> feature preview/zoomify fallback)
 - `GET /api/preview-local?xid=...&scanIndex=0` - serve local preview file from `downloads/archive/previews`
 - `GET /api/zoomify?xid=...&scanIndex=0` - server-side Zoomify metadata
@@ -198,6 +203,9 @@ Write API hardening:
   layer, not a substitute for application authentication. PII and voter
   fingerprints are not returned by public state endpoints.
 - Protect `/admin*` and `/api/admin/*` with Cloudflare Access as an additional edge layer.
+- The curator workbench shows photo evidence before a split, searches existing
+  destination series without downloading the whole catalog, and uses an inline
+  confirmation before recording a reversal as a new membership event.
 - Typical failures: `403` origin mismatch/missing, `429` rate limit exceeded (`Retry-After`), `400` invalid Turnstile action/hostname.
 
 ## Local development (FastAPI)

@@ -69,7 +69,8 @@ export async function onRequest({ request, env }) {
   }
 
   const sourceGroupId = normalizeId(body?.source_group_id);
-  const targetGroupId = normalizeId(body?.target_group_id) ||
+  const requestedTargetGroupId = normalizeId(body?.target_group_id);
+  const targetGroupId = requestedTargetGroupId ||
     `series_${crypto.randomUUID().replaceAll("-", "")}`;
   const reason = normalizeId(body?.reason).slice(0, 1000);
   const xids = Array.from(
@@ -108,7 +109,10 @@ export async function onRequest({ request, env }) {
   const sourceMembers = Array.from(resolvedGroupMap.entries())
     .filter(([, groupId]) => groupId === resolvedSourceGroupId)
     .map(([xid]) => xid);
-  if (sourceMembers.length < 2) {
+  if (sourceMembers.length === 0) {
+    return jsonResponse({ detail: "Zdrojová skupina je prázdná" }, 400);
+  }
+  if (sourceMembers.length < 2 && !targetGroupExists) {
     return jsonResponse({ detail: "Zdrojovou skupinu nelze rozdělit" }, 400);
   }
   if (xids.some((xid) => resolvedGroupMap.get(xid) !== resolvedSourceGroupId)) {
@@ -117,7 +121,7 @@ export async function onRequest({ request, env }) {
       409,
     );
   }
-  if (xids.length >= sourceMembers.length) {
+  if (xids.length >= sourceMembers.length && !targetGroupExists) {
     return jsonResponse({ detail: "Ve zdrojové skupině musí něco zůstat" }, 400);
   }
 

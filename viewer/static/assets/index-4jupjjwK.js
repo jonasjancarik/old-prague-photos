@@ -1,4 +1,4 @@
-import{m as a}from"./loadLegacyScripts-3eKIZyXn.js";const n=`  <div class="page">
+import{m as a}from"./loadLegacyScripts-Bx9VO4vc.js";const n=`  <div class="page">
     <header class="topbar">
       <div>
         <h1>Staré fotografie Prahy</h1>

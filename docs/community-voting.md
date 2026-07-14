@@ -202,6 +202,10 @@ Consensus rules:
   vote boundaries together as one append-only event in
   `viewer/data/group_membership_events.jsonl`; its admin review and split API
   expose the same curator flow as Pages.
+- Curators see thumbnails, descriptive metadata, and the active split-vote
+  timestamps before moving members. They can search for an existing series,
+  and every move or reversal remains an append-only membership event rather
+  than rewriting history.
 - Split candidates and curator validation use merged-root membership, including
   members from every merged constituent group. Similarity candidates follow
   each referenced XID after a curator moves it to another series.

@@ -5,6 +5,7 @@ const pendingListEl = document.getElementById("list-pending");
 const flagsListEl = document.getElementById("list-flags");
 const conflictsListEl = document.getElementById("list-conflicts");
 const splitsListEl = document.getElementById("list-splits");
+const membershipHistoryListEl = document.getElementById("list-membership-history");
 const mergesListEl = document.getElementById("list-merges");
 const refreshBtn = document.getElementById("refresh-admin");
 const exportJsonBtn = document.getElementById("export-json");
@@ -111,7 +112,7 @@ function renderConflicts(list) {
   });
 }
 
-async function applyGroupSplit(sourceGroupId, xids, reason) {
+async function applyGroupMembership(sourceGroupId, xids, reason, targetGroupId = "") {
   const response = await fetch("/api/admin/group-membership", {
     method: "POST",
     credentials: "same-origin",
@@ -121,6 +122,7 @@ async function applyGroupSplit(sourceGroupId, xids, reason) {
     },
     body: JSON.stringify({
       source_group_id: sourceGroupId,
+      target_group_id: targetGroupId || undefined,
       xids,
       reason,
     }),
@@ -132,6 +134,105 @@ async function applyGroupSplit(sourceGroupId, xids, reason) {
   return payload;
 }
 
+async function resolveMemberPreview(xid, image, emptyState) {
+  try {
+    const response = await fetch(`/api/preview-url?xid=${encodeURIComponent(xid)}`);
+    const payload = await response.json();
+    const url = String(payload?.url || "").trim();
+    if (!response.ok || !url) throw new Error("missing preview");
+    image.src = url;
+    image.hidden = false;
+    emptyState.hidden = true;
+  } catch (error) {
+    image.hidden = true;
+    emptyState.hidden = false;
+  }
+}
+
+function createMemberChoice(member) {
+  const label = document.createElement("label");
+  label.className = "split-member-card";
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.value = member.xid;
+  checkbox.setAttribute("aria-label", `Vybrat fotografii ${member.xid}`);
+
+  const preview = document.createElement("span");
+  preview.className = "split-member-preview";
+  const image = document.createElement("img");
+  image.alt = "";
+  image.loading = "lazy";
+  image.hidden = true;
+  const empty = document.createElement("span");
+  empty.className = "split-member-preview-empty";
+  empty.textContent = "Náhled není k dispozici";
+  preview.append(image, empty);
+
+  const text = document.createElement("span");
+  text.className = "split-member-copy";
+  const title = document.createElement("strong");
+  title.textContent = member.description || `Fotografie ${member.xid}`;
+  const meta = document.createElement("span");
+  meta.textContent = [member.date_label, member.author, member.signature]
+    .filter(Boolean)
+    .join(" · ") || member.xid;
+  const id = document.createElement("span");
+  id.className = "split-member-id";
+  id.textContent = member.xid;
+  text.append(title, meta, id);
+  label.append(checkbox, preview, text);
+  resolveMemberPreview(member.xid, image, empty);
+  return label;
+}
+
+function attachGroupSearch(input, datalist) {
+  let timer = 0;
+  let currentResults = new Set();
+  input.addEventListener("input", () => {
+    window.clearTimeout(timer);
+    const query = String(input.value || "").trim();
+    if (query.length < 2) {
+      datalist.innerHTML = "";
+      currentResults = new Set();
+      input.setCustomValidity("");
+      return;
+    }
+    timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/admin/groups?query=${encodeURIComponent(query)}`,
+          { credentials: "same-origin", headers: adminHeaders() },
+        );
+        if (!response.ok) throw new Error(`Hledání selhalo: ${response.status}`);
+        const payload = await response.json();
+        const items = Array.isArray(payload?.items) ? payload.items : [];
+        currentResults = new Set(items.map((item) => item.group_id));
+        datalist.innerHTML = "";
+        items.forEach((item) => {
+          const option = document.createElement("option");
+          option.value = item.group_id;
+          option.label = `${item.member_count} fotografií · ${item.description || "Bez popisu"}`;
+          datalist.appendChild(option);
+        });
+        input.setCustomValidity(
+          input.value && !currentResults.has(input.value)
+            ? "Vyberte existující skupinu ze seznamu, nebo pole vymažte."
+            : "",
+        );
+      } catch (error) {
+        setStatus(error.message || "Hledání skupin selhalo", "error");
+      }
+    }, 250);
+  });
+  input.addEventListener("change", () => {
+    input.setCustomValidity(
+      input.value && !currentResults.has(input.value)
+        ? "Vyberte existující skupinu ze seznamu, nebo pole vymažte."
+        : "",
+    );
+  });
+}
+
 function renderSplits(list) {
   if (!splitsListEl) return;
   splitsListEl.innerHTML = "";
@@ -139,7 +240,7 @@ function renderSplits(list) {
     renderEmpty(splitsListEl, "Žádná skupina zatím nemá dost hlasů pro rozdělení.");
     return;
   }
-  list.forEach((item) => {
+  list.forEach((item, candidateIndex) => {
     const wrapper = document.createElement("div");
     wrapper.className = "detail-item split-candidate";
     const title = document.createElement("div");
@@ -147,19 +248,45 @@ function renderSplits(list) {
     title.textContent = `Skupina ${shortId(item.group_id)} · ${item.split_votes} hlasy pro rozdělení`;
     wrapper.appendChild(title);
 
+    const voteHistory = document.createElement("p");
+    voteHistory.className = "helper split-vote-history";
+    voteHistory.textContent = (item.vote_history || [])
+      .filter((vote) => vote.verdict === "split")
+      .map((vote) => `Návrh na rozdělení: ${formatDate(vote.created_at)}`)
+      .join(" · ");
+    wrapper.appendChild(voteHistory);
+
     const choices = document.createElement("div");
     choices.className = "split-member-list";
-    (item.xids || []).forEach((xid) => {
-      const label = document.createElement("label");
-      label.className = "split-member";
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.value = xid;
-      label.appendChild(checkbox);
-      label.append(` ${xid}`);
-      choices.appendChild(label);
+    const members = Array.isArray(item.members) && item.members.length
+      ? item.members
+      : (item.xids || []).map((xid) => ({ xid }));
+    members.forEach((member) => {
+      choices.appendChild(createMemberChoice(member));
     });
     wrapper.appendChild(choices);
+
+    const targetLabel = document.createElement("label");
+    targetLabel.className = "field";
+    const targetTitle = document.createElement("span");
+    targetTitle.textContent = "Cílová skupina";
+    const target = document.createElement("input");
+    target.type = "text";
+    target.placeholder = "Začněte psát ID, popis nebo signaturu";
+    const datalist = document.createElement("datalist");
+    datalist.id = `split-target-groups-${candidateIndex}`;
+    target.setAttribute("list", datalist.id);
+    target.setAttribute(
+      "aria-describedby",
+      `split-target-help-${candidateIndex}`,
+    );
+    const targetHelp = document.createElement("span");
+    targetHelp.className = "helper";
+    targetHelp.id = `split-target-help-${candidateIndex}`;
+    targetHelp.textContent = "Vyberte existující skupinu, nebo nechte pole prázdné pro novou.";
+    targetLabel.append(targetTitle, target, datalist, targetHelp);
+    attachGroupSearch(target, datalist);
+    wrapper.appendChild(targetLabel);
 
     const reason = document.createElement("input");
     reason.type = "text";
@@ -170,17 +297,19 @@ function renderSplits(list) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "secondary";
-    button.textContent = "Přesunout vybrané do nové skupiny";
+    button.textContent = "Přesunout vybrané fotografie";
     button.addEventListener("click", async () => {
       const selected = Array.from(
         choices.querySelectorAll("input:checked"),
       ).map((input) => input.value);
+      if (!target.reportValidity()) return;
       button.disabled = true;
       try {
-        const result = await applyGroupSplit(
+        const result = await applyGroupMembership(
           item.group_id,
           selected,
           String(reason.value || "").trim(),
+          String(target.value || "").trim(),
         );
         setStatus(
           `Přesunuto ${result.moved_xids.length} fotografií do skupiny ${shortId(result.target_group_id)}.`,
@@ -195,6 +324,86 @@ function renderSplits(list) {
     });
     wrapper.appendChild(button);
     splitsListEl.appendChild(wrapper);
+  });
+}
+
+function renderMembershipHistory(list) {
+  if (!membershipHistoryListEl) return;
+  membershipHistoryListEl.innerHTML = "";
+  if (!Array.isArray(list) || !list.length) {
+    renderEmpty(membershipHistoryListEl, "Zatím nebyla přesunuta žádná fotografie.");
+    return;
+  }
+  list.forEach((item) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "detail-item membership-history-item";
+    const label = document.createElement("div");
+    label.className = "detail-label";
+    label.textContent = `${shortId(item.source_group_id)} → ${shortId(item.target_group_id)} · ${formatDate(item.created_at)}`;
+    const summary = document.createElement("p");
+    summary.className = "detail-value";
+    summary.textContent = `${item.xids.length} fotografií: ${item.xids.join(", ")}`;
+    wrapper.append(label, summary);
+    if (item.reason) {
+      const reason = document.createElement("p");
+      reason.className = "helper";
+      reason.textContent = `Důvod: ${item.reason}`;
+      wrapper.appendChild(reason);
+    }
+    const reverse = document.createElement("button");
+    reverse.type = "button";
+    reverse.className = "secondary";
+    reverse.textContent = "Vrátit tento přesun";
+    reverse.disabled = !item.xids.length;
+
+    const confirmation = document.createElement("div");
+    confirmation.className = "membership-reversal-confirmation is-hidden";
+    const confirmationText = document.createElement("p");
+    confirmationText.textContent = `Vrátit ${item.xids.length} fotografií do původní skupiny?`;
+    const confirmationActions = document.createElement("div");
+    confirmationActions.className = "membership-reversal-actions";
+    const confirmReverse = document.createElement("button");
+    confirmReverse.type = "button";
+    confirmReverse.className = "secondary";
+    confirmReverse.textContent = "Ano, vrátit přesun";
+    const cancelReverse = document.createElement("button");
+    cancelReverse.type = "button";
+    cancelReverse.className = "secondary";
+    cancelReverse.textContent = "Ponechat beze změny";
+    confirmationActions.append(confirmReverse, cancelReverse);
+    confirmation.append(confirmationText, confirmationActions);
+
+    reverse.addEventListener("click", () => {
+      reverse.classList.add("is-hidden");
+      confirmation.classList.remove("is-hidden");
+      confirmReverse.focus();
+    });
+    cancelReverse.addEventListener("click", () => {
+      confirmation.classList.add("is-hidden");
+      reverse.classList.remove("is-hidden");
+      reverse.focus();
+    });
+    confirmReverse.addEventListener("click", async () => {
+      confirmReverse.disabled = true;
+      cancelReverse.disabled = true;
+      try {
+        await applyGroupMembership(
+          item.target_group_id,
+          item.xids,
+          `Vrácení přesunu ${item.id}`,
+          item.source_group_id,
+        );
+        setStatus("Přesun byl vrácen a změna je uložená v historii.", "success");
+        await refresh();
+      } catch (error) {
+        setStatus(error.message || "Přesun se nepodařilo vrátit", "error");
+      } finally {
+        confirmReverse.disabled = false;
+        cancelReverse.disabled = false;
+      }
+    });
+    wrapper.append(reverse, confirmation);
+    membershipHistoryListEl.appendChild(wrapper);
   });
 }
 
@@ -261,6 +470,7 @@ async function refresh() {
   renderFlags(payload?.unresolvedFlags || []);
   renderConflicts(payload?.conflictCandidates || []);
   renderSplits(payload?.splitCandidates || []);
+  renderMembershipHistory(payload?.membershipHistory || []);
   renderMerges(payload?.recentMerges || []);
   setStatus(`Aktualizováno: ${formatDate(payload?.generatedAt)}`, "success");
 }
