@@ -73,6 +73,7 @@ export class FakeD1 {
     this.groupMembershipEvents = [];
     this.groupReviewResolutions = new Map();
     this.communityProjection = null;
+    this.operationMetrics = [];
     this.projectionUpdateChanges = 1;
     this.allFailures = [];
   }
@@ -105,6 +106,31 @@ export class FakeD1 {
           key,
           bucket: String(bucket || ""),
           window_epoch: Number(windowEpoch || 0),
+          count: 1,
+        });
+      }
+      return;
+    }
+
+    if (query.includes("insert into community_operation_metrics")) {
+      const [metric, flow, statusCode] = args;
+      const bucket = new Date();
+      bucket.setUTCMinutes(0, 0, 0);
+      const bucketHour = bucket.toISOString();
+      const existing = this.operationMetrics.find(
+        (row) =>
+          row.bucket_hour === bucketHour &&
+          row.metric === metric &&
+          row.flow === flow &&
+          Number(row.status_code) === Number(statusCode),
+      );
+      if (existing) existing.count += 1;
+      else {
+        this.operationMetrics.push({
+          bucket_hour: bucketHour,
+          metric,
+          flow,
+          status_code: Number(statusCode),
           count: 1,
         });
       }
@@ -220,7 +246,40 @@ export class FakeD1 {
       return { count: row ? row.count : 0 };
     }
     if (query.includes("from community_state_projection")) {
-      return this.communityProjection;
+      if (!this.communityProjection) return null;
+      return {
+        ...this.communityProjection,
+        has_payload:
+          this.communityProjection.has_payload ??
+          Boolean(this.communityProjection.payload_json),
+      };
+    }
+    if (query.includes("operations_contributor_continuity")) {
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const activity = new Map();
+      [...this.corrections, ...this.merges, ...this.groupReviewVotes].forEach(
+        (row) => {
+          const voterKey = String(row.voter_key || "");
+          if (!voterKey) return;
+          const timestamp = Date.parse(String(row.created_at || ""));
+          const current = activity.get(voterKey) || {
+            firstSeen: timestamp,
+            recentEvents: 0,
+          };
+          current.firstSeen = Math.min(current.firstSeen, timestamp);
+          if (timestamp >= cutoff) current.recentEvents += 1;
+          activity.set(voterKey, current);
+        },
+      );
+      const active = Array.from(activity.values()).filter(
+        (row) => row.recentEvents > 0,
+      );
+      return {
+        active_30d: active.length,
+        new_30d: active.filter((row) => row.firstSeen >= cutoff).length,
+        returning_30d: active.filter((row) => row.firstSeen < cutoff).length,
+        repeat_30d: active.filter((row) => row.recentEvents >= 2).length,
+      };
     }
     return null;
   }
@@ -231,6 +290,31 @@ export class FakeD1 {
       query.includes(fragment),
     );
     if (failure) throw failure.error;
+
+    if (query.includes("operations_submission_counts")) {
+      const now = Date.now();
+      const dayAgo = now - 24 * 60 * 60 * 1000;
+      const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+      return {
+        results: [
+          ["location", this.corrections],
+          ["duplicate", this.merges],
+          ["group", this.groupReviewVotes],
+        ].map(([flow, rows]) => ({
+          flow,
+          accepted_24h: rows.filter(
+            (row) => Date.parse(String(row.created_at || "")) >= dayAgo,
+          ).length,
+          accepted_7d: rows.filter(
+            (row) => Date.parse(String(row.created_at || "")) >= weekAgo,
+          ).length,
+          latest_at: rows.at(-1)?.created_at || null,
+        })),
+      };
+    }
+    if (query.includes("from community_operation_metrics")) {
+      return { results: this.operationMetrics.slice() };
+    }
 
     if (query.includes("from corrections")) {
       return { results: this.corrections.slice() };

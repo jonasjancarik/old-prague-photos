@@ -31,7 +31,7 @@
       <section class="card" id="admin-login-card">
         <div class="card-header">
           <h2>Přihlášení správce</h2>
-          <p class="card-subtitle">Vložte přístupový token. Zůstane uložený jen v této kartě prohlížeče.</p>
+          <p class="card-subtitle">Vložte přístupový token. Po přihlášení z pole zmizí a prohlížeč si ponechá jen chráněné přihlášení.</p>
         </div>
         <div class="form-actions">
           <label class="field">
@@ -39,7 +39,16 @@
             <input id="admin-token" type="password" autocomplete="current-password" aria-describedby="admin-status" />
           </label>
           <button class="secondary" type="button" id="save-admin-token">Použít token</button>
+          <button class="secondary" type="button" id="logout-admin">Odhlásit</button>
         </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>Provozní stav</h2>
+          <p class="card-subtitle">Aktuálnost změn na veřejném webu, co čeká na kontrolu a aktivita přispěvatelů.</p>
+        </div>
+        <div id="admin-operations" class="detail-list full-width"></div>
       </section>
 
       <section class="card">

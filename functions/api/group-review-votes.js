@@ -1,4 +1,5 @@
 import { logDatabaseError } from "./_db.js";
+import { recordOperation } from "./_operations.js";
 import { onRequest as reviewStateOnRequest } from "./review-state.js";
 import {
   assertSameOrigin,
@@ -207,8 +208,10 @@ async function handleGet(request, env) {
     return jsonResponse({ detail: "Chybí metadata skupin" }, 500);
   }
 
-  const rows = await queryRows(env);
-  const currentVoterKey = await buildVoterKey(request, env);
+  const [rows, currentVoterKey] = await Promise.all([
+    queryRows(env),
+    buildVoterKey(request, env),
+  ]);
   const items = summarizeVotes(
     rows,
     currentVoterKey,
@@ -354,7 +357,13 @@ export async function onRequest(context) {
   }
 
   if (request.method === "POST") {
-    return handlePost(request, env);
+    const response = await handlePost(request, env);
+    recordOperation(context, {
+      metric: "submission",
+      flow: "group",
+      status: response.status,
+    });
+    return response;
   }
 
   return jsonResponse({ detail: "Method Not Allowed" }, 405);

@@ -65,8 +65,10 @@ SQLITE_DATETIME_PATTERN = re.compile(
 )
 SESSION_COOKIE_NAME = "opp_turnstile_session"
 VOTER_COOKIE_NAME = "opp_voter_id"
+ADMIN_SESSION_COOKIE_NAME = "opp_admin_session"
 SESSION_TTL_SECONDS = 6 * 60 * 60
 VOTER_COOKIE_TTL_SECONDS = 365 * 24 * 60 * 60
+ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60
 FULL_RES_MAX_PIXELS_DEFAULT = 80_000_000
 
 app = FastAPI(title="Prohlížeč historických fotografií Prahy")
@@ -103,6 +105,10 @@ class CorrectionPayload(BaseModel):
 
 class VerifyPayload(BaseModel):
     token: str | None = None
+
+
+class AdminSessionPayload(BaseModel):
+    token: str = Field(min_length=1, max_length=4096)
 
 
 class MergePayload(BaseModel):
@@ -155,13 +161,55 @@ def _assert_same_origin(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Neplatný původ požadavku")
 
 
+def _admin_session_ttl_seconds() -> int:
+    try:
+        configured = int(os.environ.get("ADMIN_SESSION_TTL_SECONDS", ""))
+    except ValueError:
+        return ADMIN_SESSION_TTL_SECONDS
+    return min(24 * 60 * 60, max(15 * 60, configured))
+
+
+def _valid_admin_token(supplied: str) -> bool:
+    configured = os.environ.get("ADMIN_API_TOKEN", "").strip()
+    return bool(configured and supplied and hmac.compare_digest(configured, supplied))
+
+
+def _admin_session_value() -> str:
+    secret = os.environ.get("ADMIN_API_TOKEN", "").strip()
+    if not secret:
+        return ""
+    expires_at = int(time.time()) + _admin_session_ttl_seconds()
+    payload = f"v1.{expires_at}"
+    signature = hmac.new(
+        secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return f"{payload}.{signature}"
+
+
+def _has_valid_admin_session(request: Request) -> bool:
+    secret = os.environ.get("ADMIN_API_TOKEN", "").strip()
+    raw = request.cookies.get(ADMIN_SESSION_COOKIE_NAME, "")
+    match = re.fullmatch(r"v1\.(\d+)\.([a-f0-9]{64})", raw)
+    if not secret or not match:
+        return False
+    expires_at = int(match.group(1))
+    now = int(time.time())
+    if expires_at <= now or expires_at > now + _admin_session_ttl_seconds() + 60:
+        return False
+    expected = hmac.new(
+        secret.encode("utf-8"),
+        f"v1.{expires_at}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, match.group(2))
+
+
 def _assert_admin(request: Request) -> None:
     if _is_local_bypass_allowed(request):
         return
-    configured = os.environ.get("ADMIN_API_TOKEN", "").strip()
     authorization = (request.headers.get("authorization") or "").strip()
     supplied = authorization[7:].strip() if authorization.startswith("Bearer ") else ""
-    if configured and supplied and hmac.compare_digest(configured, supplied):
+    if _valid_admin_token(supplied) or _has_valid_admin_session(request):
         return
     raise HTTPException(
         status_code=401,
@@ -1933,6 +1981,49 @@ def _membership_history_payload() -> list[dict[str, Any]]:
             }
         )
     return history
+
+
+@app.post("/api/admin/session")
+def create_admin_session(
+    payload: AdminSessionPayload,
+    request: Request,
+) -> JSONResponse:
+    _assert_same_origin(request)
+    if _is_local_bypass_allowed(request):
+        return JSONResponse({"ok": True, "localBypass": True})
+    if not _valid_admin_token(payload.token.strip()):
+        raise HTTPException(status_code=401, detail="Přístupový token není platný")
+    value = _admin_session_value()
+    if not value:
+        raise HTTPException(
+            status_code=503,
+            detail="Přihlášení správce není nastavené",
+        )
+    response = JSONResponse({"ok": True})
+    response.set_cookie(
+        ADMIN_SESSION_COOKIE_NAME,
+        value,
+        max_age=_admin_session_ttl_seconds(),
+        path="/api/admin",
+        secure=request.url.scheme == "https",
+        httponly=True,
+        samesite="strict",
+    )
+    return response
+
+
+@app.delete("/api/admin/session")
+def delete_admin_session(request: Request) -> JSONResponse:
+    _assert_same_origin(request)
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(
+        ADMIN_SESSION_COOKIE_NAME,
+        path="/api/admin",
+        secure=request.url.scheme == "https",
+        httponly=True,
+        samesite="strict",
+    )
+    return response
 
 
 @app.get("/api/admin/review")

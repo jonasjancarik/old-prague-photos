@@ -52,7 +52,7 @@ export async function onRequest({ request, env }) {
   if (!env.CORRECTIONS_DB) {
     return jsonResponse({ detail: "Chybí CORRECTIONS_DB" }, 500);
   }
-  const authResponse = authorizeAdmin(request, env);
+  const authResponse = await authorizeAdmin(request, env);
   if (authResponse) return authResponse;
   try {
     assertSameOrigin(request, env);

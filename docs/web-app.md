@@ -175,7 +175,11 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
   data version; a stale cursor returns `409`, and the browser restarts from a
   current first page instead of skipping or duplicating work.
 - `GET /api/admin/review` - maintainer overview (pending corrections, flags,
-  conflicts, split evidence and vote history, membership history, recent merges)
+  conflicts, split evidence and vote history, membership history, recent merges,
+  public-state freshness, queue age, request failures, submissions, and
+  contributor continuity)
+- `POST /api/admin/session` - exchange the curator token for a signed, short-lived
+  HttpOnly session cookie; the token is not kept in browser storage
 - `GET /api/admin/groups?query=...` - bounded curator search for an existing
   destination series by ID, XID, description, signature, author, or date
 - `GET /api/admin/export?format=json|csv&since=...&limit=...` - maintainer export
@@ -199,9 +203,11 @@ Write API hardening:
 - Turnstile verification checks `success`, `hostname`, and expected `action`.
 - An anonymous contributor receives a signed, HttpOnly one-year voter cookie.
   Turnstile sessions may expire without changing that contributor's consensus identity.
-- Admin APIs require `ADMIN_API_TOKEN`. Cloudflare Access is an additional edge
-  layer, not a substitute for application authentication. PII and voter
-  fingerprints are not returned by public state endpoints.
+- Admin APIs require `ADMIN_API_TOKEN`. The workbench exchanges it for a signed,
+  short-lived HttpOnly cookie; bearer authentication remains available for
+  release tooling. Cloudflare Access is an additional edge layer, not a
+  substitute for application authentication. PII and voter fingerprints are
+  not returned by public state endpoints or operational aggregates.
 - Protect `/admin*` and `/api/admin/*` with Cloudflare Access as an additional edge layer.
 - The curator workbench shows photo evidence before a split, searches existing
   destination series without downloading the whole catalog, and uses an inline
@@ -323,7 +329,7 @@ CONFIRM_PRODUCTION_DEPLOY=old-prague-photos \
 npm run deploy:pages
 ```
 
-Do not deploy the Functions separately before migrations `0009` through `0011`.
+Do not deploy the Functions separately before migrations `0009` through `0012`.
 The migration-first sequence is backward compatible with the previous code; the
 reverse sequence is not.
 
@@ -345,6 +351,8 @@ For Pages (set in the Cloudflare dashboard or `wrangler.toml`):
 - `API_RATE_LIMIT_WRITE_MAX` (optional; defaults to `30`)
 - `API_RATE_LIMIT_SECRET` (optional; falls back to Turnstile/session secret)
 - `ADMIN_API_TOKEN` (required for admin APIs)
+- `ADMIN_SESSION_TTL_SECONDS` (optional curator-session lifetime; defaults to
+  `28800`, bounded to 15 minutes–24 hours)
 - `COMMUNITY_DATA_VERSION` (optional explicit projection-version override).
   Normal builds generate `/data/community-data-version.json` from every static
   input used by the community queues. Functions require that nonempty,
@@ -387,7 +395,11 @@ SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
 - In client mode, full-res download is disabled when Zoomify source is archive-host/CORS-blocked or image area exceeds `80,000,000` pixels.
 - Frontend filters out xids listed in `viewer/static/data/orphan_xids.json` on `/`, `/pomoc.html`, `/dup-review.html`, and `/group-review.html`.
 - D1 stores append-only contribution events, current merge/vote projections,
-  versioned group membership overrides, and a revisioned public-state snapshot.
+  versioned group membership overrides, a revisioned public-state snapshot, and
+  bounded hourly request-outcome counters. The curator workbench combines those
+  counters with aggregate event queries to show stale cursors, failures,
+  submission volume, queue age, and new/returning contributors without exposing
+  contributor identities. Hourly counters are retained for 90 days.
 - Candidate delivery is a bounded read model shared by Pages and the FastAPI
   compatibility runtime. It applies current merges, membership overrides,
   corrections, and orphan filtering before pagination. Duplicate candidates

@@ -11,6 +11,7 @@ import {
   toHttpError,
   verifyTurnstileToken,
 } from "./_security.js";
+import { recordOperation } from "./_operations.js";
 
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -281,7 +282,13 @@ export async function onRequest(context) {
   }
 
   if (request.method === "POST") {
-    return handlePost(request, env);
+    const response = await handlePost(request, env);
+    recordOperation(context, {
+      metric: "submission",
+      flow: "location",
+      status: response.status,
+    });
+    return response;
   }
 
   return jsonResponse({ detail: "Method Not Allowed" }, 405);

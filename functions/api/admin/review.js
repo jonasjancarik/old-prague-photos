@@ -5,6 +5,7 @@ import {
 } from "../_review_state.js";
 import { authorizeAdmin } from "../_admin_auth.js";
 import { isMissingColumnError } from "../_db.js";
+import { loadOperationalDiagnostics } from "../_operations.js";
 
 function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
@@ -52,6 +53,18 @@ function voterIdentity(row) {
 
 function eventTimestamp(row) {
   return parseEventTime(row.received_at || row.created_at || "");
+}
+
+function oldestTimestamp(values) {
+  let oldest = null;
+  (values || []).forEach((value) => {
+    const timestamp = parseEventTime(value);
+    if (!timestamp) return;
+    if (!oldest || timestamp < oldest.timestamp) {
+      oldest = { timestamp, value };
+    }
+  });
+  return oldest?.value || null;
 }
 
 function toResolvedCorrectionRows({ correctionRows, xidGroupMap, reviewState }) {
@@ -316,7 +329,7 @@ export async function onRequest({ request, env }) {
   if (!env.CORRECTIONS_DB) {
     return jsonResponse({ detail: "Chybí CORRECTIONS_DB" }, 500);
   }
-  const authResponse = authorizeAdmin(request, env);
+  const authResponse = await authorizeAdmin(request, env);
   if (authResponse) return authResponse;
 
   const [
@@ -326,6 +339,7 @@ export async function onRequest({ request, env }) {
     membershipRows,
     xidGroupMap,
     photoFeatureMap,
+    operationalDiagnostics,
   ] = await Promise.all([
     queryRows(
       env,
@@ -380,6 +394,7 @@ export async function onRequest({ request, env }) {
     ),
     loadXidGroupMap(request, env),
     loadPhotoFeatureMap(request, env),
+    loadOperationalDiagnostics(request, env),
   ]);
   const reviewState = buildReviewState({
     correctionRows,
@@ -490,6 +505,22 @@ export async function onRequest({ request, env }) {
     splitCandidates,
     membershipHistory,
     recentMerges,
+    operations: {
+      ...operationalDiagnostics,
+      queues: {
+        pendingCorrections: pendingCorrections.length,
+        unresolvedFlags: unresolvedFlags.length,
+        splitCandidates: splitCandidates.length,
+        conflicts: locationConflicts.length + mergeConflicts.length,
+        oldestPendingAt: oldestTimestamp([
+          ...pendingCorrections.map((item) => item.last_event_at || item.received_at),
+          ...unresolvedFlags.map((item) => item.last_event_at || item.received_at),
+          ...splitCandidates.flatMap((item) =>
+            (item.vote_history || []).map((vote) => vote.created_at),
+          ),
+        ]),
+      },
+    },
   };
 
   return jsonResponse(payload);

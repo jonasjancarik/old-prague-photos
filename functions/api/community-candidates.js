@@ -6,6 +6,7 @@ import {
   StaleCandidateCursorError,
 } from "./_community_candidates.js";
 import { logDatabaseError } from "./_db.js";
+import { recordOperation } from "./_operations.js";
 import { onRequest as reviewStateOnRequest } from "./review-state.js";
 
 const staticCacheByAssets = new WeakMap();
@@ -100,7 +101,8 @@ function candidateCache(env) {
   return cache;
 }
 
-export async function onRequest({ request, env, waitUntil }) {
+export async function onRequest(context) {
+  const { request, env, waitUntil } = context;
   if (request.method !== "GET") {
     return jsonResponse({ detail: "Method Not Allowed" }, 405);
   }
@@ -113,6 +115,14 @@ export async function onRequest({ request, env, waitUntil }) {
   if (!new Set(["location", "group", "duplicate"]).has(flow)) {
     return jsonResponse({ detail: "Neplatný typ kontroly" }, 400);
   }
+  const trackedResponse = (response) => {
+    recordOperation(context, {
+      metric: "candidate_page",
+      flow,
+      status: response.status,
+    });
+    return response;
+  };
 
   try {
     const [photos, orphanPayload, reviewSnapshot] = await Promise.all([
@@ -137,7 +147,9 @@ export async function onRequest({ request, env, waitUntil }) {
         Object.values(reviewState?.resolvedGroupByXid || {}),
       );
       if (!knownGroupIds.has(focusGroupId)) {
-        return jsonResponse({ detail: "Neznámá skupina" }, 400);
+        return trackedResponse(
+          jsonResponse({ detail: "Neznámá skupina" }, 400),
+        );
       }
     }
     const cache = candidateCache(env);
@@ -202,27 +214,33 @@ export async function onRequest({ request, env, waitUntil }) {
         candidate?.groupB?.id === focusGroupId
       ))
       : candidates;
-    return jsonResponse({
-      flow,
-      ...paginateCandidates(
-        pageCandidates,
-        url.searchParams.get("cursor"),
-        url.searchParams.get("limit"),
-        revision,
-        dataVersion,
-      ),
-    });
+    return trackedResponse(
+      jsonResponse({
+        flow,
+        ...paginateCandidates(
+          pageCandidates,
+          url.searchParams.get("cursor"),
+          url.searchParams.get("limit"),
+          revision,
+          dataVersion,
+        ),
+      }),
+    );
   } catch (error) {
     if (error instanceof StaleCandidateCursorError) {
-      return jsonResponse(
-        { detail: "Seznam se změnil. Načtěte ho znovu." },
-        409,
+      return trackedResponse(
+        jsonResponse(
+          { detail: "Seznam se změnil. Načtěte ho znovu." },
+          409,
+        ),
       );
     }
     logDatabaseError("/api/community-candidates", `load ${flow} candidates`, error);
-    return jsonResponse(
-      { detail: "Seznam ke kontrole není dočasně dostupný" },
-      503,
+    return trackedResponse(
+      jsonResponse(
+        { detail: "Seznam ke kontrole není dočasně dostupný" },
+        503,
+      ),
     );
   }
 }

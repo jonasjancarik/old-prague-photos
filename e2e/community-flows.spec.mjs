@@ -70,6 +70,9 @@ test.describe.serial("community contribution flows", () => {
 
     const adminPage = await firstContext.newPage();
     await adminPage.goto("/admin.html");
+    await expect(adminPage.locator("#admin-operations")).toContainText(
+      "Změny na veřejném webu",
+    );
     await expect(adminPage.locator(".split-candidate")).toBeVisible();
     await adminPage.locator(".split-member-card input[type=checkbox]").first().check();
     await adminPage.getByPlaceholder("Důvod rozdělení").fill(
@@ -167,6 +170,6 @@ test.describe.serial("community contribution flows", () => {
     ).toBeTruthy();
     await page.keyboard.press("Escape");
     await expect(page.locator("#help-correction-modal")).not.toHaveClass(/is-open/);
-    await expect(page.locator("#open-flag")).toBeFocused();
+    await expect(page.locator("#vote-down")).toBeFocused();
   });
 });

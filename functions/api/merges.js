@@ -11,6 +11,7 @@ import {
   isMissingColumnError,
   logDatabaseError,
 } from "./_db.js";
+import { recordOperation } from "./_operations.js";
 
 function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
@@ -234,7 +235,13 @@ export async function onRequest(context) {
   }
 
   if (request.method === "POST") {
-    return handlePost(request, env);
+    const response = await handlePost(request, env);
+    recordOperation(context, {
+      metric: "submission",
+      flow: "duplicate",
+      status: response.status,
+    });
+    return response;
   }
 
   return jsonResponse({ detail: "Method Not Allowed" }, 405);

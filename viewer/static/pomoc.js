@@ -125,14 +125,14 @@ function openCorrectionModal() {
   helpCorrectionModal.querySelector("button")?.focus();
 }
 
-function closeCorrectionModal() {
+function closeCorrectionModal({ restoreFocus = true } = {}) {
   if (!helpCorrectionModal) return;
   const wasOpen = helpCorrectionModal.classList.contains("is-open");
   helpCorrectionModal.classList.remove("is-open");
   helpCorrectionModal.setAttribute("aria-hidden", "true");
   if (helpForm) helpForm.classList.add("is-hidden");
   document.body.style.overflow = "";
-  if (wasOpen && correctionModalPreviousFocus?.isConnected) {
+  if (restoreFocus && wasOpen && correctionModalPreviousFocus?.isConnected) {
     correctionModalPreviousFocus.focus();
   }
   correctionModalPreviousFocus = null;
@@ -140,7 +140,7 @@ function closeCorrectionModal() {
 
 function cancelCorrection() {
   state.mode = null;
-  closeCorrectionModal();
+  closeCorrectionModal({ restoreFocus: false });
   clearStatus();
   if (voteDownBtn) voteDownBtn.classList.remove("is-voted");
   if (state.proposedMarker) {
@@ -150,6 +150,7 @@ function cancelCorrection() {
   state.proposed = null;
   wrongActionsEl?.classList.add("is-hidden");
   updateSubmitState();
+  voteDownBtn?.focus();
 }
 
 function openFlagModal() {

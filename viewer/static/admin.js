@@ -15,16 +15,8 @@ const exportLimitInput = document.getElementById("export-limit");
 const statusEl = document.getElementById("admin-status");
 const adminTokenInput = document.getElementById("admin-token");
 const saveAdminTokenBtn = document.getElementById("save-admin-token");
-const ADMIN_TOKEN_STORAGE_KEY = "old-prague-admin-token";
-
-function getAdminToken() {
-  return String(window.sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || "");
-}
-
-function adminHeaders() {
-  const token = getAdminToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+const logoutAdminBtn = document.getElementById("logout-admin");
+const operationsListEl = document.getElementById("admin-operations");
 
 function shortId(value) {
   const text = String(value || "").trim();
@@ -65,6 +57,62 @@ function renderEmpty(container, message) {
   if (!container) return;
   container.innerHTML = "";
   container.appendChild(createDetailItem("Stav", message));
+}
+
+function renderOperations(operations) {
+  if (!operationsListEl) return;
+  operationsListEl.innerHTML = "";
+  if (!operations) {
+    renderEmpty(operationsListEl, "Provozní údaje nejsou k dispozici.");
+    return;
+  }
+
+  const projection = operations.projection || {};
+  const publicState = projection.current
+    ? `Aktuální · poslední přepočet ${formatDate(projection.updatedAt)}`
+    : projection.expectedDataVersion !== projection.projectedDataVersion
+      ? "Nasazená data se liší od posledního přepočtu. Obnovte některý pracovní seznam a pak stav zkontrolujte znovu."
+      : projection.hasPayload
+        ? `Čeká na přepočet ${Number(projection.pendingRevisions || 0)} změn.`
+        : "Veřejný stav ještě nebyl vytvořen. Obnovte některý pracovní seznam a pak stav zkontrolujte znovu.";
+  operationsListEl.appendChild(
+    createDetailItem("Změny na veřejném webu", publicState),
+  );
+
+  const submissions = operations.submissions || {};
+  operationsListEl.appendChild(
+    createDetailItem(
+      "Příspěvky za 24 hodin",
+      `Přijato ${Number(submissions.accepted24h || 0)} · odmítnuto ${Number(submissions.rejected24h || 0)}`,
+    ),
+  );
+
+  const queues = operations.queues || {};
+  const oldest = queues.oldestPendingAt
+    ? ` · nejstarší položka ${formatDate(queues.oldestPendingAt)}`
+    : "";
+  operationsListEl.appendChild(
+    createDetailItem(
+      "Položky čekající na kontrolu",
+      `Opravy ${Number(queues.pendingCorrections || 0)} · hlášení ${Number(queues.unresolvedFlags || 0)} · rozdělení ${Number(queues.splitCandidates || 0)} · konflikty ${Number(queues.conflicts || 0)}${oldest}`,
+    ),
+  );
+
+  const candidateRequests = operations.candidateRequests || {};
+  operationsListEl.appendChild(
+    createDetailItem(
+      "Načítání pracovních seznamů za 24 hodin",
+      `Stránky ${Number(candidateRequests.pages24h || 0)} · zastaralé seznamy ${Number(candidateRequests.staleCursors24h || 0)} · selhání ${Number(candidateRequests.failures24h || 0)}`,
+    ),
+  );
+
+  const contributors = operations.contributors || {};
+  operationsListEl.appendChild(
+    createDetailItem(
+      "Přispěvatelé za 30 dní",
+      `Aktivní ${Number(contributors.active30d || 0)} · vracející se ${Number(contributors.returning30d || 0)} · s více příspěvky ${Number(contributors.repeat30d || 0)}`,
+    ),
+  );
 }
 
 function renderPending(list) {
@@ -118,7 +166,6 @@ async function applyGroupMembership(sourceGroupId, xids, reason, targetGroupId =
     credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
-      ...adminHeaders(),
     },
     body: JSON.stringify({
       source_group_id: sourceGroupId,
@@ -201,7 +248,7 @@ function attachGroupSearch(input, datalist) {
       try {
         const response = await fetch(
           `/api/admin/groups?query=${encodeURIComponent(query)}`,
-          { credentials: "same-origin", headers: adminHeaders() },
+          { credentials: "same-origin" },
         );
         if (!response.ok) throw new Error(`Hledání selhalo: ${response.status}`);
         const payload = await response.json();
@@ -425,7 +472,6 @@ function renderMerges(list) {
 async function fetchReview() {
   const response = await fetch("/api/admin/review", {
     credentials: "same-origin",
-    headers: adminHeaders(),
   });
   if (!response.ok) {
     let detail = "";
@@ -472,13 +518,13 @@ async function refresh() {
   renderSplits(payload?.splitCandidates || []);
   renderMembershipHistory(payload?.membershipHistory || []);
   renderMerges(payload?.recentMerges || []);
+  renderOperations(payload?.operations);
   setStatus(`Aktualizováno: ${formatDate(payload?.generatedAt)}`, "success");
 }
 
 async function downloadExport(format) {
   const response = await fetch(exportUrl(format), {
     credentials: "same-origin",
-    headers: adminHeaders(),
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
@@ -494,13 +540,62 @@ async function downloadExport(format) {
   URL.revokeObjectURL(link.href);
 }
 
-if (adminTokenInput) adminTokenInput.value = getAdminToken();
+async function createAdminSession(token) {
+  const response = await fetch("/api/admin/session", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.detail || `Přihlášení selhalo: ${response.status}`);
+  }
+}
+
+async function deleteAdminSession() {
+  const response = await fetch("/api/admin/session", {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload?.detail || `Odhlášení selhalo: ${response.status}`);
+  }
+}
+
 if (saveAdminTokenBtn) {
-  saveAdminTokenBtn.addEventListener("click", () => {
+  saveAdminTokenBtn.addEventListener("click", async () => {
     const token = String(adminTokenInput?.value || "").trim();
-    if (token) window.sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token);
-    else window.sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
-    refresh().catch((error) => setStatus(error.message, "error"));
+    if (!token) {
+      setStatus("Vložte přístupový token.", "error");
+      return;
+    }
+    saveAdminTokenBtn.disabled = true;
+    setStatus("Přihlašuji...", "");
+    try {
+      await createAdminSession(token);
+      if (adminTokenInput) adminTokenInput.value = "";
+      await refresh();
+    } catch (error) {
+      setStatus(error.message || "Přihlášení selhalo", "error");
+    } finally {
+      saveAdminTokenBtn.disabled = false;
+    }
+  });
+}
+
+if (logoutAdminBtn) {
+  logoutAdminBtn.addEventListener("click", async () => {
+    logoutAdminBtn.disabled = true;
+    try {
+      await deleteAdminSession();
+      window.location.reload();
+    } catch (error) {
+      setStatus(error.message || "Odhlášení selhalo", "error");
+    } finally {
+      logoutAdminBtn.disabled = false;
+    }
   });
 }
 

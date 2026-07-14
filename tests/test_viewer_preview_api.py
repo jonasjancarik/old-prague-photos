@@ -624,6 +624,42 @@ class ViewerPreviewApiTests(unittest.TestCase):
         self.assertEqual(denied.status_code, 401)
         self.assertEqual(allowed.status_code, 200)
 
+    def test_admin_token_is_exchanged_for_httponly_session(self) -> None:
+        public_client = TestClient(viewer_app.app, base_url="https://public.example")
+        with patch.dict(
+            os.environ,
+            {"TURNSTILE_BYPASS": "0", "ADMIN_API_TOKEN": "admin-secret"},
+            clear=False,
+        ):
+            login = public_client.post(
+                "/api/admin/session",
+                headers={"Origin": "https://public.example"},
+                json={"token": "admin-secret"},
+            )
+            review = public_client.get("/api/admin/review")
+
+        self.assertEqual(login.status_code, 200)
+        set_cookie = login.headers.get("set-cookie", "")
+        self.assertIn("HttpOnly", set_cookie)
+        self.assertIn("SameSite=strict", set_cookie)
+        self.assertNotIn("admin-secret", set_cookie)
+        self.assertEqual(review.status_code, 200)
+
+    def test_admin_session_rejects_invalid_token(self) -> None:
+        public_client = TestClient(viewer_app.app, base_url="https://public.example")
+        with patch.dict(
+            os.environ,
+            {"TURNSTILE_BYPASS": "0", "ADMIN_API_TOKEN": "admin-secret"},
+            clear=False,
+        ):
+            response = public_client.post(
+                "/api/admin/session",
+                headers={"Origin": "https://public.example"},
+                json={"token": "wrong-token"},
+            )
+
+        self.assertEqual(response.status_code, 401)
+
     def test_admin_csv_neutralizes_spreadsheet_formulas(self) -> None:
         self._append_jsonl(
             self.corrections_path,

@@ -70,11 +70,40 @@ if (process.env.SMOKE_REQUIRE_ACCESS === "1") {
 
 const adminToken = String(process.env.ADMIN_API_TOKEN || "").trim();
 if (adminToken) {
-  const review = await getJson("/api/admin/review", {
-    extraHeaders: { authorization: `Bearer ${adminToken}` },
+  const sessionResponse = await fetch(`${baseUrl}/api/admin/session`, {
+    method: "POST",
+    headers: {
+      ...headers,
+      "content-type": "application/json",
+      origin: new URL(baseUrl).origin,
+    },
+    body: JSON.stringify({ token: adminToken }),
+    redirect: "error",
+    signal: AbortSignal.timeout(15_000),
   });
-  if (!review || typeof review !== "object") {
-    throw new Error("/api/admin/review: invalid payload");
+  const sessionBody = await sessionResponse.text();
+  if (sessionResponse.status !== 200) {
+    throw new Error(`/api/admin/session: expected 200, got ${sessionResponse.status}: ${sessionBody.slice(0, 300)}`);
+  }
+  const setCookie = String(sessionResponse.headers.get("set-cookie") || "");
+  if (
+    !setCookie.startsWith("opp_admin_session=") ||
+    !/HttpOnly/iu.test(setCookie) ||
+    !/SameSite=Strict/iu.test(setCookie) ||
+    setCookie.includes(adminToken)
+  ) {
+    throw new Error("/api/admin/session: missing protected admin session cookie");
+  }
+  const cookie = setCookie.split(";", 1)[0];
+  const review = await getJson("/api/admin/review", {
+    extraHeaders: { cookie },
+  });
+  if (
+    !review?.operations?.projection?.current ||
+    typeof review?.operations?.queues?.pendingCorrections !== "number" ||
+    typeof review?.operations?.candidateRequests?.staleCursors24h !== "number"
+  ) {
+    throw new Error("/api/admin/review: operational diagnostics are missing or stale");
   }
 } else {
   await getJson("/api/admin/review", { expectedStatus: 401 });

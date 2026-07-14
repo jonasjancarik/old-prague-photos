@@ -34,6 +34,7 @@ appropriate:
 - `TURNSTILE_ALLOWED_HOSTNAMES`
 - `MAPY_CZ_API_KEY`
 - `ADMIN_API_TOKEN`, `API_RATE_LIMIT_SECRET`
+- optional `ADMIN_SESSION_TTL_SECONDS` (defaults to eight hours)
 - optional rate limits, archive/R2 URLs, and fallback switches documented in
   `docs/web-app.md`
 
@@ -55,7 +56,8 @@ npm run deploy:pages:staging
 The command refuses production-like branch names and an absent, all-zero, or
 production-equal staging D1 UUID. It verifies the full local test/build gate,
 migrates the preview database, deploys a Pages preview, then checks secure
-configuration, candidate delivery, Access enforcement, and curator access.
+configuration, candidate delivery, Access enforcement, the signed HttpOnly
+curator session, and current operational diagnostics.
 
 After the automated check, use a fresh browser session to submit one location
 correction, duplicate decision with undo, and group-split vote. Use a second

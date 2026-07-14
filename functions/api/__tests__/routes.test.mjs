@@ -6,6 +6,7 @@ import { onRequest as adminExportOnRequest } from "../admin/export.js";
 import { onRequest as adminGroupsOnRequest } from "../admin/groups.js";
 import { onRequest as adminReviewOnRequest } from "../admin/review.js";
 import { onRequest as adminGroupMembershipOnRequest } from "../admin/group-membership.js";
+import { onRequest as adminSessionOnRequest } from "../admin/session.js";
 import { onRequest as configOnRequest } from "../config.js";
 import { onRequest as communityCandidatesOnRequest } from "../community-candidates.js";
 import { onRequest as groupReviewVotesOnRequest } from "../group-review-votes.js";
@@ -14,6 +15,7 @@ import { onRequest as previewUrlOnRequest } from "../preview-url.js";
 import { onRequest as reviewStateOnRequest } from "../review-state.js";
 import { onRequest as zoomifyOnRequest } from "../zoomify.js";
 import { onRequest as verifyOnRequest } from "../verify.js";
+import { recordOperation } from "../_operations.js";
 import { FakeD1, makePhotosAsset, makeRequest } from "./test-helpers.mjs";
 
 function makeEnv(overrides = {}) {
@@ -1293,6 +1295,129 @@ test("GET /api/admin/review rejects unauthenticated requests", async () => {
   const response = await adminReviewOnRequest({ request, env });
   assert.equal(response.status, 401);
   assert.equal(response.headers.get("Cache-Control"), "no-store");
+});
+
+test("admin token is exchanged for an HttpOnly session cookie", async () => {
+  const env = makeEnv();
+  const login = await adminSessionOnRequest({
+    request: makeRequest("/api/admin/session", {
+      headers: { Origin: "https://example.com" },
+      jsonBody: { token: "admin-test-token" },
+    }),
+    env,
+  });
+  assert.equal(login.status, 200);
+  const setCookie = login.headers.get("Set-Cookie") || "";
+  assert.match(setCookie, /^opp_admin_session=/u);
+  assert.match(setCookie, /HttpOnly/u);
+  assert.match(setCookie, /SameSite=Strict/u);
+  assert.match(setCookie, /Secure/u);
+
+  const cookie = setCookie.split(";", 1)[0];
+  const review = await adminReviewOnRequest({
+    request: makeRequest("/api/admin/review", {
+      method: "GET",
+      headers: { Cookie: cookie },
+    }),
+    env,
+  });
+  assert.equal(review.status, 200);
+
+  const logout = await adminSessionOnRequest({
+    request: makeRequest("/api/admin/session", {
+      method: "DELETE",
+      headers: { Origin: "https://example.com" },
+    }),
+    env,
+  });
+  assert.equal(logout.status, 200);
+  assert.match(logout.headers.get("Set-Cookie") || "", /Max-Age=0/u);
+});
+
+test("admin session rejects an invalid token and tampered cookie", async () => {
+  const env = makeEnv();
+  const login = await adminSessionOnRequest({
+    request: makeRequest("/api/admin/session", {
+      headers: { Origin: "https://example.com" },
+      jsonBody: { token: "wrong-token" },
+    }),
+    env,
+  });
+  assert.equal(login.status, 401);
+
+  const review = await adminReviewOnRequest({
+    request: makeRequest("/api/admin/review", {
+      method: "GET",
+      headers: { Cookie: "opp_admin_session=v1.9999999999." + "0".repeat(64) },
+    }),
+    env,
+  });
+  assert.equal(review.status, 401);
+});
+
+test("operational diagnostics aggregate projection, activity, and continuity", async () => {
+  const env = makeEnv();
+  const now = new Date().toISOString();
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 7,
+    computed_revision: 7,
+    data_version: "test-data-v1",
+    payload_json: "{}",
+    updated_at: now,
+  };
+  env.CORRECTIONS_DB.corrections.push({
+    id: 1,
+    xid: "A1",
+    group_id: "group-a",
+    verdict: "ok",
+    voter_key: "returning-voter",
+    created_at: now,
+  });
+  env.CORRECTIONS_DB.operationMetrics.push({
+    bucket_hour: now,
+    metric: "candidate_page",
+    flow: "location",
+    status_code: 409,
+    count: 2,
+  });
+
+  const response = await adminReviewOnRequest({
+    request: makeRequest("/api/admin/review", {
+      method: "GET",
+      headers: { Authorization: "Bearer admin-test-token" },
+    }),
+    env,
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.operations.projection.current, true);
+  assert.equal(payload.operations.submissions.accepted24h, 1);
+  assert.equal(payload.operations.candidateRequests.staleCursors24h, 2);
+  assert.equal(payload.operations.contributors.active30d, 1);
+});
+
+test("hourly operation counters are bounded and aggregated", async () => {
+  const env = makeEnv();
+  const pending = [];
+  const context = {
+    env,
+    waitUntil(promise) {
+      pending.push(promise);
+    },
+  };
+  recordOperation(context, {
+    metric: "submission",
+    flow: "group",
+    status: 503,
+  });
+  recordOperation(context, {
+    metric: "submission",
+    flow: "group",
+    status: 503,
+  });
+  await Promise.all(pending);
+  assert.equal(env.CORRECTIONS_DB.operationMetrics.length, 1);
+  assert.equal(env.CORRECTIONS_DB.operationMetrics[0].count, 2);
 });
 
 test("POST /api/admin/group-membership atomically moves selected members", async () => {

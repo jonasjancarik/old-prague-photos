@@ -319,6 +319,7 @@ It includes:
 
 Admin review screen:
 - `GET /api/admin/review`
+- `POST /api/admin/session`
 - `POST /api/admin/group-membership`
 
 It focuses on:
@@ -328,17 +329,22 @@ It focuses on:
 - recent merge decisions
 - series with enough independent split votes
 - atomic, audited XID moves into a new immutable series
+- public-state freshness, queue age, submission/request failures, and aggregate
+  contributor continuity
 
-Admin APIs require a bearer token; Cloudflare Access should also protect the
-route at the edge. Public APIs never expose email, user agent, or voter
+The curator page exchanges `ADMIN_API_TOKEN` for a signed, short-lived HttpOnly
+cookie and clears the token field. Bearer authentication remains available for
+release tooling. Cloudflare Access should also protect the route at the edge.
+Public APIs and operational aggregates never expose email, user agent, or voter
 fingerprints.
 
 ## Deploy / Migration Notes
 
-Migrations `0009`, `0010`, and `0011` add versioned membership overrides, audit
+Migrations `0009` through `0012` add versioned membership overrides, audit
 events, current merge/vote projections, the revisioned review-state snapshot,
-and durable group-review resolution boundaries. Apply them before deploying
-Functions. The guarded release command enforces this order:
+durable group-review resolution boundaries, and bounded hourly operational
+counters. Apply them before deploying Functions. The guarded release command
+enforces this order:
 
 ```bash
 npm run deploy:pages
