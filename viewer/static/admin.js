@@ -4,6 +4,7 @@ const countConflictsEl = document.getElementById("count-conflicts");
 const pendingListEl = document.getElementById("list-pending");
 const flagsListEl = document.getElementById("list-flags");
 const conflictsListEl = document.getElementById("list-conflicts");
+const splitsListEl = document.getElementById("list-splits");
 const mergesListEl = document.getElementById("list-merges");
 const refreshBtn = document.getElementById("refresh-admin");
 const exportJsonBtn = document.getElementById("export-json");
@@ -11,6 +12,18 @@ const exportCsvBtn = document.getElementById("export-csv");
 const exportSinceInput = document.getElementById("export-since");
 const exportLimitInput = document.getElementById("export-limit");
 const statusEl = document.getElementById("admin-status");
+const adminTokenInput = document.getElementById("admin-token");
+const saveAdminTokenBtn = document.getElementById("save-admin-token");
+const ADMIN_TOKEN_STORAGE_KEY = "old-prague-admin-token";
+
+function getAdminToken() {
+  return String(window.sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || "");
+}
+
+function adminHeaders() {
+  const token = getAdminToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 function shortId(value) {
   const text = String(value || "").trim();
@@ -70,13 +83,13 @@ function renderPending(list) {
 function renderFlags(list) {
   if (!flagsListEl) return;
   if (!Array.isArray(list) || !list.length) {
-    renderEmpty(flagsListEl, "Žádné aktivní flagy.");
+    renderEmpty(flagsListEl, "Žádná aktivní hlášení.");
     return;
   }
   flagsListEl.innerHTML = "";
   list.forEach((item) => {
     const text = `Skupina ${shortId(item.group_id)} · OK ${item.ok_votes}/${item.required_ok_votes} · ${formatDate(item.last_event_at || item.received_at)}`;
-    flagsListEl.appendChild(createDetailItem("Flag", text));
+    flagsListEl.appendChild(createDetailItem("Hlášení", text));
   });
 }
 
@@ -90,7 +103,7 @@ function renderConflicts(list) {
   list.forEach((item) => {
     if (item.type === "merge") {
       const text = `${shortId(item.group_id_a)} ↔ ${shortId(item.group_id_b)}`;
-      conflictsListEl.appendChild(createDetailItem("Merge konflikt", text));
+      conflictsListEl.appendChild(createDetailItem("Konflikt sloučení", text));
       return;
     }
     const text = `Skupina ${shortId(item.group_id)} · ${formatDate(item.received_at)}`;
@@ -98,10 +111,97 @@ function renderConflicts(list) {
   });
 }
 
+async function applyGroupSplit(sourceGroupId, xids, reason) {
+  const response = await fetch("/api/admin/group-membership", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      ...adminHeaders(),
+    },
+    body: JSON.stringify({
+      source_group_id: sourceGroupId,
+      xids,
+      reason,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.detail || `Rozdělení selhalo: ${response.status}`);
+  }
+  return payload;
+}
+
+function renderSplits(list) {
+  if (!splitsListEl) return;
+  splitsListEl.innerHTML = "";
+  if (!Array.isArray(list) || !list.length) {
+    renderEmpty(splitsListEl, "Žádná skupina zatím nemá dost hlasů pro rozdělení.");
+    return;
+  }
+  list.forEach((item) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "detail-item split-candidate";
+    const title = document.createElement("div");
+    title.className = "detail-label";
+    title.textContent = `Skupina ${shortId(item.group_id)} · ${item.split_votes} hlasy pro rozdělení`;
+    wrapper.appendChild(title);
+
+    const choices = document.createElement("div");
+    choices.className = "split-member-list";
+    (item.xids || []).forEach((xid) => {
+      const label = document.createElement("label");
+      label.className = "split-member";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = xid;
+      label.appendChild(checkbox);
+      label.append(` ${xid}`);
+      choices.appendChild(label);
+    });
+    wrapper.appendChild(choices);
+
+    const reason = document.createElement("input");
+    reason.type = "text";
+    reason.placeholder = "Důvod rozdělení";
+    reason.setAttribute("aria-label", `Důvod rozdělení skupiny ${item.group_id}`);
+    wrapper.appendChild(reason);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary";
+    button.textContent = "Přesunout vybrané do nové skupiny";
+    button.addEventListener("click", async () => {
+      const selected = Array.from(
+        choices.querySelectorAll("input:checked"),
+      ).map((input) => input.value);
+      button.disabled = true;
+      try {
+        const result = await applyGroupSplit(
+          item.group_id,
+          selected,
+          String(reason.value || "").trim(),
+        );
+        setStatus(
+          `Přesunuto ${result.moved_xids.length} fotografií do skupiny ${shortId(result.target_group_id)}.`,
+          "success",
+        );
+        await refresh();
+      } catch (error) {
+        setStatus(error.message || "Rozdělení selhalo", "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
+    wrapper.appendChild(button);
+    splitsListEl.appendChild(wrapper);
+  });
+}
+
 function renderMerges(list) {
   if (!mergesListEl) return;
   if (!Array.isArray(list) || !list.length) {
-    renderEmpty(mergesListEl, "Zatím bez merge rozhodnutí.");
+    renderEmpty(mergesListEl, "Zatím bez rozhodnutí o sloučení.");
     return;
   }
   mergesListEl.innerHTML = "";
@@ -109,13 +209,14 @@ function renderMerges(list) {
     const verdict = item.verdict === "same" ? "stejný záběr" : "různé záběry";
     const conflict = item.merge_conflict ? " (konflikt)" : "";
     const text = `${shortId(item.group_id_a)} ↔ ${shortId(item.group_id_b)} · ${verdict}${conflict} · ${formatDate(item.received_at)}`;
-    mergesListEl.appendChild(createDetailItem("Merge", text));
+    mergesListEl.appendChild(createDetailItem("Sloučení", text));
   });
 }
 
 async function fetchReview() {
   const response = await fetch("/api/admin/review", {
     credentials: "same-origin",
+    headers: adminHeaders(),
   });
   if (!response.ok) {
     let detail = "";
@@ -152,14 +253,45 @@ async function refresh() {
   if (countConflictsEl) {
     const conflictCount =
       Number(payload?.counts?.locationConflicts || 0) +
-      Number(payload?.counts?.mergeConflicts || 0);
+      Number(payload?.counts?.mergeConflicts || 0) +
+      Number(payload?.counts?.splitCandidates || 0);
     countConflictsEl.textContent = String(conflictCount);
   }
   renderPending(payload?.pendingCorrections || []);
   renderFlags(payload?.unresolvedFlags || []);
   renderConflicts(payload?.conflictCandidates || []);
+  renderSplits(payload?.splitCandidates || []);
   renderMerges(payload?.recentMerges || []);
   setStatus(`Aktualizováno: ${formatDate(payload?.generatedAt)}`, "success");
+}
+
+async function downloadExport(format) {
+  const response = await fetch(exportUrl(format), {
+    credentials: "same-origin",
+    headers: adminHeaders(),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload?.detail || `Export selhal: ${response.status}`);
+  }
+  const blob = await response.blob();
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `community-review-export.${format}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);
+}
+
+if (adminTokenInput) adminTokenInput.value = getAdminToken();
+if (saveAdminTokenBtn) {
+  saveAdminTokenBtn.addEventListener("click", () => {
+    const token = String(adminTokenInput?.value || "").trim();
+    if (token) window.sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token);
+    else window.sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    refresh().catch((error) => setStatus(error.message, "error"));
+  });
 }
 
 if (refreshBtn) {
@@ -172,13 +304,13 @@ if (refreshBtn) {
 
 if (exportJsonBtn) {
   exportJsonBtn.addEventListener("click", () => {
-    window.open(exportUrl("json"), "_blank", "noopener");
+    downloadExport("json").catch((error) => setStatus(error.message, "error"));
   });
 }
 
 if (exportCsvBtn) {
   exportCsvBtn.addEventListener("click", () => {
-    window.open(exportUrl("csv"), "_blank", "noopener");
+    downloadExport("csv").catch((error) => setStatus(error.message, "error"));
   });
 }
 

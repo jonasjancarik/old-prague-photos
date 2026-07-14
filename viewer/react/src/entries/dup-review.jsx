@@ -1,5 +1,14 @@
-import { createRoot } from 'react-dom/client';
 import '../../../static/styles.css';
-import DupReviewPage from '../pages/DupReviewPage';
+import template from '../templates/dup-review-body.html?raw';
+import { mountPage } from '../lib/loadLegacyScripts.js';
 
-createRoot(document.getElementById('root')).render(<DupReviewPage />);
+mountPage(template, [
+  'https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js',
+  './zoomify.js',
+  './photo-meta.js',
+  './grouping.js',
+  './media-filter.js',
+  './session-verify.js',
+  './dup-review.js',
+  './mode-picker.js',
+]).catch(console.error);

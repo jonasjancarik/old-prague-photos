@@ -2,7 +2,7 @@
  * Shared Correction UI Module
  * Provides a consistent correction experience across the application.
  */
-const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
+let MAPY_CZ_API_KEY = "";
 
 (() => {
     const CorrectionUI = {
@@ -22,6 +22,8 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
         onSubmit: null,
         onCancel: null,
         feature: null,
+        submitting: false,
+        saved: false,
 
         /**
          * Initialize the Correction UI.
@@ -118,6 +120,8 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
         open(feature) {
             this.feature = feature;
             this.proposedCoords = null;
+            this.submitting = false;
+            this.saved = false;
             this.clearStatus();
 
             if (this.messageEl) this.messageEl.value = "";
@@ -179,7 +183,7 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
         updateSubmitState() {
             const hasProposed = !!this.proposedCoords;
             if (this.submitBtn) {
-                this.submitBtn.disabled = !hasProposed;
+                this.submitBtn.disabled = !hasProposed || this.submitting || this.saved;
             }
         },
 
@@ -200,27 +204,31 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
         renderTurnstile() {
             if (this.turnstileNoteEl) {
                 this.turnstileNoteEl.textContent =
-                    "Při prvním odeslání může vyskočit ověření pro relaci.";
+                    "Při prvním odeslání se může zobrazit ověření.";
             }
             this.updateSubmitState();
         },
 
         async submit() {
-            if (!this.feature || !this.proposedCoords) {
+            if (!this.feature || !this.proposedCoords || this.submitting || this.saved) {
                 this.setStatus("Nejprve vyberte bod na mapě.", "error");
                 return;
             }
 
+            const submittedFeature = this.feature;
+            const submittedCoords = { ...this.proposedCoords };
+
             const payload = {
-                xid: this.feature.properties.id,
-                lat: this.proposedCoords.lat,
-                lon: this.proposedCoords.lon,
+                xid: submittedFeature.properties.id,
+                lat: submittedCoords.lat,
+                lon: submittedCoords.lon,
                 verdict: "wrong",
                 message: (this.messageEl?.value || "").trim() || "Nahlášena špatná poloha.",
                 email: (this.emailEl?.value || "").trim() || null,
             };
 
-            if (this.submitBtn) this.submitBtn.disabled = true;
+            this.submitting = true;
+            this.updateSubmitState();
 
             try {
                 const sendRequest = () =>
@@ -231,21 +239,30 @@ const MAPY_CZ_API_KEY = "JToxKFIPuYBZVmm3P8Kjujtg4wUEhzeP3TIBNcKxRV0";
                         body: JSON.stringify(payload),
                     });
                 const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
-                if (submitWithRetry) {
-                    await submitWithRetry(sendRequest);
-                } else {
-                    const response = await sendRequest();
-                    if (!response.ok) {
-                        const error = await response.json().catch(() => ({}));
-                        throw new Error(error.detail || "Odeslání selhalo");
-                    }
+                const response = submitWithRetry
+                    ? await submitWithRetry(sendRequest)
+                    : await sendRequest();
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || "Odeslání selhalo");
                 }
 
+                this.saved = true;
                 this.setStatus("Díky! Oprava byla uložena.", "success");
-                await Promise.resolve(this.onSubmit(this.feature, this.proposedCoords));
+                try {
+                    await Promise.resolve(this.onSubmit(submittedFeature, submittedCoords));
+                } catch (refreshError) {
+                    this.setStatus(
+                        "Oprava je uložená, ale aktuální stav se nepodařilo obnovit. Obnovte stránku.",
+                        "error",
+                    );
+                    return;
+                }
                 setTimeout(() => this.close(), 500);
             } catch (error) {
                 this.setStatus(error.message || "Odeslání selhalo", "error");
+            } finally {
+                this.submitting = false;
                 this.updateSubmitState();
             }
         },

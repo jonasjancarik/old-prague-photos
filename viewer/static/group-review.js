@@ -1,5 +1,4 @@
 const state = {
-  features: [],
   allGroups: [],
   groups: [],
   groupById: new Map(),
@@ -13,6 +12,10 @@ const state = {
   reviewedGroupIds: new Set(),
   scanIndexByXid: new Map(),
   submittingVote: false,
+  voteStateReady: false,
+  candidateTotal: 0,
+  candidateNextCursor: "0",
+  loadingCandidates: false,
 };
 
 const REVIEWED_GROUPS_STORAGE_KEY = "old-prague-group-review-reviewed";
@@ -27,6 +30,7 @@ const prevBtn = document.getElementById("prev-group");
 const nextBtn = document.getElementById("next-group");
 const actionTextEl = document.getElementById("group-action-text");
 const markOkBtn = document.getElementById("group-mark-ok");
+const markSplitBtn = document.getElementById("group-mark-split");
 const openDedupeBtn = document.getElementById("group-open-dedupe");
 const archiveLinkEl = document.getElementById("group-archive-link");
 const resetProgressBtn = document.getElementById("reset-group-progress");
@@ -45,20 +49,6 @@ const zoomState = {
 
 function normalizeGroupValue(value) {
   return String(value || "").trim();
-}
-
-function ensureGroupId(feature) {
-  if (!feature?.properties) return;
-  if (feature.properties.group_id) return;
-  const parts = [
-    normalizeGroupValue(feature.properties.description),
-    normalizeGroupValue(feature.properties.author),
-    normalizeGroupValue(feature.properties.date_label),
-  ];
-  const key = parts.join("\x1f").trim();
-  if (key) {
-    feature.properties.group_id = key;
-  }
 }
 
 function setStatus(message, tone = "") {
@@ -88,10 +78,17 @@ function buildDedupeUrl(groupId) {
 }
 
 function updateCounts() {
-  const total = state.allGroups.length;
-  const remaining = state.groups.length
-    ? Math.max(0, state.groups.length - state.currentIndex - 1)
-    : 0;
+  const total = state.candidateTotal;
+  const communityDone = Array.from(state.voteStateByGroup.values()).filter(
+    (item) => item?.done,
+  ).length;
+  const locallyReviewed = Array.from(state.reviewedGroupIds).filter(
+    (groupId) => !isGroupDone(groupId),
+  ).length;
+  const remaining = Math.max(
+    0,
+    total - communityDone - locallyReviewed - (state.currentGroup ? 1 : 0),
+  );
   const currentVoteState = getVoteState(state.currentGroup?.id || "");
   if (groupCountEl) {
     groupCountEl.textContent = total ? total.toLocaleString() : "0";
@@ -105,22 +102,115 @@ function updateCounts() {
       : "—";
     currentGroupEl.title = state.currentGroup?.id || "";
   }
-  if (prevBtn) prevBtn.disabled = state.currentIndex <= 0;
-  if (nextBtn) nextBtn.disabled = state.currentIndex >= state.groups.length - 1;
+  const interactionLocked = state.submittingVote || !state.voteStateReady;
+  if (prevBtn) prevBtn.disabled = interactionLocked || state.currentIndex <= 0;
+  if (nextBtn) {
+    nextBtn.disabled =
+      interactionLocked ||
+      (state.currentIndex >= state.groups.length - 1 && !state.candidateNextCursor);
+  }
   if (markOkBtn) {
     markOkBtn.disabled =
       !state.currentGroup ||
-      state.submittingVote ||
+      interactionLocked ||
       Boolean(currentVoteState?.current_user_voted);
   }
-  if (openDedupeBtn) openDedupeBtn.disabled = !state.currentGroup;
+  if (markSplitBtn) {
+    markSplitBtn.disabled =
+      !state.currentGroup ||
+      interactionLocked ||
+      Boolean(currentVoteState?.current_user_voted);
+  }
+  if (openDedupeBtn) {
+    openDedupeBtn.disabled = interactionLocked || !state.currentGroup;
+  }
+  if (resetProgressBtn) resetProgressBtn.disabled = interactionLocked;
   if (archiveLinkEl) archiveLinkEl.classList.toggle("is-disabled", !state.currentFeature);
 }
 
 async function fetchJson(url) {
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`Požadavek selhal: ${response.status}`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const error = new Error(
+      payload?.detail || `Požadavek selhal: ${response.status}`,
+    );
+    error.status = response.status;
+    throw error;
+  }
   return response.json();
+}
+
+function registerVersionClusters(group) {
+  const clusters = Array.isArray(group?.version_clusters)
+    ? group.version_clusters
+    : [];
+  if (!group?.id || !clusters.length) return;
+  const normalized = clusters.map((cluster) => ({
+    series_id: group.id,
+    version_id: String(cluster?.version_id || "").trim(),
+    xids: Array.isArray(cluster?.xids)
+      ? cluster.xids.map((xid) => String(xid || "").trim()).filter(Boolean)
+      : [],
+    representative_xid: cluster?.representative_xid || "",
+    max_distance: cluster?.max_distance ?? null,
+  })).filter((cluster) => cluster.xids.length > 0);
+  normalized.sort((left, right) =>
+    left.version_id.localeCompare(right.version_id, "cs")
+  );
+  state.versionClustersBySeries.set(group.id, normalized);
+  normalized.forEach((cluster) => {
+    cluster.xids.forEach((xid) => state.versionClusterByXid.set(xid, cluster));
+  });
+}
+
+async function loadNextGroupPage({ reset = false } = {}) {
+  if (state.loadingCandidates) return false;
+  const cursor = reset ? "0" : state.candidateNextCursor;
+  if (cursor === null) return false;
+  state.loadingCandidates = true;
+  updateCounts();
+  try {
+    let payload;
+    try {
+      payload = await fetchJson(
+        `/api/community-candidates?flow=group&cursor=${encodeURIComponent(cursor)}&limit=40`,
+      );
+    } catch (error) {
+      if (error?.status === 409 && !reset) {
+        state.loadingCandidates = false;
+        return loadNextGroupPage({ reset: true });
+      }
+      throw error;
+    }
+    if (reset) {
+      state.allGroups = [];
+      state.versionClustersBySeries = new Map();
+      state.versionClusterByXid = new Map();
+    }
+    const knownIds = new Set(state.allGroups.map((group) => group.id));
+    (Array.isArray(payload?.items) ? payload.items : []).forEach((group) => {
+      if (!group?.id || knownIds.has(group.id)) return;
+      knownIds.add(group.id);
+      registerVersionClusters(group);
+      state.allGroups.push(group);
+    });
+    state.candidateTotal = Number(payload?.total) || 0;
+    state.candidateNextCursor = payload?.nextCursor ?? null;
+    rebuildPendingGroups();
+    return true;
+  } finally {
+    state.loadingCandidates = false;
+    updateCounts();
+  }
+}
+
+async function loadUntilPendingGroup({ reset = false } = {}) {
+  let loaded = await loadNextGroupPage({ reset });
+  while (!state.groups.length && state.candidateNextCursor) {
+    loaded = (await loadNextGroupPage()) || loaded;
+  }
+  return loaded;
 }
 
 async function loadZoomifyMeta(xid, scanIndex) {
@@ -240,8 +330,12 @@ function applyGroupReviewVoteState(payload) {
       group_id: groupId,
       ok_votes: Number(item?.ok_votes) || 0,
       required_ok_votes: Number(item?.required_ok_votes) || REQUIRED_OK_VOTES,
+      split_votes: Number(item?.split_votes) || 0,
+      required_split_votes: Number(item?.required_split_votes) || 2,
       done: Boolean(item?.done),
+      needs_split: Boolean(item?.needs_split),
       current_user_voted: Boolean(item?.current_user_voted),
+      current_user_verdict: item?.current_user_verdict || null,
       current_user_vote_at: item?.current_user_vote_at || null,
       last_vote_at: item?.last_vote_at || null,
     });
@@ -262,6 +356,7 @@ function rebuildPendingGroups() {
 async function refreshGroupReviewVoteState() {
   const payload = await fetchJson("/api/group-review-votes");
   applyGroupReviewVoteState(payload);
+  state.voteStateReady = true;
 }
 
 async function submitGroupReviewVoteRequest(payload) {
@@ -274,16 +369,14 @@ async function submitGroupReviewVoteRequest(payload) {
     });
 
   const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
-  if (submitWithRetry) {
-    await submitWithRetry(sendRequest);
-    return;
-  }
-
-  const response = await sendRequest();
+  const response = submitWithRetry
+    ? await submitWithRetry(sendRequest)
+    : await sendRequest();
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || "Odeslání selhalo");
   }
+  return response.json().catch(() => ({ ok: true }));
 }
 
 function renderDetails(group, feature) {
@@ -329,15 +422,18 @@ function setScanIndex(xid, scanIndex) {
 function renderActionHint(group) {
   if (!actionTextEl) return;
   if (!group?.id) {
-    actionTextEl.textContent = "Zkontrolujte verze/skeny této série a zvolte další krok.";
+    actionTextEl.textContent = "Projděte fotografie ve skupině.";
     return;
   }
   const voteState = getVoteState(group.id);
   if (voteState?.current_user_voted) {
-    actionTextEl.textContent = `Pro sérii ${shortId(group.id)} už máte v této relaci aktivní hlas.`;
+    const choice = voteState.current_user_verdict === "split"
+      ? "že skupina míchá různé fotografie"
+      : "že skupina je správně";
+    actionTextEl.textContent = `U této skupiny už máte uložený hlas ${choice}.`;
     return;
   }
-  actionTextEl.textContent = `Pokud série míchá různé záběry, otevřete párové porovnání jen pro sérii ${shortId(
+  actionTextEl.textContent = `Pokud skupina míchá různé záběry, otevřete párové porovnání jen pro skupinu ${shortId(
     group.id,
   )}.`;
 }
@@ -362,7 +458,9 @@ function setFeature(group, feature) {
     const count = group?.items?.length || 0;
     const versions = state.versionClustersBySeries.get(group.id) || [];
     const voteState = getVoteState(group.id);
-    const versionCount = versions.length || count;
+    const versionLabel = versions.length && versions.length !== count
+      ? ` · ${versions.length} automatických verzí`
+      : "";
     const scanCount = Math.max(
       0,
       ...group.items.map((item) => {
@@ -378,9 +476,12 @@ function setFeature(group, feature) {
     const okVotes = voteState?.ok_votes || 0;
     const requiredVotes = voteState?.required_ok_votes || REQUIRED_OK_VOTES;
     const voteLabel = ` · ${okVotes}/${requiredVotes} hlasů`;
-    groupSummaryEl.textContent = `Série ${shortId(
+    const splitLabel = voteState?.split_votes
+      ? ` · ${voteState.split_votes} hlasů pro rozdělení`
+      : "";
+    groupSummaryEl.textContent = `Skupina ${shortId(
       group.id,
-    )} · ${versionCount} verzí${scanLabel}${voteLabel}`;
+    )} · ${count} fotografií${versionLabel}${scanLabel}${voteLabel}${splitLabel}`;
     groupSummaryEl.title = group.id;
   }
 
@@ -393,7 +494,7 @@ function showGroup(index) {
     state.currentGroup = null;
     state.currentFeature = null;
     if (groupSummaryEl) {
-      groupSummaryEl.textContent = "Série: —";
+      groupSummaryEl.textContent = "Skupina: —";
       groupSummaryEl.title = "";
     }
     if (archiveLinkEl) {
@@ -406,10 +507,10 @@ function showGroup(index) {
     updateCounts();
     setStatus(
       !state.allGroups.length
-        ? "Žádné série s více verzemi."
+        ? "Žádné skupiny s více fotografiemi."
         : countCommunityPendingGroups() === 0
-          ? "Pro tuto chvíli už jsou všechny série odhlasované."
-          : "V tomto prohlížeči už nic nezbývá. Tlačítko nahoře znovu ukáže dříve prošlé série.",
+          ? "Pro tuto chvíli už jsou všechny skupiny odhlasované."
+          : "V tomto prohlížeči už nic nezbývá. Tlačítko nahoře znovu ukáže dříve prošlé skupiny.",
       "success",
     );
     return;
@@ -422,28 +523,53 @@ function showGroup(index) {
   setFeature(group, feature);
 }
 
-async function markCurrentGroupOk() {
-  if (!state.currentGroup) return;
+async function submitCurrentGroupVote(verdict) {
+  if (
+    !state.currentGroup ||
+    state.submittingVote ||
+    !state.voteStateReady
+  ) return;
+  const submittedGroupId = state.currentGroup.id;
+  const submittedIndex = state.currentIndex;
   state.submittingVote = true;
   updateCounts();
   clearStatus();
 
   try {
     await submitGroupReviewVoteRequest({
-      group_id: state.currentGroup.id,
-      verdict: "ok",
+      group_id: submittedGroupId,
+      verdict,
     });
-    state.reviewedGroupIds.add(state.currentGroup.id);
+    state.reviewedGroupIds.add(submittedGroupId);
     saveReviewedGroupIds();
-    await refreshGroupReviewVoteState();
-    const nextIndex = state.currentIndex;
+    try {
+      await refreshGroupReviewVoteState();
+    } catch (refreshError) {
+      state.voteStateReady = false;
+      setStatus(
+        "Hlas je uložený, ale seznam se nepodařilo obnovit. Obnovte stránku.",
+        "error",
+      );
+      return;
+    }
     rebuildPendingGroups();
+    if (!state.groups.length && state.candidateNextCursor) {
+      await loadUntilPendingGroup();
+    }
     if (!state.groups.length) {
       showGroup(0);
       return;
     }
-    setStatus("Hlas uložen. Přecházím na další sérii.", "success");
-    setTimeout(() => showGroup(Math.min(nextIndex, state.groups.length - 1)), 180);
+    setStatus(
+      verdict === "split"
+        ? "Návrh na rozdělení je uložený. Přecházím na další skupinu."
+        : "Hlas je uložený. Přecházím na další skupinu.",
+      "success",
+    );
+    setTimeout(
+      () => showGroup(Math.min(submittedIndex, state.groups.length - 1)),
+      180,
+    );
   } catch (error) {
     setStatus(error.message || "Odeslání selhalo", "error");
   } finally {
@@ -457,83 +583,62 @@ function openCurrentGroupInDedupe() {
   window.location.href = buildDedupeUrl(state.currentGroup.id);
 }
 
-function resetLocalProgress() {
+async function resetLocalProgress() {
   state.reviewedGroupIds.clear();
   saveReviewedGroupIds();
-  rebuildPendingGroups();
+  state.currentIndex = 0;
+  await loadUntilPendingGroup({ reset: true });
   showGroup(0);
   setStatus("Lokální filtr byl vymazán.", "success");
+}
+
+async function showNextGroup() {
+  if (state.currentIndex < state.groups.length - 1) {
+    showGroup(state.currentIndex + 1);
+    return;
+  }
+  const currentGroupId = state.currentGroup?.id || "";
+  while (state.candidateNextCursor) {
+    if (!(await loadNextGroupPage())) break;
+    const currentIndex = state.groups.findIndex(
+      (group) => group?.id === currentGroupId,
+    );
+    if (currentIndex < 0 && state.groups.length) {
+      showGroup(0);
+      return;
+    }
+    if (currentIndex >= 0 && currentIndex < state.groups.length - 1) {
+      showGroup(currentIndex + 1);
+      return;
+    }
+  }
 }
 
 async function bootstrap() {
   const config = await fetchJson("/api/config").catch(() => ({}));
   state.archiveBaseUrl = config.archiveBaseUrl || "";
 
-  const rawPhotos = await fetchJson("/data/photos.geojson");
-  const mediaFilter = window.OldPragueMediaFilter;
-  const photos = mediaFilter?.filterPhotoCollection
-    ? await mediaFilter.filterPhotoCollection(rawPhotos)
-    : rawPhotos;
-  state.features = photos.features || [];
-  state.features.forEach((feature) => ensureGroupId(feature));
-
-  const clusterData = await fetchJson("/data/series_version_clusters.json").catch(
-    () => ({ clusters: [] }),
-  );
-  const clusters = clusterData.clusters || [];
-  const versionClustersBySeries = new Map();
-  const versionClusterByXid = new Map();
-  clusters.forEach((cluster) => {
-    const seriesId = String(cluster?.series_id || "").trim();
-    if (!seriesId) return;
-    const xids = Array.isArray(cluster?.xids)
-      ? cluster.xids.map((xid) => String(xid || "").trim()).filter(Boolean)
-      : [];
-    if (!xids.length) return;
-    const versionId = String(cluster?.version_id || "").trim();
-    const normalized = {
-      series_id: seriesId,
-      version_id: versionId,
-      xids,
-      representative_xid: cluster?.representative_xid || "",
-      max_distance: cluster?.max_distance ?? null,
-    };
-    if (!versionClustersBySeries.has(seriesId)) {
-      versionClustersBySeries.set(seriesId, []);
-    }
-    versionClustersBySeries.get(seriesId).push(normalized);
-    xids.forEach((xid) => {
-      if (xid) versionClusterByXid.set(xid, normalized);
-    });
-  });
-  versionClustersBySeries.forEach((items) => {
-    items.sort((a, b) => {
-      return String(a.version_id || "").localeCompare(
-        String(b.version_id || ""),
-        "cs",
-      );
-    });
-  });
-  state.versionClustersBySeries = versionClustersBySeries;
-  state.versionClusterByXid = versionClusterByXid;
-
-  const grouping = window.OldPragueGrouping;
-  const groupIndex = grouping.buildGroups(state.features);
-  state.allGroups = groupIndex.groups.filter((group) => group?.items?.length > 1);
   state.reviewedGroupIds = loadReviewedGroupIds();
   await refreshGroupReviewVoteState();
-  rebuildPendingGroups();
+  await loadUntilPendingGroup({ reset: true });
 
   showGroup(0);
 }
 
 if (prevBtn) prevBtn.addEventListener("click", () => showGroup(state.currentIndex - 1));
-if (nextBtn) nextBtn.addEventListener("click", () => showGroup(state.currentIndex + 1));
-if (markOkBtn) markOkBtn.addEventListener("click", markCurrentGroupOk);
+if (nextBtn) nextBtn.addEventListener("click", showNextGroup);
+if (markOkBtn) {
+  markOkBtn.addEventListener("click", () => submitCurrentGroupVote("ok"));
+}
+if (markSplitBtn) {
+  markSplitBtn.addEventListener("click", () => submitCurrentGroupVote("split"));
+}
 if (openDedupeBtn) openDedupeBtn.addEventListener("click", openCurrentGroupInDedupe);
 if (resetProgressBtn) resetProgressBtn.addEventListener("click", resetLocalProgress);
 
 bootstrap().catch((error) => {
+  state.voteStateReady = false;
+  updateCounts();
   setStatus("Nepodařilo se načíst data.", "error");
   console.error(error);
 });

@@ -1679,6 +1679,34 @@ textarea {
   justify-content: flex-start;
 }
 
+.help-wrong-actions {
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.split-candidate {
+  display: grid;
+  gap: 12px;
+}
+
+.split-member-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.split-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.help-wrong-actions .helper {
+  flex: 1 1 320px;
+  margin: 0;
+}
+
 .help-primary.is-hidden {
   display: none;
 }
@@ -1863,6 +1891,7 @@ textarea {
   display: grid;
   place-items: center;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   transition: opacity 0.2s ease;
   z-index: 2000;
@@ -1870,6 +1899,7 @@ textarea {
 
 .modal.is-open {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 
@@ -2018,11 +2048,13 @@ textarea {
 }
 
 .report-cta-container {
-  margin-top: 24px;
+  flex: 1 1 420px;
+  max-width: 620px;
+  min-width: min(100%, 360px);
 }
 
 .consensus-banner {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   border-radius: 14px;
   border: 1px solid rgba(43, 110, 120, 0.26);
   background: linear-gradient(
@@ -2073,6 +2105,31 @@ textarea {
   gap: 10px;
   flex-wrap: wrap;
   background: #f6f1e8;
+}
+
+.modal-footer-feedback .report-cta {
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+.modal-footer-feedback .report-title {
+  font-size: 1rem;
+}
+
+.modal-footer-feedback .report-actions {
+  flex: 0 0 auto;
+  flex-direction: row;
+  min-width: 0;
+}
+
+.modal-footer-feedback .report-button {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+
+.modal-footer-feedback .report-flag-button {
+  width: auto;
 }
 
 .modal-nearby-nav {
@@ -2172,6 +2229,26 @@ textarea {
 
   .modal-footer-right {
     justify-items: start;
+    width: 100%;
+  }
+
+  .report-cta-container {
+    min-width: 0;
+    width: 100%;
+    max-width: none;
+  }
+
+  .modal-footer-feedback .report-cta {
+    align-items: stretch;
+  }
+
+  .modal-footer-feedback .report-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .modal-footer-feedback .report-button,
+  .modal-footer-feedback .report-flag-button {
     width: 100%;
   }
 

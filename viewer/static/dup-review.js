@@ -1,17 +1,9 @@
 const state = {
-  features: [],
-  groups: [],
-  groupById: new Map(),
-  groupByXid: new Map(),
-  groupRoots: new Map(),
-  decisions: [],
-  decisionsByPair: new Map(),
   candidates: [],
   remaining: [],
   history: [],
   currentPair: null,
   lastSubmittedPair: null,
-  similarityPairs: [],
   leftGroup: null,
   rightGroup: null,
   leftFeature: null,
@@ -20,6 +12,11 @@ const state = {
   scanIndexByXid: new Map(),
   lastPickedSource: "",
   focusGroupId: "",
+  reviewStateReady: false,
+  submitting: false,
+  candidateTotal: 0,
+  candidateNextCursor: "0",
+  loadingCandidates: false,
 };
 
 const candidateCountEl = document.getElementById("candidate-count");
@@ -62,24 +59,31 @@ function pairKey(a, b) {
 
 function updateCounts() {
   if (candidateCountEl) {
-    candidateCountEl.textContent = state.candidates.length
-      ? state.candidates.length.toLocaleString()
+    candidateCountEl.textContent = state.candidateTotal
+      ? state.candidateTotal.toLocaleString()
       : "0";
   }
   if (remainingCountEl) {
-    remainingCountEl.textContent = state.remaining.length
-      ? state.remaining.length.toLocaleString()
-      : "0";
+    const reviewedThisSession = state.history.length + (state.currentPair ? 1 : 0);
+    remainingCountEl.textContent = Math.max(
+      0,
+      state.candidateTotal - reviewedThisSession,
+    ).toLocaleString();
   }
   if (prevBtn) {
-    prevBtn.disabled = state.history.length === 0;
+    prevBtn.disabled =
+      !state.reviewStateReady || state.submitting || state.history.length === 0;
   }
+  if (skipBtn) skipBtn.disabled = !state.reviewStateReady || state.submitting;
 }
 
 function updateActionState() {
-  const canSubmit = !!state.currentPair;
+  const canInteract = state.reviewStateReady && !state.submitting;
+  const canSubmit = canInteract && !!state.currentPair;
   const canUndo = Boolean(
-    state.lastSubmittedPair?.group_id_a && state.lastSubmittedPair?.group_id_b,
+    canInteract &&
+      state.lastSubmittedPair?.group_id_a &&
+      state.lastSubmittedPair?.group_id_b,
   );
   if (sameBtn) sameBtn.disabled = !canSubmit;
   if (differentBtn) differentBtn.disabled = !canSubmit;
@@ -88,30 +92,60 @@ function updateActionState() {
 
 async function fetchJson(url) {
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`Požadavek selhal: ${response.status}`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const error = new Error(
+      payload?.detail || `Požadavek selhal: ${response.status}`,
+    );
+    error.status = response.status;
+    throw error;
+  }
   return response.json();
 }
 
-function resolveGroupRoot(groupId) {
-  const raw = String(groupId || "").trim();
-  if (!raw) return "";
-  return state.groupRoots.get(raw) || raw;
-}
-
-function applyReviewStatePayload(reviewState) {
-  const grouping = window.OldPragueGrouping;
-  grouping.applyReviewState(state.features, reviewState || {});
-
-  const roots = reviewState?.groupRoots || {};
-  state.groupRoots = new Map(Object.entries(roots));
-  state.decisions = Array.isArray(reviewState?.mergeDecisions)
-    ? reviewState.mergeDecisions
-    : [];
-
-  const groupIndex = grouping.buildGroups(state.features);
-  state.groups = groupIndex.groups;
-  state.groupById = groupIndex.groupById;
-  state.groupByXid = groupIndex.groupByXid;
+async function loadDuplicateCandidatePage({ reset = false } = {}) {
+  if (state.loadingCandidates) return false;
+  const cursor = reset ? "0" : state.candidateNextCursor;
+  if (cursor === null) return false;
+  state.loadingCandidates = true;
+  updateCounts();
+  try {
+    const params = new URLSearchParams({
+      flow: "duplicate",
+      cursor,
+      limit: "24",
+    });
+    if (state.focusGroupId) params.set("group_id", state.focusGroupId);
+    let payload;
+    try {
+      payload = await fetchJson(`/api/community-candidates?${params}`);
+    } catch (error) {
+      if (error?.status === 409 && !reset) {
+        state.loadingCandidates = false;
+        return loadDuplicateCandidatePage({ reset: true });
+      }
+      throw error;
+    }
+    if (reset) {
+      state.candidates = [];
+      state.remaining = [];
+    }
+    const knownKeys = new Set(state.candidates.map((item) => item.key));
+    (Array.isArray(payload?.items) ? payload.items : []).forEach((pair) => {
+      if (!pair?.key || knownKeys.has(pair.key)) return;
+      knownKeys.add(pair.key);
+      state.candidates.push(pair);
+      state.remaining.push(pair);
+    });
+    state.candidateTotal = Number(payload?.total) || 0;
+    state.candidateNextCursor = payload?.nextCursor ?? null;
+    state.reviewStateReady = true;
+    return true;
+  } finally {
+    state.loadingCandidates = false;
+    updateCounts();
+    updateActionState();
+  }
 }
 
 async function loadZoomifyMeta(xid, scanIndex) {
@@ -220,13 +254,13 @@ function setScanIndex(xid, scanIndex) {
 
 function renderFocusFilter() {
   if (!pairFilterEl) return;
-  const focusId = resolveGroupRoot(state.focusGroupId) || state.focusGroupId;
+  const focusId = state.focusGroupId;
   if (!focusId) {
     pairFilterEl.classList.add("is-hidden");
     pairFilterEl.textContent = "";
     return;
   }
-  pairFilterEl.textContent = `Filtr: jen páry ze série ${shortId(focusId)}`;
+  pairFilterEl.textContent = `Jen páry ze skupiny ${shortId(focusId)}`;
   pairFilterEl.classList.remove("is-hidden");
 }
 
@@ -260,8 +294,8 @@ function showPair(pair) {
   if (pairSourceEl) {
     const label =
       pair.source === "similarity"
-        ? "Zdroj páru: vizuální podobnost"
-        : "Zdroj páru: shodná poloha";
+        ? "Vybráno podle vizuální podobnosti"
+        : "Vybráno podle stejné polohy";
     pairSourceEl.textContent = label;
   }
 
@@ -273,78 +307,6 @@ function showPair(pair) {
 
   clearStatus();
   updateActionState();
-  updateCounts();
-}
-
-function buildDecisionMap() {
-  state.decisionsByPair = new Map();
-  (state.decisions || []).forEach((item) => {
-    const a = String(item?.group_id_a || "").trim();
-    const b = String(item?.group_id_b || "").trim();
-    const verdict = String(item?.verdict || "").trim();
-    if (!a || !b) return;
-    const resolvedA = resolveGroupRoot(a);
-    const resolvedB = resolveGroupRoot(b);
-    if (!resolvedA || !resolvedB || resolvedA === resolvedB) return;
-    const key = pairKey(resolvedA, resolvedB);
-    if (key) state.decisionsByPair.set(key, verdict);
-  });
-}
-
-function buildCandidates() {
-  const coordMap = new Map();
-  const candidates = [];
-  const candidateKeys = new Set();
-  const focusGroupId = resolveGroupRoot(state.focusGroupId);
-  const addCandidate = (groupA, groupB, source) => {
-    if (!groupA || !groupB) return;
-    if (
-      focusGroupId &&
-      groupA.id !== focusGroupId &&
-      groupB.id !== focusGroupId
-    ) {
-      return;
-    }
-    const key = pairKey(groupA.id, groupB.id);
-    if (!key || state.decisionsByPair.has(key) || candidateKeys.has(key)) return;
-    candidateKeys.add(key);
-    candidates.push({ groupA, groupB, key, source });
-  };
-
-  state.groups.forEach((group) => {
-    const lat = Number(group.lat);
-    const lon = Number(group.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-    const key = `${lat.toFixed(6)},${lon.toFixed(6)}`;
-    if (!coordMap.has(key)) coordMap.set(key, []);
-    coordMap.get(key).push(group);
-  });
-
-  coordMap.forEach((groups) => {
-    if (groups.length < 2) return;
-    for (let i = 0; i < groups.length; i += 1) {
-      for (let j = i + 1; j < groups.length; j += 1) {
-        const groupA = groups[i];
-        const groupB = groups[j];
-        addCandidate(groupA, groupB, "coords");
-      }
-    }
-  });
-
-  (state.similarityPairs || []).forEach((item) => {
-    const rawA = String(item?.group_id_a || "").trim();
-    const rawB = String(item?.group_id_b || "").trim();
-    if (!rawA || !rawB) return;
-    const resolvedA = resolveGroupRoot(rawA);
-    const resolvedB = resolveGroupRoot(rawB);
-    if (!resolvedA || !resolvedB || resolvedA === resolvedB) return;
-    const groupA = state.groupById.get(resolvedA);
-    const groupB = state.groupById.get(resolvedB);
-    addCandidate(groupA, groupB, "similarity");
-  });
-
-  state.candidates = candidates;
-  state.remaining = [...candidates];
   updateCounts();
 }
 
@@ -368,15 +330,15 @@ function removeRandomRemaining(source = "") {
   return picked;
 }
 
-function pickNext() {
+async function pickNext() {
   if (!state.remaining.length) {
-    state.remaining = [...state.candidates];
+    await loadDuplicateCandidatePage();
   }
   if (!state.remaining.length) {
-    const suffix = state.focusGroupId ? " pro vybranou sérii." : ".";
-    setStatus(`Žádné další páry k porovnání${suffix}`, "success");
+    const suffix = state.focusGroupId ? " pro vybranou skupinu." : ".";
+    setStatus(`Už tu nejsou žádné páry${suffix}`, "success");
     state.currentPair = null;
-    if (pairSourceEl) pairSourceEl.textContent = "Zdroj páru: —";
+    if (pairSourceEl) pairSourceEl.textContent = "Vybráno podle: —";
     updateActionState();
     updateCounts();
     return;
@@ -420,36 +382,45 @@ function pickPrev() {
   showPair(prevPair);
 }
 
-function rebuildPairs() {
-  state.history = [];
-  state.currentPair = null;
-  state.lastPickedSource = "";
-  buildDecisionMap();
-  buildCandidates();
-  pickNext();
-}
-
 async function submitDecision(verdict) {
-  if (!state.currentPair) return;
+  if (!state.currentPair || state.submitting || !state.reviewStateReady) return;
 
+  const submittedPair = {
+    group_id_a: state.currentPair.groupA.id,
+    group_id_b: state.currentPair.groupB.id,
+  };
+  state.submitting = true;
+  updateCounts();
+  updateActionState();
   clearStatus();
 
   const payload = {
-    group_id_a: state.currentPair.groupA.id,
-    group_id_b: state.currentPair.groupB.id,
+    ...submittedPair,
     verdict,
   };
 
   try {
-    await submitMergePayload(payload);
-    state.lastSubmittedPair = {
-      group_id_a: payload.group_id_a,
-      group_id_b: payload.group_id_b,
-    };
-    setStatus("Uloženo.", "success");
-    rebuildPairs();
+    const result = await submitMergePayload(payload);
+    state.lastSubmittedPair = result.decision;
+    if (result.refreshError) {
+      state.reviewStateReady = false;
+      setStatus(
+        "Rozhodnutí je uložené, ale seznam se nepodařilo obnovit. Obnovte stránku.",
+        "error",
+      );
+    } else {
+      setStatus("Uloženo.", "success");
+      state.history = [];
+      state.currentPair = null;
+      state.lastPickedSource = "";
+      await pickNext();
+    }
   } catch (error) {
     setStatus(error.message || "Odeslání selhalo", "error");
+  } finally {
+    state.submitting = false;
+    updateCounts();
+    updateActionState();
   }
 }
 
@@ -463,37 +434,68 @@ async function submitMergePayload(payload) {
     });
 
   const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
-  if (submitWithRetry) {
-    await submitWithRetry(sendRequest);
-  } else {
-    const response = await sendRequest();
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || "Odeslání selhalo");
-    }
+  const response = submitWithRetry
+    ? await submitWithRetry(sendRequest)
+    : await sendRequest();
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || "Odeslání selhalo");
   }
+  const saved = await response.json().catch(() => ({}));
+  const decision = {
+    group_id_a: String(saved?.decision?.group_id_a || payload.group_id_a || "").trim(),
+    group_id_b: String(saved?.decision?.group_id_b || payload.group_id_b || "").trim(),
+  };
 
-  const reviewState = await fetchJson("/api/review-state?fresh=1");
-  applyReviewStatePayload(reviewState);
+  try {
+    await loadDuplicateCandidatePage({ reset: true });
+    return { decision, refreshError: null };
+  } catch (refreshError) {
+    return { decision, refreshError };
+  }
 }
 
 async function undoLastDecision() {
   const pair = state.lastSubmittedPair;
-  if (!pair?.group_id_a || !pair?.group_id_b) return;
+  if (
+    !pair?.group_id_a ||
+    !pair?.group_id_b ||
+    state.submitting ||
+    !state.reviewStateReady
+  ) return;
 
+  const submittedPair = { ...pair };
+  state.submitting = true;
+  updateCounts();
+  updateActionState();
   clearStatus();
 
   try {
-    await submitMergePayload({
-      group_id_a: pair.group_id_a,
-      group_id_b: pair.group_id_b,
+    const result = await submitMergePayload({
+      group_id_a: submittedPair.group_id_a,
+      group_id_b: submittedPair.group_id_b,
       verdict: "undo",
     });
     state.lastSubmittedPair = null;
-    setStatus("Poslední hlas vrácen.", "success");
-    rebuildPairs();
+    if (result.refreshError) {
+      state.reviewStateReady = false;
+      setStatus(
+        "Vrácení je uložené, ale seznam se nepodařilo obnovit. Obnovte stránku.",
+        "error",
+      );
+    } else {
+      setStatus("Poslední hlas vrácen.", "success");
+      state.history = [];
+      state.currentPair = null;
+      state.lastPickedSource = "";
+      await pickNext();
+    }
   } catch (error) {
     setStatus(error.message || "Vrácení hlasu selhalo", "error");
+  } finally {
+    state.submitting = false;
+    updateCounts();
+    updateActionState();
   }
 }
 
@@ -504,28 +506,12 @@ async function bootstrap() {
   const config = await fetchJson("/api/config").catch(() => ({}));
   state.archiveBaseUrl = config.archiveBaseUrl || "";
 
-  const rawPhotos = await fetchJson("/data/photos.geojson");
-  const mediaFilter = window.OldPragueMediaFilter;
-  const photos = mediaFilter?.filterPhotoCollection
-    ? await mediaFilter.filterPhotoCollection(rawPhotos)
-    : rawPhotos;
-  state.features = photos.features || [];
-
-  const reviewState = await fetchJson("/api/review-state").catch(() => ({}));
-  applyReviewStatePayload(reviewState);
-
-  const similarityData = await fetchJson("/data/similarity_candidates.json").catch(
-    () => ({ pairs: [] }),
-  );
-  state.similarityPairs = similarityData.pairs || [];
-
-  buildDecisionMap();
   renderFocusFilter();
-  buildCandidates();
-  pickNext();
+  await loadDuplicateCandidatePage({ reset: true });
+  await pickNext();
   if (turnstileNote) {
     turnstileNote.textContent =
-      "Při prvním hlasu může vyskočit ověření pro relaci.";
+      "Při prvním hlasu se může zobrazit ověření.";
   }
 }
 
@@ -537,6 +523,9 @@ if (differentBtn)
 if (undoBtn) undoBtn.addEventListener("click", () => undoLastDecision());
 
 bootstrap().catch((error) => {
+  state.reviewStateReady = false;
+  updateCounts();
+  updateActionState();
   setStatus("Nepodařilo se načíst data.", "error");
   console.error(error);
 });

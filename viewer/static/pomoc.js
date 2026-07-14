@@ -10,12 +10,19 @@ const state = {
   groups: [],
   groupByXid: new Map(),
   doneGroupIds: new Set(),
+  submittedGroupIds: new Set(),
   remaining: [],
   history: [],
   voted: {}, // group_id -> "ok" | "wrong"
   currentGroup: null,
   currentFeature: null,
   proposed: null,
+  reviewStateReady: false,
+  submitting: false,
+  candidateTotal: 0,
+  candidateNextCursor: "0",
+  loadingCandidates: false,
+  lastReviewState: null,
 };
 
 const iframe = document.getElementById("help-iframe");
@@ -31,6 +38,8 @@ const prevBtn = document.getElementById("prev-photo");
 const skipBtn = document.getElementById("skip-photo");
 const voteUpBtn = document.getElementById("vote-up");
 const voteDownBtn = document.getElementById("vote-down");
+const wrongActionsEl = document.getElementById("help-wrong-actions");
+const openFlagBtn = document.getElementById("open-flag");
 const helpForm = document.getElementById("help-form");
 const helpCorrectionModal = document.getElementById("help-correction-modal");
 const helpMapNote = document.getElementById("help-map-note");
@@ -50,6 +59,7 @@ let flowStarted = false;
 let reviewStateRefreshInFlight = false;
 let reviewStateLastRefreshAt = 0;
 let reviewStateRefreshTimer = null;
+let correctionModalPreviousFocus = null;
 
 let zoomViewer = null;
 let zoomLastXid = null;
@@ -89,32 +99,43 @@ function setVerificationNote(message, tone = "") {
 }
 
 function setControlsEnabled(enabled) {
-  [voteUpBtn, voteDownBtn, skipBtn, prevBtn].forEach((btn) => {
+  const effectiveEnabled =
+    Boolean(enabled) && state.reviewStateReady && !state.submitting;
+  [voteUpBtn, voteDownBtn, skipBtn, openFlagBtn].forEach((btn) => {
     if (!btn) return;
-    btn.disabled = !enabled;
+    btn.disabled = !effectiveEnabled;
   });
-  if (!enabled && submitCorrectionBtn) {
-    submitCorrectionBtn.disabled = true;
+  if (prevBtn) {
+    prevBtn.disabled = !effectiveEnabled || state.history.length === 0;
   }
-  if (!enabled && submitFlagBtn) {
-    submitFlagBtn.disabled = true;
+  if (submitFlagBtn) submitFlagBtn.disabled = !effectiveEnabled;
+  if (!effectiveEnabled && submitCorrectionBtn) {
+    submitCorrectionBtn.disabled = true;
   }
 }
 
 function openCorrectionModal() {
   if (!helpCorrectionModal) return;
+  correctionModalPreviousFocus =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
   helpCorrectionModal.classList.add("is-open");
   helpCorrectionModal.setAttribute("aria-hidden", "false");
   if (helpForm) helpForm.classList.remove("is-hidden");
   document.body.style.overflow = "hidden";
+  helpCorrectionModal.querySelector("button")?.focus();
 }
 
 function closeCorrectionModal() {
   if (!helpCorrectionModal) return;
+  const wasOpen = helpCorrectionModal.classList.contains("is-open");
   helpCorrectionModal.classList.remove("is-open");
   helpCorrectionModal.setAttribute("aria-hidden", "true");
   if (helpForm) helpForm.classList.add("is-hidden");
   document.body.style.overflow = "";
+  if (wasOpen && correctionModalPreviousFocus?.isConnected) {
+    correctionModalPreviousFocus.focus();
+  }
+  correctionModalPreviousFocus = null;
 }
 
 function cancelCorrection() {
@@ -127,7 +148,20 @@ function cancelCorrection() {
     state.proposedMarker = null;
   }
   state.proposed = null;
+  wrongActionsEl?.classList.add("is-hidden");
   updateSubmitState();
+}
+
+function openFlagModal() {
+  if (state.mode !== "wrong") return;
+  state.proposed = null;
+  if (submitCorrectionBtn) submitCorrectionBtn.classList.add("is-hidden");
+  if (submitFlagBtn) submitFlagBtn.classList.remove("is-hidden");
+  if (helpMapNote) {
+    helpMapNote.textContent =
+      "Odešlete hlášení, pokud víte, že poloha nesedí, ale správné místo neznáte.";
+  }
+  openCorrectionModal();
 }
 
 function maybeStartFlow() {
@@ -148,8 +182,12 @@ function loadSavedEmail() {
 
 function updateCounts() {
   if (remainingEl) {
-    remainingEl.textContent = state.remaining.length
-      ? state.remaining.length.toLocaleString()
+    const remainingCount = Math.max(
+      0,
+      state.candidateTotal - state.submittedGroupIds.size,
+    );
+    remainingEl.textContent = state.reviewStateReady
+      ? remainingCount.toLocaleString()
       : "—";
   }
   const groupId = state.currentGroup?.id || "";
@@ -187,12 +225,18 @@ async function refreshRemainingCloud(options = {}) {
 
   reviewStateRefreshInFlight = true;
   try {
-    const reviewState = await fetchJson("/api/review-state");
-    const done = applyReviewStateToFeatures(state.features, reviewState);
-    done.forEach((groupId) => state.doneGroupIds.add(groupId));
-    syncRemainingPool();
+    const reviewState = await fetchJson("/api/review-state?snapshot=1");
+    state.reviewStateReady = true;
+    applyReviewStateSnapshot(reviewState);
+    setControlsEnabled(true);
     reviewStateLastRefreshAt = Date.now();
   } catch (err) {
+    state.reviewStateReady = false;
+    setControlsEnabled(false);
+    setStatus(
+      "Aktuální stav komunity se nepodařilo načíst. Obnovte stránku a zkuste to znovu.",
+      "error",
+    );
     console.warn("Refresh counteru selhal", err);
   } finally {
     reviewStateRefreshInFlight = false;
@@ -204,20 +248,122 @@ function updateSubmitState() {
   const hasProposed = !!state.proposed;
 
   if (submitCorrectionBtn) {
-    submitCorrectionBtn.disabled = !isWrong || !hasProposed;
+    submitCorrectionBtn.disabled =
+      !state.reviewStateReady || state.submitting || !isWrong || !hasProposed;
   }
 }
 
 async function fetchJson(url) {
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`Požadavek selhal: ${response.status}`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const error = new Error(
+      payload?.detail || `Požadavek selhal: ${response.status}`,
+    );
+    error.status = response.status;
+    throw error;
+  }
   return response.json();
+}
+
+async function loadLocationCandidatePage({ reset = false } = {}) {
+  if (state.loadingCandidates) return false;
+  const cursor = reset ? "0" : state.candidateNextCursor;
+  if (cursor === null) return false;
+  state.loadingCandidates = true;
+  try {
+    let payload;
+    try {
+      payload = await fetchJson(
+        `/api/community-candidates?flow=location&cursor=${encodeURIComponent(cursor)}&limit=40`,
+      );
+    } catch (error) {
+      if (error?.status === 409 && !reset) {
+        state.loadingCandidates = false;
+        return loadLocationCandidatePage({ reset: true });
+      }
+      throw error;
+    }
+    if (reset) {
+      state.features = [];
+      state.groups = [];
+      state.groupByXid = new Map();
+      state.remaining = [];
+    }
+    const knownXids = new Set(
+      state.features
+        .map((feature) => String(feature?.properties?.id || "").trim())
+        .filter(Boolean),
+    );
+    (Array.isArray(payload?.items) ? payload.items : []).forEach((group) => {
+      const groupId = String(group?.id || "").trim();
+      if (groupId) state.doneGroupIds.delete(groupId);
+      (Array.isArray(group?.items) ? group.items : []).forEach((feature) => {
+        const xid = String(feature?.properties?.id || "").trim();
+        if (!xid || knownXids.has(xid)) return;
+        knownXids.add(xid);
+        state.features.push(feature);
+      });
+    });
+    state.candidateTotal = Number(payload?.total) || 0;
+    state.candidateNextCursor = payload?.nextCursor ?? null;
+    rebuildGroupIndexPreservingNavigation();
+    return true;
+  } finally {
+    state.loadingCandidates = false;
+    updateCounts();
+  }
 }
 
 function applyReviewStateToFeatures(features, reviewState) {
   const grouping = window.OldPragueGrouping;
   const applied = grouping.applyReviewState(features, reviewState || {});
   return applied.doneGroupIds || new Set();
+}
+
+function primaryXid(group) {
+  return String(
+    group?.primary?.properties?.id || group?.items?.[0]?.properties?.id || "",
+  ).trim();
+}
+
+function rebuildGroupIndexPreservingNavigation() {
+  const currentXid = String(state.currentFeature?.properties?.id || "").trim();
+  const historyXids = state.history.map((group) => primaryXid(group)).filter(Boolean);
+  const grouping = window.OldPragueGrouping;
+  const groupIndex = grouping.buildGroups(state.features);
+  state.groups = groupIndex.groups;
+  state.groupByXid = groupIndex.groupByXid;
+
+  state.currentGroup = currentXid
+    ? state.groupByXid.get(currentXid) || null
+    : null;
+  if (state.currentGroup) {
+    state.currentFeature =
+      state.currentGroup.items.find(
+        (feature) => String(feature?.properties?.id || "") === currentXid,
+      ) || state.currentGroup.primary;
+  }
+
+  const seenHistory = new Set();
+  state.history = historyXids
+    .map((xid) => state.groupByXid.get(xid))
+    .filter((group) => {
+      if (!group?.id || group.id === state.currentGroup?.id) return false;
+      if (seenHistory.has(group.id)) return false;
+      seenHistory.add(group.id);
+      return true;
+    });
+  state.remaining = [];
+  syncRemainingPool();
+  updateCounts();
+}
+
+function applyReviewStateSnapshot(reviewState) {
+  state.lastReviewState = reviewState;
+  const done = applyReviewStateToFeatures(state.features, reviewState);
+  state.doneGroupIds = new Set(done);
+  rebuildGroupIndexPreservingNavigation();
 }
 
 function syncRemainingPool() {
@@ -232,6 +378,7 @@ function syncRemainingPool() {
     const groupId = String(group?.id || "").trim();
     if (!groupId || seen.has(groupId)) return;
     if (state.doneGroupIds.has(groupId)) return;
+    if (state.submittedGroupIds.has(groupId)) return;
     if (groupId === currentGroupId || historyIds.has(groupId)) return;
     seen.add(groupId);
     next.push(group);
@@ -241,6 +388,7 @@ function syncRemainingPool() {
     const groupId = String(group?.id || "").trim();
     if (!groupId || seen.has(groupId)) return;
     if (state.doneGroupIds.has(groupId)) return;
+    if (state.submittedGroupIds.has(groupId)) return;
     if (groupId === currentGroupId || historyIds.has(groupId)) return;
     seen.add(groupId);
     next.push(group);
@@ -340,9 +488,11 @@ function initMap() {
       state.proposedMarker.setLatLng([lat, lng]);
     }
     if (helpMapNote) {
-      helpMapNote.textContent = "Poloha vybrána. Doplňte poznámku a odešlete.";
+      helpMapNote.textContent = "Poloha vybrána. Přidejte poznámku a odešlete.";
     }
     updateSubmitState();
+    if (submitFlagBtn) submitFlagBtn.classList.add("is-hidden");
+    if (submitCorrectionBtn) submitCorrectionBtn.classList.remove("is-hidden");
     openCorrectionModal();
   });
 }
@@ -391,6 +541,7 @@ function showGroup(group, options = {}) {
   state.mode = null;
   clearStatus();
   closeCorrectionModal();
+  wrongActionsEl?.classList.add("is-hidden");
   updateCounts();
   updateSubmitState();
 
@@ -434,6 +585,7 @@ function setMode(mode) {
 
   // For "ok", submit immediately and auto-advance
   if (mode === "ok") {
+    wrongActionsEl?.classList.add("is-hidden");
     submitOk();
     return;
   }
@@ -446,18 +598,23 @@ function setMode(mode) {
     state.proposedMarker = null;
   }
   closeCorrectionModal();
+  wrongActionsEl?.classList.remove("is-hidden");
   if (submitCorrectionBtn) {
     submitCorrectionBtn.classList.remove("is-hidden");
   }
   if (helpMapNote) {
     helpMapNote.textContent =
-      "Nesedí? Klikněte do mapy na správné místo, nebo zvolte „Nevím kde přesně“.";
+      "Nesedí? Klikněte na správné místo v mapě, nebo zvolte „Nesedí, ale nevím, kde to je“.";
   }
   updateSubmitState();
 }
 
 async function pickRandom() {
   syncRemainingPool();
+  if (!state.remaining.length && state.candidateNextCursor) {
+    await loadLocationCandidatePage();
+    syncRemainingPool();
+  }
   if (!state.remaining.length) {
     setControlsEnabled(false);
     if (prevBtn) {
@@ -470,7 +627,11 @@ async function pickRandom() {
   const idx = Math.floor(Math.random() * state.remaining.length);
   const group = state.remaining.splice(idx, 1)[0];
 
-  if (state.currentGroup && !state.doneGroupIds.has(state.currentGroup.id)) {
+  if (
+    state.currentGroup &&
+    !state.doneGroupIds.has(state.currentGroup.id) &&
+    !state.submittedGroupIds.has(state.currentGroup.id)
+  ) {
     state.history.push(state.currentGroup);
   }
 
@@ -501,28 +662,31 @@ async function submitCorrectionRequest(payload) {
     });
 
   const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
-  if (submitWithRetry) {
-    await submitWithRetry(sendRequest);
-    return;
-  }
-
-  const response = await sendRequest();
+  const response = submitWithRetry
+    ? await submitWithRetry(sendRequest)
+    : await sendRequest();
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || "Odeslání selhalo");
   }
+  return response.json().catch(() => ({ ok: true }));
 }
 
 async function submitCorrection() {
   if (!state.currentGroup || !state.currentFeature || state.mode !== "wrong" || !state.proposed) return;
 
+  const submittedGroupId = state.currentGroup.id;
+  const submittedXid = state.currentFeature.properties.id;
+  const proposed = { ...state.proposed };
+  state.submitting = true;
+  setControlsEnabled(false);
   clearStatus();
 
   const payload = {
-    xid: state.currentFeature.properties.id,
-    group_id: state.currentGroup.id,
-    lat: state.proposed.lat,
-    lon: state.proposed.lon,
+    xid: submittedXid,
+    group_id: submittedGroupId,
+    lat: proposed.lat,
+    lon: proposed.lon,
     verdict: "wrong",
     message: (messageEl?.value || "").trim() || "Nahlášena špatná poloha.",
     email: (emailEl?.value || "").trim() || null,
@@ -530,9 +694,11 @@ async function submitCorrection() {
 
   submitCorrectionBtn.disabled = true;
 
+  let saved = false;
   try {
     await submitCorrectionRequest(payload);
-    state.doneGroupIds.add(state.currentGroup.id);
+    saved = true;
+    state.submittedGroupIds.add(submittedGroupId);
     syncRemainingPool();
 
     setStatus("Díky! Uloženo. Jdeme na další.", "success");
@@ -540,6 +706,9 @@ async function submitCorrection() {
     setTimeout(() => pickRandom(), 400);
   } catch (error) {
     setStatus(error.message || "Odeslání selhalo", "error");
+  } finally {
+    state.submitting = false;
+    setControlsEnabled(!saved);
     updateSubmitState();
   }
 }
@@ -547,11 +716,15 @@ async function submitCorrection() {
 async function submitFlag() {
   if (!state.currentGroup || !state.currentFeature || state.mode !== "wrong") return;
 
+  const submittedGroupId = state.currentGroup.id;
+  const submittedXid = state.currentFeature.properties.id;
+  state.submitting = true;
+  setControlsEnabled(false);
   clearStatus();
 
   const payload = {
-    xid: state.currentFeature.properties.id,
-    group_id: state.currentGroup.id,
+    xid: submittedXid,
+    group_id: submittedGroupId,
     verdict: "flag",
     message: (messageEl?.value || "").trim() || "Nahlášeno bez upřesnění polohy.",
     email: (emailEl?.value || "").trim() || null,
@@ -559,9 +732,11 @@ async function submitFlag() {
 
   if (submitFlagBtn) submitFlagBtn.disabled = true;
 
+  let saved = false;
   try {
     await submitCorrectionRequest(payload);
-    state.doneGroupIds.add(state.currentGroup.id);
+    saved = true;
+    state.submittedGroupIds.add(submittedGroupId);
     syncRemainingPool();
 
     setStatus("Díky! Hlášení uloženo. Jdeme na další.", "success");
@@ -570,61 +745,59 @@ async function submitFlag() {
   } catch (error) {
     setStatus(error.message || "Odeslání selhalo", "error");
   } finally {
-    if (submitFlagBtn) submitFlagBtn.disabled = false;
+    state.submitting = false;
+    setControlsEnabled(!saved);
   }
 }
 
 async function submitOk() {
   if (!state.currentGroup || !state.currentFeature || state.mode !== "ok") return;
 
+  const submittedGroupId = state.currentGroup.id;
+  const submittedXid = state.currentFeature.properties.id;
+  state.submitting = true;
+  setControlsEnabled(false);
   clearStatus();
 
   const payload = {
-    xid: state.currentFeature.properties.id,
-    group_id: state.currentGroup.id,
+    xid: submittedXid,
+    group_id: submittedGroupId,
     verdict: "ok",
     message: "Poloha potvrzena jako OK.",
   };
 
+  let saved = false;
   try {
     await submitCorrectionRequest(payload);
-    state.doneGroupIds.add(state.currentGroup.id);
+    saved = true;
+    state.submittedGroupIds.add(submittedGroupId);
     syncRemainingPool();
 
     setStatus("Díky! Potvrzeno. Jdeme na další.", "success");
     setTimeout(() => pickRandom(), 400);
   } catch (error) {
     setStatus(error.message || "Odeslání selhalo", "error");
+  } finally {
+    state.submitting = false;
+    setControlsEnabled(!saved);
     updateSubmitState();
   }
 }
 
 async function bootstrap() {
   const config = await fetchJson("/api/config").catch(() => ({}));
+  MAPY_CZ_API_KEY = String(config.mapyCzApiKey || "").trim();
   state.archiveBaseUrl = config.archiveBaseUrl || state.archiveBaseUrl;
 
   initMap();
   loadSavedEmail();
   setControlsEnabled(false);
-  setVerificationNote("Při prvním odeslání může vyskočit ověření pro relaci.");
+  setVerificationNote("Při prvním odeslání se může zobrazit ověření.");
 
-  const rawPhotos = await fetchJson("/data/photos.geojson");
-  const mediaFilter = window.OldPragueMediaFilter;
-  const photos = mediaFilter?.filterPhotoCollection
-    ? await mediaFilter.filterPhotoCollection(rawPhotos)
-    : rawPhotos;
-  const features = photos.features || [];
-  state.features = features;
-
-  const reviewState = await fetchJson("/api/review-state").catch(() => ({}));
-  const doneGroupIds = applyReviewStateToFeatures(features, reviewState);
-  state.doneGroupIds = new Set(doneGroupIds);
-
-  const grouping = window.OldPragueGrouping;
-  const groupIndex = grouping.buildGroups(features);
-  state.groups = groupIndex.groups;
-  state.groupByXid = groupIndex.groupByXid;
-  syncRemainingPool();
+  await loadLocationCandidatePage({ reset: true });
+  const reviewState = await fetchJson("/api/review-state?snapshot=1");
+  state.reviewStateReady = true;
+  applyReviewStateSnapshot(reviewState);
   refreshRemainingCloud({ force: true });
 
   dataReady = true;
@@ -637,6 +810,9 @@ if (submitCorrectionBtn) {
 }
 if (submitFlagBtn) {
   submitFlagBtn.addEventListener("click", submitFlag);
+}
+if (openFlagBtn) {
+  openFlagBtn.addEventListener("click", openFlagModal);
 }
 if (cancelCorrectionBtn) {
   cancelCorrectionBtn.addEventListener("click", () => {

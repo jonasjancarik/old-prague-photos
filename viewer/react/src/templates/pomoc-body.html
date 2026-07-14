@@ -1,10 +1,10 @@
   <div class="page">
     <header class="topbar">
       <div>
-        <p class="eyebrow">Pomoc s opravami</p>
-        <h1>Pomoc s opravami</h1>
+        <p class="eyebrow">Komunitní kontrola</p>
+        <h1>Pomozte zkontrolovat mapu</h1>
         <p class="subtitle">
-          Vyberte, jestli chcete opravovat polohu, kontrolovat podobné záběry, nebo projít skupiny podle metadata.
+          Vyberte, co chcete zkontrolovat.
         </p>
         <div class="topbar-actions">
           <a class="action-link" href="./index.html">Zpět na mapu</a>
@@ -26,23 +26,23 @@
       <section class="card help-mode" data-mode-picker>
         <div>
           <p class="eyebrow">Vyberte režim</p>
-          <h2>Jak chcete pomoct?</h2>
+          <h2>Co chcete zkontrolovat?</h2>
           <p class="helper">
-            Opravy polohy, kontrola podobných záběrů i revize skupin pomáhají zpřesnit mapu historických fotografií.
+            Poloha i seskupení vznikají automaticky a mohou být chybné. Pomozte je rychle zkontrolovat.
           </p>
           <div class="help-mode-guide" aria-label="Rozdíl mezi režimy">
             <a class="help-mode-card is-current" href="./pomoc.html?mode=location" data-mode-select="location"
               aria-current="page">
               <strong>Oprava polohy</strong>
-              <span>Řeší jen to, jestli špendlík na mapě sedí.</span>
+              <span>Je fotografie správně umístěná na mapě?</span>
             </a>
             <a class="help-mode-card" href="./dup-review.html?mode=dedupe">
-              <strong>Podobné záběry</strong>
-              <span>Porovnává dvě skupiny a rozhoduje, jestli se mají sloučit.</span>
+              <strong>Podobné fotografie</strong>
+              <span>Mají se tyto záběry sloučit?</span>
             </a>
             <a class="help-mode-card" href="./group-review.html">
-              <strong>Kontrola skupin</strong>
-              <span>Ověřuje, jestli verze v jedné skupině patří k sobě.</span>
+              <strong>Skupiny fotografií</strong>
+              <span>Zkontrolujte, jestli jsou fotografie správně seskupené.</span>
             </a>
           </div>
         </div>
@@ -51,32 +51,41 @@
       <section class="card help-card is-hidden" data-mode-flow="location">
         <div class="help-controls">
           <button class="secondary" type="button" id="prev-photo" disabled>
-            Předchozí fotka
+            Předchozí
           </button>
           <button class="vote vote-up" type="button" id="vote-up">
-            👍 Sedí
+            Sedí
           </button>
           <button class="vote vote-down" type="button" id="vote-down">
-            👎 Nesedí
+            Nesedí
           </button>
           <button class="secondary" type="button" id="skip-photo">
-            Další fotka
+            Přeskočit
+          </button>
+        </div>
+
+        <div class="help-submit help-wrong-actions is-hidden" id="help-wrong-actions">
+          <p class="helper">
+            Vyberte správné místo v mapě, nebo nahlaste, že ho neumíte určit.
+          </p>
+          <button class="secondary help-secondary" type="button" id="open-flag">
+            Nevím, kde to je
           </button>
         </div>
 
         <details class="workflow-help">
-          <summary>Co přesně tu rozhodujete?</summary>
+          <summary>Co hodnotím?</summary>
           <div class="workflow-help-body">
             <div class="workflow-help-item">
               <strong>Sedí</strong>
-              <span>Potvrzuje polohu celé série na mapě.</span>
+              <span>Potvrzujete polohu celé série.</span>
             </div>
             <div class="workflow-help-item">
               <strong>Nesedí</strong>
-              <span>Opravte bod v mapě, nebo označte, že přesné místo nevíte.</span>
+              <span>Přesuňte bod, nebo označte nejistotu.</span>
             </div>
             <div class="workflow-help-item">
-              <strong>Další fotka</strong>
+              <strong>Přeskočit</strong>
               <span>Přeskočí nejistý případ bez uložení hlasu.</span>
             </div>
           </div>
@@ -102,7 +111,7 @@
         </div>
 
         <div class="form-status-wrap">
-          <p class="form-status" id="form-status"></p>
+          <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
         </div>
 
       </section>
@@ -115,7 +124,7 @@
       <div class="modal-header">
         <div>
           <p class="modal-eyebrow">Oprava polohy</p>
-          <h2 class="modal-title">Doplňte poznámku</h2>
+          <h2 class="modal-title">Oprava polohy</h2>
         </div>
         <button class="modal-close" type="button" data-help-close>
           Zavřít
@@ -124,14 +133,14 @@
       <div class="modal-body">
         <div class="help-form is-hidden" id="help-form">
           <div class="card help-down">
-            <p class="helper" id="help-map-note">Klikněte do mapy na správné místo. Pak odešlete opravu.</p>
+            <p class="helper" id="help-map-note">Klikněte na správné místo v mapě.</p>
             <label class="field">
               <span>Poznámka (volitelné)</span>
               <textarea id="help-message" rows="3" placeholder="Např. správná ulice, orientační bod..."></textarea>
             </label>
             <label class="field">
-              <span>E-mail (volitelné, přihlášení k newsletteru)</span>
-              <input id="help-email" type="email" placeholder="vy@priklad.cz" />
+              <span>E-mail (volitelné)</span>
+              <input id="help-email" type="email" autocomplete="email" placeholder="vy@priklad.cz" />
             </label>
           </div>
           <p class="helper" id="turnstile-note"></p>
@@ -140,13 +149,13 @@
               Zrušit
             </button>
             <button class="secondary help-secondary" type="button" id="submit-flag">
-              Nevím kde přesně
+              Nesedí, ale nevím, kde to je
             </button>
             <button class="primary help-primary is-hidden" type="button" id="submit-correction" disabled>
               Uložit opravu
             </button>
           </div>
-          <p class="form-status" id="modal-status"></p>
+          <p class="form-status" id="modal-status" role="status" aria-live="polite"></p>
         </div>
       </div>
     </div>

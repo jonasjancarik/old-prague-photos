@@ -1,24 +1,22 @@
-import{u as n,j as a,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div class="page">
+import{m as a}from"./loadLegacyScripts-3eKIZyXn.js";const n=`  <div class="page">
     <header class="topbar">
       <div>
-        <p class="eyebrow">Archivní prohlížeč</p>
         <h1>Staré fotografie Prahy</h1>
         <p class="subtitle">
-          Geolokalizované fotografie z archivu hlavního města Prahy. Toto není oficiální projekt hlavního města Prahy.
+          Mapa fotografií z Archivu hl. m. Prahy. Neoficiální komunitní projekt.
         </p>
         <div class="topbar-actions">
-          <button class="secondary" type="button" id="info-open">O co jde</button>
-          <a class="action-link" href="./pomoc.html">Chci pomoct</a>
-          <a class="action-link" href="./admin.html">Admin</a>
+          <button class="secondary" type="button" id="info-open">Jak mapa vznikla</button>
+          <a class="action-link" href="./pomoc.html">Chcete pomoct?</a>
         </div>
       </div>
       <div class="topbar-meta">
         <div class="stat">
-          <span class="stat-label">Zmapované snímky</span>
+          <span class="stat-label">Fotografií na mapě</span>
           <span class="stat-value" id="photo-count">—</span>
         </div>
         <div class="stat">
-          <span class="stat-label">Zkontrolováno komunitou</span>
+          <span class="stat-label">Ověřeno komunitou</span>
           <span class="stat-value" id="verified-count">—</span>
         </div>
       </div>
@@ -28,13 +26,13 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div
       <div class="map-toolbar">
         <div class="search-container">
           <div class="search-input-row">
-            <input type="text" id="map-search" placeholder="Hledat v metadatech fotek..." aria-label="Hledat" />
+            <input type="text" id="map-search" placeholder="Hledat v popisech, autorech…" aria-label="Hledat" />
             <label class="search-mode-toggle" for="search-address-toggle">
               <span class="toggle-switch">
                 <input type="checkbox" id="search-address-toggle" />
                 <span class="toggle-slider"></span>
               </span>
-              <span>Hledat adresy</span>
+              <span>Hledat adresu</span>
             </label>
           </div>
           <div id="search-results" class="search-results is-hidden"></div>
@@ -72,25 +70,25 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div
               <input type="checkbox" id="cluster-toggle" checked />
               <span class="toggle-slider"></span>
             </label>
-            <span class="toggle-label">Seskupovat fotografie</span>
+            <span class="toggle-label">Seskupit body</span>
           </div>
         </div>
       </div>
       <section class="map-panel">
         <div id="map" aria-label="Mapa s polohami fotografií"></div>
         <div class="map-overlay">
-          <div class="chip">Klikněte na bod pro fotografii</div>
+          <div class="chip">Kliknutím otevřete fotografii</div>
         </div>
       </section>
 
       <section class="card photo-grid-section" aria-label="Galerie fotografií">
         <div class="photo-grid-head">
-          <p class="eyebrow">Galerie ve výřezu mapy</p>
+          <p class="eyebrow">Fotografie ve výřezu</p>
           <p class="helper photo-grid-count" id="photo-grid-count">—</p>
         </div>
         <div class="photo-grid" id="photo-grid"></div>
         <p class="helper photo-grid-empty is-hidden" id="photo-grid-empty">
-          V aktuálním výřezu mapy nejsou dostupné žádné fotografie.
+          V tomto výřezu nejsou žádné fotografie.
         </p>
         <div class="photo-grid-actions">
           <button class="secondary" type="button" id="photo-grid-load-more">
@@ -108,7 +106,7 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div
       <div class="modal-header">
         <div>
           <p class="modal-eyebrow">Informace</p>
-          <h2 class="modal-title">Jak to funguje</h2>
+          <h2 class="modal-title">Jak mapa vznikla</h2>
         </div>
         <button class="modal-close" type="button" data-info-close>
           Zavřít
@@ -117,14 +115,9 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div
       <div class="modal-body info-body">
         <div class="card info-card">
           <p class="how-lead">
-            Z archivu jsme nasbírali cca 10&nbsp;000 záznamů. Část jde geokódovat rovnou (adresa / č.p.) přes Mapy.cz.
-            Zbytek nejdřív projde LLM, které z popisu vytáhne kandidátní místa.
+            V mapě je zhruba 10&nbsp;000 fotografií z archivu. Část poloh jde určit podle adresy,
+            u části jsme použili AI k odhadu místa z popisu. Proto potřebujeme lidskou kontrolu.
           </p>
-          <ul class="how-list">
-            <li><strong>Výsledek:</strong> dataset s GPS souřadnicemi pro mapu.</li>
-            <li><strong>Opravy:</strong> změny se projeví hned jako čekající na potvrzení komunitou.</li>
-            <li><strong>Cíl:</strong> Vytvořit co nejpřesnější mapu historických fotografií Prahy.</li>
-          </ul>
           <div class="info-footer">
             <p>Tento projekt je komunitní a open-source. Data pocházejí z Archivu hlavního města Prahy.</p>
           </div>
@@ -164,7 +157,7 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div
               <div class="modal-meta" id="modal-meta-view">
                 <div class="modal-meta-head">
                   <p class="modal-meta-eyebrow">Detaily</p>
-                  <h3 class="modal-meta-title">Informace o fotografii</h3>
+                  <h3 class="modal-meta-title">Fotografie</h3>
                 </div>
                 <div id="photo-details" class="detail-list"></div>
                 <div class="photo-minimap is-hidden" id="photo-minimap-wrap">
@@ -172,34 +165,6 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div
                   <div id="photo-minimap" aria-label="Mini mapa polohy fotografie"></div>
                 </div>
 
-                <div class="report-cta-container">
-                  <div class="consensus-banner is-hidden" id="consensus-banner">
-                    <p class="helper consensus-text" id="consensus-text"></p>
-                    <div class="consensus-actions">
-                      <button class="secondary" type="button" id="confirm-cta">
-                        Sedí, potvrdit
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="report-cta" id="report-cta-container">
-                    <div class="report-meta">
-                      <p class="report-eyebrow">Zpětná vazba</p>
-                      <h2 class="report-title">Netrefili jsme to?</h2>
-                      <p class="report-subtitle">
-                        Je fotografie špatně umístěna?
-                      </p>
-                    </div>
-                    <div class="report-actions">
-                      <button class="primary report-button" type="button" id="report-cta">
-                        Opravit polohu
-                      </button>
-                      <button class="secondary report-button report-flag-button" type="button" id="report-flag">
-                        Nevím kde přesně
-                      </button>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               <!-- Correction view -->
@@ -216,18 +181,18 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div
                   <input type="hidden" name="correction_lon" />
 
                   <div class="correction-picker">
-                    <p class="helper">Přetáhněte špendlík na mapě na správné místo.</p>
+                    <p class="helper">Přesuňte špendlík na správné místo.</p>
                     <div id="correction-map" aria-label="Mapa pro opravu polohy"></div>
                   </div>
 
                   <label class="field">
-                    <span>Upřesnění (volitelné)</span>
-                    <textarea name="message" rows="2" placeholder="Např. patro, směr focení..."></textarea>
+                    <span>Poznámka</span>
+                    <textarea name="message" rows="2" placeholder="Např. nároží, směr záběru…"></textarea>
                   </label>
 
                   <label class="field">
                     <span>E-mail (volitelné)</span>
-                    <input name="email" type="email" placeholder="vy@priklad.cz" />
+                    <input name="email" type="email" autocomplete="email" placeholder="vy@priklad.cz" />
                   </label>
 
                   <div class="turnstile-wrap">
@@ -242,7 +207,7 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div
                       Zrušit
                     </button>
                   </div>
-                  <p class="form-status" id="form-status"></p>
+                  <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
                 </form>
               </div>
             </aside>
@@ -257,6 +222,31 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div
                 Další v okolí
               </button>
             </div>
+            <div class="report-cta-container modal-footer-feedback">
+              <div class="consensus-banner is-hidden" id="consensus-banner">
+                <p class="helper consensus-text" id="consensus-text"></p>
+                <div class="consensus-actions">
+                  <button class="secondary" type="button" id="confirm-cta">
+                    Sedí, potvrdit
+                  </button>
+                </div>
+              </div>
+
+              <div class="report-cta" id="report-cta-container">
+                <div class="report-meta">
+                  <p class="report-eyebrow">Zpětná vazba</p>
+                  <h2 class="report-title">Je poloha špatně?</h2>
+                </div>
+                <div class="report-actions">
+                  <button class="primary report-button" type="button" id="report-cta">
+                    Opravit polohu
+                  </button>
+                  <button class="secondary report-button report-flag-button" type="button" id="report-flag">
+                    Nesedí, ale nevím, kde to je
+                  </button>
+                </div>
+              </div>
+            </div>
             <div class="modal-footer-right">
               <div class="modal-footer-actions">
                 <button class="secondary" type="button" id="download-fullres" disabled>
@@ -266,11 +256,11 @@ import{u as n,j as a,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const s=`  <div
                   Otevřít v archivu
                 </a>
               </div>
-              <p class="helper modal-download-status" id="download-fullres-status"></p>
+              <p class="helper modal-download-status" id="download-fullres-status" role="status" aria-live="polite"></p>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-`,o=["https://unpkg.com/leaflet@1.9.4/dist/leaflet.js","https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js","https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./app.js"];function i(){return n(o),a.jsx("div",{dangerouslySetInnerHTML:{__html:s}})}e(document.getElementById("root")).render(a.jsx(i,{}));
+`;a(n,["https://unpkg.com/leaflet@1.9.4/dist/leaflet.js","https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js","https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./app.js"]).catch(console.error);

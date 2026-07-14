@@ -137,7 +137,7 @@
 
       const valueEl = document.createElement("p");
       valueEl.className = "detail-value";
-      valueEl.textContent = `Opravujete polohu celé série (${groupItems.length} verzí).`;
+      valueEl.textContent = `Opravujete polohu celé skupiny (${groupItems.length} fotografií).`;
 
       wrapper.appendChild(labelEl);
       wrapper.appendChild(valueEl);

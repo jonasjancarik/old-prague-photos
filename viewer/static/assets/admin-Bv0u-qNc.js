@@ -1,10 +1,10 @@
-import{u as s,j as n,c as a}from"./useLegacyScripts-Dsc3ed3e.js";const t=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-3eKIZyXn.js";const s=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Admin</p>
         <h1>Komunitní revize</h1>
         <p class="subtitle">
-          Přehled čekajících oprav, flagů, konfliktů a export dat pro ruční kontrolu.
+          Čekající opravy, hlášení, konflikty a export dat.
         </p>
         <div class="topbar-actions">
           <a class="action-link" href="./index.html">Zpět na mapu</a>
@@ -17,7 +17,7 @@ import{u as s,j as n,c as a}from"./useLegacyScripts-Dsc3ed3e.js";const t=`  <div
           <span class="stat-value" id="count-pending">0</span>
         </div>
         <div class="stat">
-          <span class="stat-label">Neuzavřené flagy</span>
+          <span class="stat-label">Neuzavřená hlášení</span>
           <span class="stat-value" id="count-flags">0</span>
         </div>
         <div class="stat">
@@ -28,6 +28,20 @@ import{u as s,j as n,c as a}from"./useLegacyScripts-Dsc3ed3e.js";const t=`  <div
     </header>
 
     <main class="content">
+      <section class="card" id="admin-login-card">
+        <div class="card-header">
+          <h2>Přihlášení správce</h2>
+          <p class="card-subtitle">Vložte přístupový token. Zůstane uložený jen v této kartě prohlížeče.</p>
+        </div>
+        <div class="form-actions">
+          <label class="field">
+            <span>Přístupový token</span>
+            <input id="admin-token" type="password" autocomplete="current-password" aria-describedby="admin-status" />
+          </label>
+          <button class="secondary" type="button" id="save-admin-token">Použít token</button>
+        </div>
+      </section>
+
       <section class="card">
         <div class="card-header">
           <h2>Export</h2>
@@ -48,7 +62,7 @@ import{u as s,j as n,c as a}from"./useLegacyScripts-Dsc3ed3e.js";const t=`  <div
           <button class="secondary" type="button" id="export-json">Export JSON</button>
           <button class="secondary" type="button" id="export-csv">Export CSV</button>
         </div>
-        <p class="helper" id="admin-status"></p>
+        <p class="helper" id="admin-status" role="status" aria-live="polite"></p>
       </section>
 
       <section class="card">
@@ -60,25 +74,32 @@ import{u as s,j as n,c as a}from"./useLegacyScripts-Dsc3ed3e.js";const t=`  <div
 
       <section class="card">
         <div class="card-header">
-          <h2>Neuzavřené flagy</h2>
+          <h2>Neuzavřená hlášení</h2>
         </div>
         <div id="list-flags" class="detail-list full-width"></div>
       </section>
 
       <section class="card">
         <div class="card-header">
-          <h2>Kandidáti konfliktů</h2>
+          <h2>Možné konflikty</h2>
         </div>
         <div id="list-conflicts" class="detail-list full-width"></div>
       </section>
 
       <section class="card">
         <div class="card-header">
-          <h2>Poslední merge rozhodnutí</h2>
+          <h2>Skupiny navržené k rozdělení</h2>
+          <p class="card-subtitle">Vyberte fotografie, které mají přejít do nové samostatné skupiny.</p>
+        </div>
+        <div id="list-splits" class="detail-list full-width"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>Poslední rozhodnutí o sloučení</h2>
         </div>
         <div id="list-merges" class="detail-list full-width"></div>
       </section>
     </main>
   </div>
-
-`,i=["./admin.js"];function e(){return s(i),n.jsx("div",{dangerouslySetInnerHTML:{__html:t}})}a(document.getElementById("root")).render(n.jsx(e,{}));
+`;n(s,["./admin.js"]).catch(console.error);

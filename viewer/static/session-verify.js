@@ -8,8 +8,10 @@
     widgetEl: null,
     widgetId: null,
     token: "",
+    sessionPromise: null,
     pendingResolve: null,
     pendingReject: null,
+    previousFocus: null,
   };
 
   function createError(message, response = null) {
@@ -52,9 +54,12 @@
 
   function closeModal() {
     if (!state.modalEl) return;
+    const wasOpen = state.modalEl.classList.contains("is-open");
     state.modalEl.classList.remove("is-open");
     state.modalEl.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
+    if (wasOpen && state.previousFocus?.isConnected) state.previousFocus.focus();
+    state.previousFocus = null;
   }
 
   function rejectPending(error) {
@@ -117,15 +122,15 @@
     modal.setAttribute("aria-hidden", "true");
     modal.innerHTML = `
       <div class="modal-backdrop"></div>
-      <div class="modal-dialog modal-compact" role="dialog" aria-modal="true" aria-label="Ověření">
+      <div class="modal-dialog modal-compact" role="dialog" aria-modal="true" aria-label="Ověření" tabindex="-1">
         <div class="modal-header">
           <div>
             <p class="modal-eyebrow">Ověření</p>
-            <h2 class="modal-title">Než pokračujete</h2>
+            <h2 class="modal-title">Ověření</h2>
           </div>
         </div>
         <div class="modal-body verify-body">
-          <p class="helper">Potvrďte, že nejste robot. Ověření platí pro relaci.</p>
+          <p class="helper">Dokončete krátké ověření. Platí pro tuto relaci.</p>
           <div class="turnstile-wrap">
             <div id="session-verify-turnstile"></div>
             <p class="helper" id="session-verify-status">Dokončete ověření.</p>
@@ -182,9 +187,12 @@
   function openModal() {
     ensureModal();
     if (!state.modalEl) return;
+    state.previousFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     state.modalEl.classList.add("is-open");
     state.modalEl.setAttribute("aria-hidden", "false");
     document.body.style.overflow = "hidden";
+    state.modalEl.querySelector(".modal-dialog")?.focus();
   }
 
   async function renderWidget(siteKey) {
@@ -234,30 +242,28 @@
     if (!siteKey) {
       throw createError("Chybí Turnstile klíč.");
     }
-    if (state.pendingResolve) {
+    if (state.sessionPromise) return state.sessionPromise;
+
+    const sessionPromise = (async () => {
+      openModal();
+      if (state.continueBtn) state.continueBtn.disabled = true;
+      setStatus("Načítám ověření...", "");
+      await renderWidget(siteKey);
+
       return new Promise((resolve, reject) => {
-        const prevResolve = state.pendingResolve;
-        const prevReject = state.pendingReject;
-        state.pendingResolve = (value) => {
-          prevResolve(value);
-          resolve(value);
-        };
-        state.pendingReject = (error) => {
-          prevReject(error);
-          reject(error);
-        };
+        state.pendingResolve = resolve;
+        state.pendingReject = reject;
       });
+    })();
+    state.sessionPromise = sessionPromise;
+
+    try {
+      return await sessionPromise;
+    } finally {
+      if (state.sessionPromise === sessionPromise) {
+        state.sessionPromise = null;
+      }
     }
-
-    openModal();
-    if (state.continueBtn) state.continueBtn.disabled = true;
-    setStatus("Načítám ověření...", "");
-    await renderWidget(siteKey);
-
-    return new Promise((resolve, reject) => {
-      state.pendingResolve = resolve;
-      state.pendingReject = reject;
-    });
   }
 
   async function submitWithSessionRetry(sendRequest) {

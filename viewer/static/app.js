@@ -53,6 +53,8 @@ const state = {
   detailMiniMap: null,
   detailMiniMarker: null,
   scanIndexByXid: new Map(),
+  reviewStateReady: false,
+  submittingContribution: false,
 };
 
 const detailContainer = document.getElementById("photo-details");
@@ -61,6 +63,7 @@ const feedbackForm = document.getElementById("feedback-form");
 const formStatus = document.getElementById("form-status");
 const turnstileNote = document.getElementById("turnstile-note");
 const archiveModal = document.getElementById("archive-modal");
+let archiveModalPreviousFocus = null;
 const archiveIframe = document.getElementById("archive-iframe");
 const archivePreview = document.getElementById("archive-preview");
 const archiveUnavailable = document.getElementById("archive-unavailable");
@@ -106,6 +109,7 @@ const photoMinimapEl = document.getElementById("photo-minimap");
 
 const infoModal = document.getElementById("info-modal");
 const infoOpenBtn = document.getElementById("info-open");
+let infoModalPreviousFocus = null;
 
 const pragueFallback = [50.0755, 14.4378];
 const OSM_ATTR =
@@ -207,7 +211,7 @@ function getGroupSubtitle(group) {
   const parts = [];
   if (primary.author) parts.push(primary.author);
   if (primary.date_label) parts.push(primary.date_label);
-  if (group?.items?.length > 1) parts.push(`${group.items.length} verzí`);
+  if (group?.items?.length > 1) parts.push(`${group.items.length} fotografií`);
   return parts.join(" · ");
 }
 
@@ -1298,6 +1302,8 @@ function setUrlXid(xid, mode = "push") {
 function openArchiveModal(url, xid, options = {}) {
   if (!archiveModal || !archiveIframe || !archiveFallback) return;
   const { updateHistory = true } = options;
+  archiveModalPreviousFocus =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
   archiveModal.style.display = "grid";
   archiveIframe.style.pointerEvents = "none";
   archiveIframe.src = "";
@@ -1312,6 +1318,7 @@ function openArchiveModal(url, xid, options = {}) {
   archiveModal.classList.add("is-open");
   archiveModal.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
+  archiveModal.querySelector('button[data-modal-close]')?.focus();
   if (metaView) metaView.classList.remove("is-hidden");
   if (correctionView) correctionView.classList.add("is-hidden");
 
@@ -1371,9 +1378,8 @@ function closeArchiveModal(options = {}) {
   if (correctionView) correctionView.classList.add("is-hidden");
   if (feedbackForm) feedbackForm.classList.remove("is-open");
 
-  if (document.activeElement instanceof HTMLElement) {
-    document.activeElement.blur();
-  }
+  if (archiveModalPreviousFocus?.isConnected) archiveModalPreviousFocus.focus();
+  archiveModalPreviousFocus = null;
 
   setTimeout(() => {
     if (!archiveModal.classList.contains("is-open")) {
@@ -1423,7 +1429,8 @@ function renderConsensusStatus(feature) {
   } else if (correctionState === "approved") {
     text = "Poloha potvrzena komunitou.";
   } else if (anchorType === "flag") {
-    text = "Nahlášeno: poloha možná nesedí, čeká na potvrzení.";
+    text = "Poloha byla označena jako podezřelá. Sedí přesto?";
+    showConfirm = true;
   } else {
     consensusBanner.classList.add("is-hidden");
     return;
@@ -1432,6 +1439,23 @@ function renderConsensusStatus(feature) {
   consensusText.textContent = text;
   confirmCta.classList.toggle("is-hidden", !showConfirm);
   consensusBanner.classList.remove("is-hidden");
+  updateContributionAvailability();
+}
+
+function updateContributionAvailability() {
+  const locked = !state.reviewStateReady || state.submittingContribution;
+  [reportCta, reportFlagBtn, confirmCta].forEach((button) => {
+    if (button) button.disabled = locked;
+  });
+  if (nearbyPrevBtn) {
+    nearbyPrevBtn.disabled = locked || state.nearbyIndex <= 0;
+  }
+  if (nearbyNextBtn) {
+    nearbyNextBtn.disabled =
+      locked ||
+      state.nearbyIndex < 0 ||
+      state.nearbyIndex >= state.nearbyGroupIds.length - 1;
+  }
 }
 
 function renderCorrectionScopeHint() {
@@ -1440,7 +1464,7 @@ function renderCorrectionScopeHint() {
     ? state.selectedGroup.items.length
     : 0;
   if (versionCount > 1) {
-    correctionScopeHint.textContent = `Opravujete polohu celé série (${versionCount} verzí).`;
+    correctionScopeHint.textContent = `Opravujete polohu celé skupiny (${versionCount} fotografií).`;
     correctionScopeHint.classList.remove("is-hidden");
     return;
   }
@@ -2349,6 +2373,8 @@ function applyReviewStatePayload(reviewState = {}) {
   state.correctionsByGroup = appliedReviewState.correctionByGroup;
   state.reviewCounts = reviewState?.counts || {};
   rebuildGroupIndexes();
+  state.reviewStateReady = true;
+  updateContributionAvailability();
 }
 
 function updateVerifiedCount(reviewState = null) {
@@ -2383,10 +2409,15 @@ async function refreshReviewState(options = {}) {
 }
 
 async function submitModalVerdict(verdict) {
-  if (!state.selectedFeature) return;
-  const groupId = resolveGroupIdForFeature(state.selectedFeature);
+  if (
+    !state.selectedFeature ||
+    !state.reviewStateReady ||
+    state.submittingContribution
+  ) return null;
+  const submittedFeature = state.selectedFeature;
+  const groupId = resolveGroupIdForFeature(submittedFeature);
   const payload = {
-    xid: state.selectedFeature.properties.id,
+    xid: submittedFeature.properties.id,
     group_id: groupId || undefined,
     verdict,
     message:
@@ -2394,6 +2425,8 @@ async function submitModalVerdict(verdict) {
         ? "Poloha potvrzena jako správná."
         : "Nahlášeno bez upřesnění polohy.",
   };
+  state.submittingContribution = true;
+  updateContributionAvailability();
   const sendRequest = () =>
     fetch("/api/corrections", {
       method: "POST",
@@ -2401,24 +2434,35 @@ async function submitModalVerdict(verdict) {
       credentials: "same-origin",
       body: JSON.stringify(payload),
     });
-  const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
-  if (submitWithRetry) {
-    await submitWithRetry(sendRequest);
-  } else {
-    const response = await sendRequest();
+  try {
+    const submitWithRetry = window.OldPragueSession?.submitWithSessionRetry;
+    const response = submitWithRetry
+      ? await submitWithRetry(sendRequest)
+      : await sendRequest();
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.detail || "Odeslání selhalo");
     }
-  }
-  await refreshReviewState({ fresh: true });
-  if (verdict === "ok") {
-    if (consensusText) {
-      consensusText.textContent = "Díky! Potvrzení bylo uloženo.";
+
+    try {
+      await refreshReviewState({ fresh: true });
+    } catch (refreshError) {
+      state.reviewStateReady = false;
+      return { submittedFeature, refreshError };
     }
-  } else if (consensusText) {
-    consensusText.textContent =
-      "Díky! Hlášení bylo uloženo a čeká na potvrzení.";
+
+    if (verdict === "ok") {
+      if (consensusText) {
+        consensusText.textContent = "Díky! Potvrzení bylo uloženo.";
+      }
+    } else if (consensusText) {
+      consensusText.textContent =
+        "Díky! Hlášení bylo uloženo a čeká na potvrzení.";
+    }
+    return { submittedFeature, refreshError: null };
+  } finally {
+    state.submittingContribution = false;
+    updateContributionAvailability();
   }
 }
 
@@ -2442,6 +2486,7 @@ async function fetchJson(url) {
 
 async function bootstrap() {
   const config = await fetchJson("/api/config").catch(() => ({}));
+  MAPY_CZ_API_KEY = String(config.mapyCzApiKey || "").trim();
   state.archiveBaseUrl = config.archiveBaseUrl || "";
   state.r2TilesBase = String(config.r2TilesBase || "")
     .trim()
@@ -2466,7 +2511,7 @@ async function bootstrap() {
 
   const features = photos.features || [];
   state.features = features;
-  const reviewState = await fetchJson("/api/review-state").catch(() => ({}));
+  const reviewState = await fetchJson("/api/review-state");
   applyReviewStatePayload(reviewState);
 
   initYearFilter();
@@ -2508,6 +2553,7 @@ async function bootstrap() {
       onCancel: () => {
         if (metaView) metaView.classList.remove("is-hidden");
         if (correctionView) correctionView.classList.add("is-hidden");
+        if (reportCtaWrap) reportCtaWrap.classList.remove("is-hidden");
         invalidateDetailMiniMap();
       },
     });
@@ -2527,8 +2573,8 @@ function initSearch() {
   const syncSearchModeLabel = () => {
     const addressMode = Boolean(searchAddressToggle?.checked);
     searchInput.placeholder = addressMode
-      ? "Hledat adresu v Praze..."
-      : "Hledat v metadatech fotek...";
+      ? "Hledat adresu v Praze…"
+      : "Hledat v popisech, autorech…";
   };
 
   const triggerSearch = () => {
@@ -2766,9 +2812,14 @@ feedbackForm.addEventListener("submit", async (event) => {
 
 if (reportCta) {
   reportCta.addEventListener("click", () => {
-    if (!state.selectedFeature) return;
+    if (
+      !state.selectedFeature ||
+      !state.reviewStateReady ||
+      state.submittingContribution
+    ) return;
     if (metaView) metaView.classList.add("is-hidden");
     if (correctionView) correctionView.classList.remove("is-hidden");
+    if (reportCtaWrap) reportCtaWrap.classList.add("is-hidden");
     if (feedbackForm) feedbackForm.classList.add("is-open");
     if (window.CorrectionUI) {
       window.CorrectionUI.open(state.selectedFeature);
@@ -2779,8 +2830,17 @@ if (reportCta) {
 if (reportFlagBtn) {
   reportFlagBtn.addEventListener("click", async () => {
     try {
-      await submitModalVerdict("flag");
-      renderConsensusStatus(state.selectedFeature);
+      const result = await submitModalVerdict("flag");
+      if (!result) return;
+      if (result.refreshError) {
+        if (consensusText) {
+          consensusText.textContent =
+            "Hlášení je uložené, ale aktuální stav se nepodařilo obnovit. Obnovte stránku.";
+        }
+        if (consensusBanner) consensusBanner.classList.remove("is-hidden");
+      } else if (state.selectedFeature === result.submittedFeature) {
+        renderConsensusStatus(result.submittedFeature);
+      }
     } catch (error) {
       const message = error?.message || "Odeslání selhalo";
       if (consensusText) consensusText.textContent = message;
@@ -2792,8 +2852,17 @@ if (reportFlagBtn) {
 if (confirmCta) {
   confirmCta.addEventListener("click", async () => {
     try {
-      await submitModalVerdict("ok");
-      renderConsensusStatus(state.selectedFeature);
+      const result = await submitModalVerdict("ok");
+      if (!result) return;
+      if (result.refreshError) {
+        if (consensusText) {
+          consensusText.textContent =
+            "Potvrzení je uložené, ale aktuální stav se nepodařilo obnovit. Obnovte stránku.";
+        }
+        if (consensusBanner) consensusBanner.classList.remove("is-hidden");
+      } else if (state.selectedFeature === result.submittedFeature) {
+        renderConsensusStatus(result.submittedFeature);
+      }
     } catch (error) {
       const message = error?.message || "Odeslání selhalo";
       if (consensusText) consensusText.textContent = message;
@@ -2832,17 +2901,24 @@ if (downloadFullResBtn) {
 
 if (infoOpenBtn && infoModal) {
   infoOpenBtn.addEventListener("click", () => {
+    infoModalPreviousFocus = infoOpenBtn;
     infoModal.classList.add("is-open");
     infoModal.setAttribute("aria-hidden", "false");
     document.body.style.overflow = "hidden";
+    infoModal.querySelector('button[data-info-close]')?.focus();
   });
 }
 
 const closeInfoModal = () => {
   if (!infoModal) return;
+  const wasOpen = infoModal.classList.contains("is-open");
   infoModal.classList.remove("is-open");
   infoModal.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
+  if (wasOpen && infoModalPreviousFocus?.isConnected) {
+    infoModalPreviousFocus.focus();
+  }
+  infoModalPreviousFocus = null;
 };
 
 document.querySelectorAll("[data-info-close]").forEach((el) => {
@@ -2901,6 +2977,8 @@ window.addEventListener("popstate", () => {
 });
 
 bootstrap().catch((err) => {
+  state.reviewStateReady = false;
+  updateContributionAvailability();
   setStatus("Nepodařilo se načíst data.", "error");
   console.error(err);
 });

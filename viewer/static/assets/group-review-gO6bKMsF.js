@@ -1,14 +1,14 @@
-import{u as s,j as n,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const a=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-3eKIZyXn.js";const s=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Kontrola skupin</p>
-        <h1>Série podle obsahu, autora a datace</h1>
+        <h1>Kontrola skupin</h1>
         <p class="subtitle">
-          Série vznikají ze shody metadata (obsah + autor + datace). Projděte verze a skeny v rámci jedné série.
+          Zkontrolujte, jestli fotografie v jedné skupině opravdu patří k sobě.
         </p>
         <div class="topbar-actions">
           <button class="secondary" type="button" id="reset-group-progress">
-            Znovu ukázat moje série
+            Zobrazit znovu prošlé
           </button>
           <a class="action-link" href="./pomoc.html">Zpět na pomoc</a>
           <a class="action-link" href="./index.html">Zpět na mapu</a>
@@ -16,15 +16,15 @@ import{u as s,j as n,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const a=`  <div
       </div>
       <div class="topbar-meta">
         <div class="stat">
-          <span class="stat-label">Sérií s více verzemi</span>
+          <span class="stat-label">Skupin ke kontrole</span>
           <span class="stat-value" id="group-count">—</span>
         </div>
         <div class="stat">
-          <span class="stat-label">Zbývá pro mě</span>
+          <span class="stat-label">Zbývá</span>
           <span class="stat-value" id="remaining-count">—</span>
         </div>
         <div class="stat">
-          <span class="stat-label">Série</span>
+          <span class="stat-label">Skupina</span>
           <span class="stat-value" id="current-group">—</span>
         </div>
       </div>
@@ -40,39 +40,39 @@ import{u as s,j as n,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const a=`  <div
             Další skupina
           </button>
         </div>
-        <p class="helper review-source" id="group-summary">Série: —</p>
+        <p class="helper review-source" id="group-summary">Skupina: —</p>
 
         <details class="workflow-help">
-          <summary>Co přesně tu rozhodujete?</summary>
+          <summary>Co hodnotím?</summary>
           <div class="workflow-help-body">
             <div class="workflow-help-item">
-              <strong>Série vypadá dobře</strong>
+              <strong>Skupina je správně</strong>
               <span>Fotografie a skeny v této skupině podle vás patří k sobě.</span>
             </div>
             <div class="workflow-help-item">
-              <strong>Neřeší polohu</strong>
+              <strong>Poloha se tím nepotvrzuje</strong>
               <span>Tento hlas nepotvrzuje, že špendlík na mapě je správně.</span>
             </div>
             <div class="workflow-help-item">
               <strong>Párové porovnání</strong>
-              <span>Použijte ho, když skupina míchá různé záběry nebo působí podezřele.</span>
+              <span>Pokud skupina míchá různé záběry, otevřete párové porovnání.</span>
             </div>
           </div>
         </details>
 
-        <p class="helper workflow-helper-note">
-          Hlas se ukládá na server. „Znovu ukázat moje série“ jen vymaže lokální filtr v tomto prohlížeči.
-        </p>
         <div class="group-actions">
           <p class="helper group-actions-title" id="group-action-text">
-            Zkontrolujte verze/skeny této série a zvolte další krok.
+            Projděte fotografie ve skupině.
           </p>
           <div class="group-actions-buttons">
             <button class="vote vote-up" type="button" id="group-mark-ok">
-              Série vypadá dobře
+              Skupina je správně
+            </button>
+            <button class="vote vote-down" type="button" id="group-mark-split">
+              Skupina míchá různé fotografie
             </button>
             <button class="secondary" type="button" id="group-open-dedupe">
-              Prověřit v párovém porovnání
+              Porovnat s podobnými
             </button>
             <a class="secondary group-archive-link" id="group-archive-link" href="#" target="_blank" rel="noopener">
               Otevřít archivní stránku
@@ -98,9 +98,9 @@ import{u as s,j as n,c as e}from"./useLegacyScripts-Dsc3ed3e.js";const a=`  <div
         </div>
 
         <div class="form-status-wrap">
-          <p class="form-status" id="group-status"></p>
+          <p class="form-status" id="group-status" role="status" aria-live="polite"></p>
         </div>
       </section>
     </main>
   </div>
-`,o=["https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./group-review.js"];function t(){return s(o),n.jsx("div",{dangerouslySetInnerHTML:{__html:a}})}e(document.getElementById("root")).render(n.jsx(t,{}));
+`;n(s,["https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./group-review.js"]).catch(console.error);

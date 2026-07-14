@@ -1,11 +1,10 @@
-import{u as e,j as n,c as s}from"./useLegacyScripts-Dsc3ed3e.js";const a=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-3eKIZyXn.js";const e=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Kontrola podobných záběrů</p>
-        <h1>Porovnání podobných záběrů</h1>
+        <h1>Podobné fotografie</h1>
         <p class="subtitle">
-          Dvojice skupin se shodnou polohou nebo vizuálně podobné snímky. Označte, zda jde o stejný záběr (jiný sken,
-          ořez, barevnost, náklon) nebo různé záběry.
+          Porovnejte dvě skupiny. Jsou to stejné fotografie, nebo různé záběry?
         </p>
         <div class="topbar-actions">
           <a class="action-link" href="./pomoc.html">Zpět na pomoc</a>
@@ -14,7 +13,7 @@ import{u as e,j as n,c as s}from"./useLegacyScripts-Dsc3ed3e.js";const a=`  <div
       </div>
         <div class="topbar-meta">
           <div class="stat">
-          <span class="stat-label">Kandidáti ke kontrole</span>
+          <span class="stat-label">Párů ke kontrole</span>
           <span class="stat-value" id="candidate-count">—</span>
         </div>
         <div class="stat">
@@ -28,23 +27,23 @@ import{u as e,j as n,c as s}from"./useLegacyScripts-Dsc3ed3e.js";const a=`  <div
       <section class="card help-mode" data-mode-picker>
         <div>
           <p class="eyebrow">Vyberte režim</p>
-          <h2>Jak chcete pomoct?</h2>
+          <h2>Co chcete zkontrolovat?</h2>
           <p class="helper">
-            Opravy polohy, kontrola podobných záběrů i revize skupin pomáhají zpřesnit mapu historických fotografií.
+            Poloha i seskupení vznikají automaticky a mohou být chybné. Pomozte je rychle zkontrolovat.
           </p>
           <div class="help-mode-guide" aria-label="Rozdíl mezi režimy">
             <a class="help-mode-card" href="./pomoc.html?mode=location">
               <strong>Oprava polohy</strong>
-              <span>Řeší jen to, jestli špendlík na mapě sedí.</span>
+              <span>Je fotografie správně umístěná na mapě?</span>
             </a>
             <a class="help-mode-card is-current" href="./dup-review.html?mode=dedupe" data-mode-select="dedupe"
               aria-current="page">
-              <strong>Podobné záběry</strong>
-              <span>Porovnává dvě skupiny a rozhoduje, jestli se mají sloučit.</span>
+              <strong>Podobné fotografie</strong>
+              <span>Mají se tyto záběry sloučit?</span>
             </a>
             <a class="help-mode-card" href="./group-review.html">
-              <strong>Kontrola skupin</strong>
-              <span>Ověřuje, jestli verze v jedné skupině patří k sobě.</span>
+              <strong>Skupiny fotografií</strong>
+              <span>Zkontrolujte, jestli jsou fotografie správně seskupené.</span>
             </a>
           </div>
         </div>
@@ -56,7 +55,7 @@ import{u as e,j as n,c as s}from"./useLegacyScripts-Dsc3ed3e.js";const a=`  <div
             Předchozí pár
           </button>
           <button class="secondary" type="button" id="undo-last" disabled>
-            Vrátit poslední hlas
+            Zpět
           </button>
           <button class="vote vote-up" type="button" id="mark-same">
             Stejný záběr
@@ -68,11 +67,11 @@ import{u as e,j as n,c as s}from"./useLegacyScripts-Dsc3ed3e.js";const a=`  <div
             Další pár
           </button>
         </div>
-        <p class="helper review-source" id="pair-source">Zdroj páru: —</p>
+        <p class="helper review-source" id="pair-source">Vybráno podle: —</p>
         <p class="helper review-source is-hidden" id="pair-filter"></p>
 
         <details class="workflow-help">
-          <summary>Co přesně tu rozhodujete?</summary>
+          <summary>Co hodnotím?</summary>
           <div class="workflow-help-body">
             <div class="workflow-help-item">
               <strong>Stejný záběr</strong>
@@ -120,9 +119,9 @@ import{u as e,j as n,c as s}from"./useLegacyScripts-Dsc3ed3e.js";const a=`  <div
         </div>
 
         <div class="form-status-wrap">
-          <p class="form-status" id="review-status"></p>
+          <p class="form-status" id="review-status" role="status" aria-live="polite"></p>
         </div>
       </section>
     </main>
   </div>
-`,i=["https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./dup-review.js","./mode-picker.js"];function o(){return e(i),n.jsx("div",{dangerouslySetInnerHTML:{__html:a}})}s(document.getElementById("root")).render(n.jsx(o,{}));
+`;n(e,["https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./dup-review.js","./mode-picker.js"]).catch(console.error);

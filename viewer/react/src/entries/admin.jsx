@@ -1,5 +1,5 @@
-import { createRoot } from 'react-dom/client';
 import '../../../static/styles.css';
-import AdminPage from '../pages/AdminPage';
+import template from '../templates/admin-body.html?raw';
+import { mountPage } from '../lib/loadLegacyScripts.js';
 
-createRoot(document.getElementById('root')).render(<AdminPage />);
+mountPage(template, ['./admin.js']).catch(console.error);

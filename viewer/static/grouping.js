@@ -12,8 +12,12 @@
     if (!Array.isArray(coords)) return null;
 
     if (!Array.isArray(feature[ORIGINAL_COORDINATES_KEY])) {
+      const sourceCoordinates = feature?.properties?.original_coordinates;
+      const baseline = Array.isArray(sourceCoordinates)
+        ? sourceCoordinates
+        : coords;
       Object.defineProperty(feature, ORIGINAL_COORDINATES_KEY, {
-        value: coords.slice(),
+        value: baseline.slice(),
         writable: true,
         configurable: true,
       });
