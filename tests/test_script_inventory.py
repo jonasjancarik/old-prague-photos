@@ -14,7 +14,7 @@ ALLOWED_STATUSES = {
 def loose_scripts() -> set[str]:
     result: set[str] = set()
     for path in Path(".").rglob("*"):
-        if not path.is_file() or path.suffix not in {".py", ".sh"}:
+        if not path.is_file() or path.suffix not in {".py", ".sh", ".mjs"}:
             continue
         text = path.as_posix()
         if text.startswith((
@@ -23,6 +23,7 @@ def loose_scripts() -> set[str]:
             ".venv/",
             "node_modules/",
             "output/",
+            "viewer/react/",
             "viewer/react/node_modules/",
         )):
             continue

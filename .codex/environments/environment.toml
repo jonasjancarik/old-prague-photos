@@ -9,3 +9,18 @@ script = ""
 name = "Run"
 icon = "run"
 command = "npm run dev"
+
+[[actions]]
+name = "Pages Dev"
+icon = "run"
+command = "npm run dev:pages"
+
+[[actions]]
+name = "Test"
+icon = "run"
+command = "npm test"
+
+[[actions]]
+name = "Build Viewer"
+icon = "run"
+command = "npm run build:viewer"

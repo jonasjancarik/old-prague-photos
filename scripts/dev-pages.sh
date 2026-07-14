@@ -14,6 +14,7 @@ run_wrangler() {
 echo "Applying local D1 migrations..."
 CI=1 run_wrangler d1 migrations apply CORRECTIONS_DB --local
 
+npm run prepare:community-data
 npm --prefix viewer/react run dev &
 FRONTEND_WATCH_PID=$!
 

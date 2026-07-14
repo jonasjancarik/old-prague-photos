@@ -9,6 +9,7 @@ zoomify_tiles
 viewer/data/*.jsonl
 node_modules/
 **/node_modules/
+viewer/static/data/community-data-version.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

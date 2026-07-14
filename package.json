@@ -5,9 +5,17 @@
   "scripts": {
     "dev": "sh scripts/dev.sh",
     "dev:pages": "sh scripts/dev-pages.sh",
-    "test": "npm run test:py && npm run test:api",
+    "prepare:community-data": "node scripts/update-community-data-version.mjs",
+    "pretest": "npm run prepare:community-data",
+    "test": "npm run test:py && npm run test:api && npm run test:d1",
     "test:py": "uv run pytest -q",
     "test:api": "node --test functions/api/__tests__/*.mjs",
-    "build:viewer": "npm --prefix viewer/react run build"
+    "test:d1": "sh scripts/test-d1.sh",
+    "prebuild:viewer": "npm run prepare:community-data",
+    "build:viewer": "npm --prefix viewer/react run build",
+    "deploy:pages": "sh scripts/deploy-pages.sh"
+  },
+  "devDependencies": {
+    "wrangler": "^4.110.0"
   }
 }

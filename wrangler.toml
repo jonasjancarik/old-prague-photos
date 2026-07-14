@@ -1,5 +1,5 @@
 name = "old-prague-photos-viewer"
-compatibility_date = "2024-10-10"
+compatibility_date = "2026-07-11"
 pages_build_output_dir = "viewer/static"
 
 [[d1_databases]]
