@@ -21,6 +21,7 @@ def loose_scripts() -> set[str]:
             ".git/",
             ".ignore/",
             ".venv/",
+            ".wrangler/",
             "node_modules/",
             "output/",
             "viewer/react/",

@@ -28,6 +28,9 @@ Status meanings:
 | `scripts/dev.sh` | maintenance | development | Local development helper. |
 | `scripts/dev-pages.sh` | maintenance | development | Cloudflare Pages local development helper. |
 | `scripts/e2e-pages-server.sh` | maintenance | testing | Starts Pages against a required isolated temporary D1 state for Playwright tests. |
+| `playwright.config.mjs` | maintenance | testing | Configures the isolated Pages+D1 browser test server, project, and generated-artifact cleanup. |
+| `e2e/global-teardown.mjs` | maintenance | testing | Removes the temporary D1 test state after Playwright completes. |
+| `e2e/community-flows.spec.mjs` | maintenance | testing | Exercises public contribution, curator, failure-recovery, stale-cursor, and keyboard workflows in a browser. |
 | `scripts/test-d1.sh` | maintenance | testing | Applies all migrations to a fresh local D1 instance and runs projection trigger assertions. |
 | `scripts/update-community-data-version.mjs` | maintenance | build/deployment | Hashes every static community-queue input into the deployment-bound projection/cache version manifest. |
 | `scripts/checkpoint-d1.sh` | maintenance | deployment/recovery | Captures a private D1 SQL export and Time Travel bookmark before a remote migration. |
