@@ -241,6 +241,23 @@ This applies local D1 migrations, runs the Vite/static watcher in the background
 and starts Wrangler Pages. Open the URL printed by Wrangler, typically
 `http://127.0.0.1:8788`.
 
+## Browser end-to-end tests
+
+Install the pinned Chromium build once, then run the production-like community
+flow suite:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+The suite builds the viewer, applies every D1 migration to a fresh temporary
+database, and starts a local Pages runtime. It covers location correction,
+duplicate decisions and undo, two-contributor split consensus plus curator
+reassignment, failed-request recovery, stale cursors, and keyboard-contained
+correction dialogs. The temporary database is removed after the run; the suite
+does not use a developer database or any remote Cloudflare environment.
+
 ## Cloudflare Pages + D1
 
 ### 1) Create databases

@@ -27,6 +27,7 @@ Status meanings:
 | `scripts/r2_sync.sh` | maintenance | deployment | Syncs archive tile/previews cache to R2-compatible storage. |
 | `scripts/dev.sh` | maintenance | development | Local development helper. |
 | `scripts/dev-pages.sh` | maintenance | development | Cloudflare Pages local development helper. |
+| `scripts/e2e-pages-server.sh` | maintenance | testing | Starts Pages against a required isolated temporary D1 state for Playwright tests. |
 | `scripts/test-d1.sh` | maintenance | testing | Applies all migrations to a fresh local D1 instance and runs projection trigger assertions. |
 | `scripts/update-community-data-version.mjs` | maintenance | build/deployment | Hashes every static community-queue input into the deployment-bound projection/cache version manifest. |
 | `scripts/checkpoint-d1.sh` | maintenance | deployment/recovery | Captures a private D1 SQL export and Time Travel bookmark before a remote migration. |

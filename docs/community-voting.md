@@ -227,6 +227,14 @@ Core code:
 - [functions/api/group-review-votes.js](../functions/api/group-review-votes.js)
 - [viewer/static/group-review.js](../viewer/static/group-review.js)
 
+## Browser-level regression coverage
+
+Run `npm run test:e2e` to exercise all three workflows through Chromium against
+an isolated local Pages + D1 runtime. The suite also verifies duplicate undo,
+curator reassignment after two independent split votes, stale-cursor rejection,
+control recovery after a delayed failed request, and keyboard focus/Escape
+behavior in the correction dialog.
+
 ## Shared State vs Local Browser State
 
 Shared, server-backed state:

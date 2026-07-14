@@ -11,6 +11,8 @@
     "test:py": "uv run pytest -q",
     "test:api": "node --test functions/api/__tests__/*.mjs",
     "test:d1": "sh scripts/test-d1.sh",
+    "pretest:e2e": "npm run build:viewer",
+    "test:e2e": "PLAYWRIGHT_HTML_OPEN=never playwright test",
     "prebuild:viewer": "npm run prepare:community-data",
     "build:viewer": "npm --prefix viewer/react run build",
     "release:verify": "npm test && npm run build:viewer",
@@ -19,6 +21,7 @@
     "smoke:pages": "node scripts/smoke-pages.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "1.61.1",
     "wrangler": "^4.110.0"
   }
 }

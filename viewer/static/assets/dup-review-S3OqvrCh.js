@@ -57,13 +57,13 @@ import{m as n}from"./loadLegacyScripts-Bx9VO4vc.js";const e=`  <div class="page"
           <button class="secondary" type="button" id="undo-last" disabled>
             Zpět
           </button>
-          <button class="vote vote-up" type="button" id="mark-same">
+          <button class="vote vote-up" type="button" id="mark-same" disabled>
             Stejný záběr
           </button>
-          <button class="vote vote-down" type="button" id="mark-different">
+          <button class="vote vote-down" type="button" id="mark-different" disabled>
             Různé záběry
           </button>
-          <button class="secondary" type="button" id="skip-pair">
+          <button class="secondary" type="button" id="skip-pair" disabled>
             Další pár
           </button>
         </div>

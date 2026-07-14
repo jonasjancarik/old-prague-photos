@@ -831,6 +831,12 @@ if (emailEl) {
 document.querySelectorAll("[data-help-close]").forEach((el) => {
   el.addEventListener("click", cancelCorrection);
 });
+document.addEventListener("keydown", (event) => {
+  if (!helpCorrectionModal?.classList.contains("is-open")) return;
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  cancelCorrection();
+});
 skipBtn.addEventListener("click", () => pickRandom());
 if (prevBtn) prevBtn.addEventListener("click", () => pickPrev());
 voteUpBtn.addEventListener("click", () => setMode("ok"));
