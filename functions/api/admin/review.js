@@ -1,4 +1,6 @@
 import { buildReviewState, loadXidGroupMap } from "../_review_state.js";
+import { authorizeAdmin } from "../_admin_auth.js";
+import { isMissingColumnError } from "../_db.js";
 
 function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
@@ -56,7 +58,7 @@ function toResolvedCorrectionRows({ correctionRows, xidGroupMap, reviewState }) 
     if (!xid) return;
     const mappedGroup = xidGroupMap.get(xid) || "";
     const storedGroup = normalizeId(row.group_id);
-    const baseGroup = mappedGroup || storedGroup || xid;
+    const baseGroup = storedGroup || mappedGroup || xid;
     const resolvedGroup = normalizeId(roots[baseGroup]) || baseGroup;
     if (!resolvedGroup) return;
 
@@ -171,6 +173,46 @@ function buildMergeConflictPairs(mergeRows) {
   return conflictPairs;
 }
 
+function buildSplitCandidates(voteRows, resolvedGroupByXid, groupRoots) {
+  const latestByGroupVoter = new Map();
+  (voteRows || []).forEach((row) => {
+    const rawGroupId = normalizeId(row.group_id);
+    const groupId = normalizeId(groupRoots?.[rawGroupId]) || rawGroupId;
+    const verdict = normalizeId(row.verdict).toLowerCase();
+    if (!groupId || !["ok", "split", "undo"].includes(verdict)) return;
+    const candidate = { ...row, group_id: groupId, verdict };
+    const key = `${groupId}::${voterIdentity(candidate)}`;
+    const current = latestByGroupVoter.get(key);
+    if (!current || eventTimestamp(candidate) >= eventTimestamp(current)) {
+      latestByGroupVoter.set(key, candidate);
+    }
+  });
+
+  const splitVotesByGroup = new Map();
+  latestByGroupVoter.forEach((row) => {
+    if (row.verdict !== "split") return;
+    splitVotesByGroup.set(
+      row.group_id,
+      Number(splitVotesByGroup.get(row.group_id) || 0) + 1,
+    );
+  });
+  const membersByGroup = new Map();
+  Object.entries(resolvedGroupByXid || {}).forEach(([xid, groupId]) => {
+    if (!membersByGroup.has(groupId)) membersByGroup.set(groupId, []);
+    membersByGroup.get(groupId).push(xid);
+  });
+
+  return Array.from(splitVotesByGroup.entries())
+    .filter(([, splitVotes]) => splitVotes >= 2)
+    .map(([groupId, splitVotes]) => ({
+      group_id: groupId,
+      split_votes: splitVotes,
+      required_split_votes: 2,
+      xids: (membersByGroup.get(groupId) || []).sort(),
+    }))
+    .sort((left, right) => right.split_votes - left.split_votes);
+}
+
 async function queryRows(env, query) {
   const result = await env.CORRECTIONS_DB.prepare(query).all();
   return result?.results || [];
@@ -183,6 +225,8 @@ export async function onRequest({ request, env }) {
   if (!env.CORRECTIONS_DB) {
     return jsonResponse({ detail: "Chybí CORRECTIONS_DB" }, 500);
   }
+  const authResponse = authorizeAdmin(request, env);
+  if (authResponse) return authResponse;
 
   const correctionRows = await queryRows(
     env,
@@ -221,6 +265,9 @@ export async function onRequest({ request, env }) {
       `,
     );
   } catch (error) {
+    if (!isMissingColumnError(error, ["voter_key", "user_agent"])) {
+      throw error;
+    }
     mergeRows = await queryRows(
       env,
       `
@@ -234,6 +281,22 @@ export async function onRequest({ request, env }) {
       `,
     );
   }
+
+  const groupReviewVoteRows = await queryRows(
+    env,
+    `
+      SELECT
+        votes.source_event_id AS id,
+        votes.group_id,
+        votes.verdict,
+        votes.voter_key,
+        votes.created_at
+      FROM current_group_review_votes AS votes
+      LEFT JOIN group_review_resolutions AS resolutions
+        ON resolutions.group_id = votes.group_id
+      WHERE votes.source_event_id > COALESCE(resolutions.through_event_id, 0)
+    `,
+  );
 
   const xidGroupMap = await loadXidGroupMap(request, env);
   const reviewState = buildReviewState({
@@ -261,6 +324,11 @@ export async function onRequest({ request, env }) {
     correctionRowsByGroup,
   );
   const mergeConflictPairs = buildMergeConflictPairs(mergeRows);
+  const splitCandidates = buildSplitCandidates(
+    groupReviewVoteRows,
+    reviewState.resolvedGroupByXid,
+    reviewState.groupRoots,
+  );
 
   const pendingCorrections = reviewState.groupCorrections
     .filter((item) => item?.correction_state === "pending" && item?.anchor_type === "correction")
@@ -325,10 +393,12 @@ export async function onRequest({ request, env }) {
       locationConflicts: locationConflicts.length,
       mergeConflicts: mergeConflicts.length,
       recentMerges: recentMerges.length,
+      splitCandidates: splitCandidates.length,
     },
     pendingCorrections,
     unresolvedFlags,
     conflictCandidates: [...locationConflicts, ...mergeConflicts],
+    splitCandidates,
     recentMerges,
   };
 

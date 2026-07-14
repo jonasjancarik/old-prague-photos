@@ -45,7 +45,34 @@ class _FakeSession:
 
 class ViewerDezoomifyApiTests(unittest.TestCase):
     def setUp(self) -> None:
+        viewer_app._zoomify_cache = {}
         self.client = TestClient(viewer_app.app)
+
+    def test_zoomify_uses_scan_index_in_resolution_and_cache_key(self) -> None:
+        fake_session = _FakeSession(_jpeg_bytes())
+        payload = {
+            "xid": "ABC123",
+            "scanIndex": 2,
+            "zoomifyImgPath": "https://tiles.example/scan_2",
+            "width": 256,
+            "height": 256,
+            "tileSize": 256,
+        }
+        with patch.object(viewer_app.requests, "Session", return_value=fake_session):
+            with patch.object(
+                viewer_app,
+                "_resolve_r2_zoomify",
+                return_value=payload,
+            ) as resolve:
+                response = self.client.get(
+                    "/api/zoomify",
+                    params={"xid": "ABC123", "scanIndex": 2},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        resolve.assert_called_once_with(fake_session, "ABC123", 2)
+        self.assertIn("ABC123::2", viewer_app._zoomify_cache)
+        self.assertTrue(fake_session.closed)
 
     def test_dezoomify_success_returns_jpeg_attachment(self) -> None:
         fake_session = _FakeSession(_jpeg_bytes())

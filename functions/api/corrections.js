@@ -1,7 +1,11 @@
 import { buildReviewState, loadXidGroupMap } from "./_review_state.js";
 import {
+  isMissingColumnError,
+  logDatabaseError,
+} from "./_db.js";
+import {
   assertSameOrigin,
-  buildVoterKey,
+  ensureVoterIdentity,
   enforceRateLimit,
   hasValidSession,
   toHttpError,
@@ -44,34 +48,33 @@ async function loadReviewState(request, env) {
     const mergesResult = await env.CORRECTIONS_DB.prepare(
       `
         SELECT
-          id,
+          source_event_id AS id,
           group_id_a,
           group_id_b,
           verdict,
           voter_key,
           user_agent,
           created_at
-        FROM merge_decisions
+        FROM current_merge_decisions
       `,
     ).all();
     mergeRows = mergesResult?.results || [];
   } catch (error) {
-    try {
-      const mergesResult = await env.CORRECTIONS_DB.prepare(
-        `
-          SELECT
-            id,
-            group_id_a,
-            group_id_b,
-            verdict,
-            created_at
-          FROM merge_decisions
-        `,
-      ).all();
-      mergeRows = mergesResult?.results || [];
-    } catch (innerError) {
-      mergeRows = [];
+    if (!isMissingColumnError(error, ["voter_key", "user_agent"])) {
+      throw error;
     }
+    const mergesResult = await env.CORRECTIONS_DB.prepare(
+      `
+        SELECT
+          source_event_id AS id,
+          group_id_a,
+          group_id_b,
+          verdict,
+          created_at
+        FROM current_merge_decisions
+      `,
+    ).all();
+    mergeRows = mergesResult?.results || [];
   }
 
   const xidGroupMap = await loadXidGroupMap(request, env);
@@ -83,9 +86,17 @@ async function loadReviewState(request, env) {
 }
 
 async function handleGet(request, env) {
-  const reviewState = await loadReviewState(request, env);
-  const items = reviewState.groupCorrections || [];
-  return jsonResponse({ items, count: items.length });
+  try {
+    const reviewState = await loadReviewState(request, env);
+    const items = reviewState.groupCorrections || [];
+    return jsonResponse({ items, count: items.length });
+  } catch (error) {
+    logDatabaseError("/api/corrections", "load review state", error);
+    return jsonResponse(
+      { detail: "Stav komunity není dočasně dostupný" },
+      503,
+    );
+  }
 }
 
 async function handlePost(request, env) {
@@ -176,7 +187,16 @@ async function handlePost(request, env) {
     }
   }
 
-  const xidGroupMap = await loadXidGroupMap(request, env);
+  let xidGroupMap;
+  try {
+    xidGroupMap = await loadXidGroupMap(request, env);
+  } catch (error) {
+    logDatabaseError("/api/corrections", "load photo groups", error);
+    return jsonResponse(
+      { detail: "Stav komunity není dočasně dostupný" },
+      503,
+    );
+  }
   if (xidGroupMap.size === 0) {
     return jsonResponse({ detail: "Chybí metadata skupin" }, 500);
   }
@@ -184,11 +204,29 @@ async function handlePost(request, env) {
   if (!mappedGroupId) {
     return jsonResponse({ detail: "Neznámé xid" }, 400);
   }
-  if (mappedGroupId && groupId && groupId !== mappedGroupId) {
+  let resolvedGroupId = mappedGroupId;
+  try {
+    const reviewState = await loadReviewState(request, env);
+    resolvedGroupId =
+      String(reviewState.resolvedGroupByXid?.[xid] || "").trim() ||
+      mappedGroupId;
+  } catch (error) {
+    logDatabaseError("/api/corrections", "resolve submitted group", error);
+    return jsonResponse(
+      { detail: "Stav komunity není dočasně dostupný" },
+      503,
+    );
+  }
+  if (
+    groupId &&
+    groupId !== mappedGroupId &&
+    groupId !== resolvedGroupId
+  ) {
     return jsonResponse({ detail: "Neplatná skupina pro xid" }, 400);
   }
-  const canonicalGroupId = mappedGroupId || groupId || xid;
+  const canonicalGroupId = mappedGroupId || xid;
 
+  const voterIdentity = await ensureVoterIdentity(request, env);
   const statement = env.CORRECTIONS_DB.prepare(
     `
       INSERT INTO corrections (
@@ -211,16 +249,28 @@ async function handlePost(request, env) {
     hasCoordinates ? Number(lat) : null,
     hasCoordinates ? Number(lon) : null,
     hasCoordinates ? 1 : 0,
-    await buildVoterKey(request, env),
+    voterIdentity.voterKey,
     verdict,
     message,
     email || null,
     request.headers.get("User-Agent") || "",
   );
 
-  await statement.run();
+  try {
+    await statement.run();
+  } catch (error) {
+    logDatabaseError("/api/corrections", "insert correction", error);
+    return jsonResponse({ detail: "Nepodařilo se uložit příspěvek" }, 503);
+  }
 
-  return jsonResponse({ ok: true });
+  const response = jsonResponse({
+    ok: true,
+    accepted_group_id: resolvedGroupId,
+  });
+  if (voterIdentity.cookie) {
+    response.headers.append("Set-Cookie", voterIdentity.cookie);
+  }
+  return response;
 }
 
 export async function onRequest(context) {

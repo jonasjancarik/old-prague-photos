@@ -4,10 +4,13 @@ import test from "node:test";
 import { onRequest as correctionsOnRequest } from "../corrections.js";
 import { onRequest as adminExportOnRequest } from "../admin/export.js";
 import { onRequest as adminReviewOnRequest } from "../admin/review.js";
+import { onRequest as adminGroupMembershipOnRequest } from "../admin/group-membership.js";
 import { onRequest as configOnRequest } from "../config.js";
+import { onRequest as communityCandidatesOnRequest } from "../community-candidates.js";
 import { onRequest as groupReviewVotesOnRequest } from "../group-review-votes.js";
 import { onRequest as mergesOnRequest } from "../merges.js";
 import { onRequest as previewUrlOnRequest } from "../preview-url.js";
+import { onRequest as reviewStateOnRequest } from "../review-state.js";
 import { onRequest as zoomifyOnRequest } from "../zoomify.js";
 import { onRequest as verifyOnRequest } from "../verify.js";
 import { FakeD1, makePhotosAsset, makeRequest } from "./test-helpers.mjs";
@@ -16,6 +19,8 @@ function makeEnv(overrides = {}) {
   return {
     CORRECTIONS_DB: new FakeD1(),
     TURNSTILE_SECRET_KEY: "turnstile-secret",
+    ADMIN_API_TOKEN: "admin-test-token",
+    COMMUNITY_DATA_VERSION: "test-data-v1",
     ASSETS: makePhotosAsset([
       {
         properties: {
@@ -37,6 +42,39 @@ function makeEnv(overrides = {}) {
       },
     ]),
     ...overrides,
+  };
+}
+
+function makeCommunityAssets(features, similarityPairs = [], clusters = []) {
+  return {
+    fetch: async (request) => {
+      const path = new URL(request.url).pathname;
+      let payload;
+      if (path.endsWith("/photos.geojson")) {
+        payload = { type: "FeatureCollection", features };
+      } else if (path.endsWith("/orphan_xids.json")) {
+        payload = { xids: [] };
+      } else if (path.endsWith("/similarity_candidates.json")) {
+        payload = { pairs: similarityPairs };
+      } else if (path.endsWith("/series_version_clusters.json")) {
+        payload = { clusters };
+      } else if (path.endsWith("/community-data-version.json")) {
+        payload = { version: "test-data-v1" };
+      } else {
+        return new Response("Not found", { status: 404 });
+      }
+      return new Response(JSON.stringify(payload), {
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+  };
+}
+
+function candidateFeature(id, groupId) {
+  return {
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [14.4, 50.1] },
+    properties: { id, group_id: groupId, signature: id },
   };
 }
 
@@ -220,6 +258,381 @@ test("POST /api/corrections accepts same-origin with valid session cookie", asyn
   }
 });
 
+test("POST /api/corrections accepts the resolved root for a merged group", async () => {
+  const env = makeEnv({ TURNSTILE_BYPASS: "1" });
+  env.CORRECTIONS_DB.merges.push({
+    id: 1,
+    group_id_a: "group-a",
+    group_id_b: "group-b",
+    verdict: "same",
+    created_at: "2026-01-01 00:00:00",
+  });
+  const request = makeRequest("/api/corrections", {
+    host: "localhost",
+    protocol: "http:",
+    jsonBody: {
+      xid: "A2",
+      group_id: "group-a",
+      verdict: "ok",
+    },
+  });
+
+  const response = await correctionsOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.accepted_group_id, "group-a");
+  assert.equal(env.CORRECTIONS_DB.corrections.length, 1);
+  assert.equal(env.CORRECTIONS_DB.corrections[0].group_id, "group-b");
+});
+
+test("GET /api/review-state fails closed when merge state cannot be read", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.failAllMatching(
+    "from current_merge_decisions",
+    new Error("D1 unavailable"),
+  );
+  const request = makeRequest("/api/review-state", { method: "GET" });
+
+  const response = await reviewStateOnRequest({
+    request,
+    env,
+    waitUntil() {},
+  });
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+});
+
+test("GET /api/review-state omits contributor fingerprints", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.merges.push({
+    id: 1,
+    group_id_a: "group-a",
+    group_id_b: "group-b",
+    verdict: "different",
+    voter_key: "private-voter-key",
+    user_agent: "private-user-agent",
+    created_at: "2026-01-01 00:00:00",
+  });
+  const request = makeRequest("/api/review-state?fresh=1", { method: "GET" });
+
+  const response = await reviewStateOnRequest({
+    request,
+    env,
+    waitUntil() {},
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.mergeDecisions.length, 1);
+  assert.equal("voter_key" in payload.mergeDecisions[0], false);
+  assert.equal("user_agent" in payload.mergeDecisions[0], false);
+});
+
+test("GET /api/review-state serves a current materialized projection", async () => {
+  const env = makeEnv();
+  const projectedPayload = {
+    groupCorrections: [],
+    doneGroupIds: ["group-a"],
+    resolvedGroupByXid: { A1: "group-a" },
+    groupRoots: { "group-a": "group-a" },
+    mergeDecisions: [],
+    counts: { doneGroups: 1 },
+  };
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 4,
+    computed_revision: 4,
+    data_version: "test-data-v1",
+    payload_json: JSON.stringify(projectedPayload),
+  };
+  env.CORRECTIONS_DB.failAllMatching(
+    "from corrections",
+    new Error("history should not be scanned"),
+  );
+
+  const request = makeRequest("/api/review-state", { method: "GET" });
+  const response = await reviewStateOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), projectedPayload);
+});
+
+test("GET /api/review-state does not cache a rebuild that lost a revision race", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 4,
+    computed_revision: 3,
+    data_version: "test-data-v1",
+    payload_json: null,
+  };
+  env.CORRECTIONS_DB.projectionUpdateChanges = 0;
+
+  const response = await reviewStateOnRequest({
+    request: makeRequest("/api/review-state", { method: "GET" }),
+    env,
+    waitUntil() {},
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.equal(response.headers.get("X-Community-Revision-Stable"), "0");
+});
+
+test("GET /api/review-state invalidates projections with an older asset manifest", async () => {
+  const env = makeEnv({ COMMUNITY_DATA_VERSION: "" });
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 4,
+    computed_revision: 4,
+    data_version: "old-static-data",
+    payload_json: JSON.stringify({ doneGroupIds: ["stale-group"] }),
+  };
+
+  const response = await reviewStateOnRequest({
+    request: makeRequest("/api/review-state", { method: "GET" }),
+    env,
+    waitUntil() {},
+  });
+  assert.equal(response.status, 200);
+  assert.equal(
+    response.headers.get("X-Community-Data-Version"),
+    "test-data-v1",
+  );
+  assert.notDeepEqual((await response.json()).doneGroupIds, ["stale-group"]);
+});
+
+test("GET /api/review-state fails closed without a nonempty data version", async () => {
+  const env = makeEnv({
+    COMMUNITY_DATA_VERSION: "",
+    ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
+  });
+  const response = await reviewStateOnRequest({
+    request: makeRequest("/api/review-state", { method: "GET" }),
+    env,
+    waitUntil() {},
+  });
+  assert.equal(response.status, 503);
+});
+
+test("GET /api/community-candidates returns bounded authoritative group pages", async () => {
+  const features = [
+    {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [14.4, 50.1] },
+      properties: { id: "A1", group_id: "group-a", signature: "A1" },
+    },
+    {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [14.4, 50.1] },
+      properties: { id: "A2", group_id: "group-b", signature: "A2" },
+    },
+  ];
+  const env = makeEnv({ ASSETS: makeCommunityAssets(features) });
+  env.CORRECTIONS_DB.groupMembershipOverrides.set("A2", {
+    xid: "A2",
+    group_id: "group-a",
+    source_group_id: "group-b",
+    revision: 1,
+  });
+
+  const response = await communityCandidatesOnRequest({
+    request: makeRequest("/api/community-candidates?flow=group&limit=1", {
+      method: "GET",
+    }),
+    env,
+    waitUntil() {},
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.items.length, 1);
+  assert.equal(payload.items[0].items.length, 2);
+  assert.equal(payload.items[0].id, "group-a");
+  assert.deepEqual(
+    payload.items[0].items[0].properties.original_coordinates,
+    [14.4, 50.1],
+  );
+});
+
+test("GET /api/community-candidates binds cursors to the state revision", async () => {
+  const features = [
+    {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [14.4, 50.1] },
+      properties: { id: "A1", group_id: "group-a" },
+    },
+    {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [14.5, 50.2] },
+      properties: { id: "A2", group_id: "group-b" },
+    },
+  ];
+  const env = makeEnv({ ASSETS: makeCommunityAssets(features) });
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 4,
+    computed_revision: 3,
+    data_version: "test-data-v1",
+    payload_json: null,
+  };
+  const first = await communityCandidatesOnRequest({
+    request: makeRequest(
+      "/api/community-candidates?flow=location&limit=1",
+      { method: "GET" },
+    ),
+    env,
+    waitUntil() {},
+  });
+  const firstPayload = await first.json();
+  assert.match(firstPayload.cursor, /^v[A-Za-z0-9_-]+:r4:0$/u);
+  assert.match(firstPayload.nextCursor, /^v[A-Za-z0-9_-]+:r4:1$/u);
+
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 5,
+    computed_revision: 4,
+    data_version: "test-data-v1",
+    payload_json: null,
+  };
+  const stale = await communityCandidatesOnRequest({
+    request: makeRequest(
+      `/api/community-candidates?flow=location&limit=1&cursor=${encodeURIComponent(firstPayload.nextCursor)}`,
+      { method: "GET" },
+    ),
+    env,
+    waitUntil() {},
+  });
+  assert.equal(stale.status, 409);
+});
+
+test("GET /api/community-candidates uses a current projection without history scans", async () => {
+  const features = [
+    {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [14.4, 50.1] },
+      properties: { id: "A1", group_id: "group-a" },
+    },
+  ];
+  const env = makeEnv({ ASSETS: makeCommunityAssets(features) });
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 8,
+    computed_revision: 8,
+    data_version: "test-data-v1",
+    payload_json: JSON.stringify({
+      resolvedGroupByXid: { A1: "group-a" },
+      groupRoots: { "group-a": "group-a" },
+      groupCorrections: [],
+      doneGroupIds: [],
+      mergeDecisions: [],
+    }),
+  };
+  env.CORRECTIONS_DB.failAllMatching(
+    "from corrections",
+    new Error("history should not be scanned"),
+  );
+
+  const response = await communityCandidatesOnRequest({
+    request: makeRequest(
+      "/api/community-candidates?flow=location&limit=1",
+      { method: "GET" },
+    ),
+    env,
+    waitUntil() {},
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.match(payload.cursor, /^v[A-Za-z0-9_-]+:r8:0$/u);
+  assert.equal(payload.items[0].id, "group-a");
+});
+
+test("GET /api/community-candidates binds cursors to the static data version", async () => {
+  const env = makeEnv({
+    ASSETS: makeCommunityAssets([
+      candidateFeature("A1", "group-a"),
+      candidateFeature("A2", "group-b"),
+    ]),
+  });
+  const first = await communityCandidatesOnRequest({
+    request: makeRequest(
+      "/api/community-candidates?flow=location&limit=1",
+      { method: "GET" },
+    ),
+    env,
+    waitUntil() {},
+  });
+  const cursor = (await first.json()).nextCursor;
+  assert.ok(cursor);
+
+  env.COMMUNITY_DATA_VERSION = "test-data-v2";
+  const stale = await communityCandidatesOnRequest({
+    request: makeRequest(
+      `/api/community-candidates?flow=location&limit=1&cursor=${encodeURIComponent(cursor)}`,
+      { method: "GET" },
+    ),
+    env,
+    waitUntil() {},
+  });
+  assert.equal(stale.status, 409);
+});
+
+test("GET /api/community-candidates rejects unknown duplicate focus groups", async () => {
+  const env = makeEnv({
+    ASSETS: makeCommunityAssets([
+      candidateFeature("A1", "group-a"),
+      candidateFeature("A2", "group-b"),
+    ]),
+  });
+  const response = await communityCandidatesOnRequest({
+    request: makeRequest(
+      "/api/community-candidates?flow=duplicate&group_id=attacker-value",
+      { method: "GET" },
+    ),
+    env,
+    waitUntil() {},
+  });
+  assert.equal(response.status, 400);
+});
+
+test("GET /api/community-candidates retries a transient required asset failure", async () => {
+  let photoAttempts = 0;
+  const features = [candidateFeature("A1", "group-a")];
+  const assets = {
+    fetch: async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/photos.geojson")) {
+        photoAttempts += 1;
+        if (photoAttempts === 1) {
+          return new Response("Temporary failure", { status: 503 });
+        }
+        return new Response(JSON.stringify({
+          type: "FeatureCollection",
+          features,
+        }), { headers: { "Content-Type": "application/json" } });
+      }
+      return new Response("Not found", { status: 404 });
+    },
+  };
+  const env = makeEnv({ ASSETS: assets });
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 0,
+    computed_revision: 0,
+    data_version: "test-data-v1",
+    payload_json: JSON.stringify({
+      resolvedGroupByXid: { A1: "group-a" },
+      groupRoots: { "group-a": "group-a" },
+      groupCorrections: [],
+      doneGroupIds: [],
+      mergeDecisions: [],
+    }),
+  };
+  const request = () => makeRequest(
+    "/api/community-candidates?flow=location",
+    { method: "GET" },
+  );
+  const first = await communityCandidatesOnRequest({
+    request: request(), env, waitUntil() {},
+  });
+  const second = await communityCandidatesOnRequest({
+    request: request(), env, waitUntil() {},
+  });
+  assert.equal(first.status, 503);
+  assert.equal(second.status, 200);
+  assert.equal(photoAttempts, 2);
+});
+
 test("POST /api/merges accepts same-origin with valid session cookie", async () => {
   const env = makeEnv();
   const originalFetch = globalThis.fetch;
@@ -311,6 +724,98 @@ test("POST /api/merges accepts undo verdict", async () => {
   }
 });
 
+test("POST /api/merges can undo a pair that currently resolves to one root", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.merges.push({
+    id: 1,
+    group_id_a: "group-a",
+    group_id_b: "group-b",
+    verdict: "same",
+    voter_key: "first-voter",
+    created_at: "2026-01-01 09:00:00",
+  });
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      success: true,
+      hostname: "example.com",
+      action: "merges_submit",
+    }), { headers: { "Content-Type": "application/json" } });
+    const response = await mergesOnRequest({
+      request: makeRequest("/api/merges", {
+        headers: { Origin: "https://example.com" },
+        jsonBody: {
+          group_id_a: "group-a",
+          group_id_b: "group-b",
+          verdict: "undo",
+          token: "ok",
+        },
+      }),
+      env,
+    });
+    assert.equal(response.status, 200);
+    assert.equal(env.CORRECTIONS_DB.merges.at(-1).verdict, "undo");
+    assert.equal(env.CORRECTIONS_DB.merges.at(-1).group_id_a, "group-a");
+    assert.equal(env.CORRECTIONS_DB.merges.at(-1).group_id_b, "group-b");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("POST /api/merges keeps an undo on the exact historical pair", async () => {
+  const env = makeEnv({
+    ASSETS: makePhotosAsset([
+      { properties: { id: "A1", group_id: "group-a" } },
+      { properties: { id: "B1", group_id: "group-b" } },
+      { properties: { id: "C1", group_id: "group-c" } },
+    ]),
+  });
+  env.CORRECTIONS_DB.merges.push(
+    {
+      id: 1,
+      group_id_a: "group-b",
+      group_id_b: "group-c",
+      verdict: "different",
+      voter_key: "first-voter",
+      created_at: "2026-01-01 09:00:00",
+    },
+    {
+      id: 2,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "second-voter",
+      created_at: "2026-01-01 09:01:00",
+    },
+  );
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      success: true,
+      hostname: "example.com",
+      action: "merges_submit",
+    }), { headers: { "Content-Type": "application/json" } });
+    const response = await mergesOnRequest({
+      request: makeRequest("/api/merges", {
+        headers: { Origin: "https://example.com" },
+        jsonBody: {
+          group_id_a: "group-b",
+          group_id_b: "group-c",
+          verdict: "undo",
+          token: "ok",
+        },
+      }),
+      env,
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(env.CORRECTIONS_DB.merges.at(-1).group_id_a, "group-b");
+    assert.equal(env.CORRECTIONS_DB.merges.at(-1).group_id_b, "group-c");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("POST /api/merges rejects unknown group ids", async () => {
   const env = makeEnv();
   const originalFetch = globalThis.fetch;
@@ -347,6 +852,55 @@ test("POST /api/merges rejects unknown group ids", async () => {
     assert.equal(mergeResponse.status, 400);
     const payload = await mergeResponse.json();
     assert.match(String(payload.detail || ""), /skupina/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("POST /api/merges accepts an authoritative root after all members move", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.merges.push({
+    id: 1,
+    group_id_a: "group-a",
+    group_id_b: "group-b",
+    verdict: "same",
+    voter_key: "merge-voter",
+    created_at: "2026-01-01 09:00:00",
+  });
+  env.CORRECTIONS_DB.groupMembershipOverrides.set("A1", {
+    xid: "A1",
+    group_id: "G1",
+    source_group_id: "group-a",
+    revision: 1,
+  });
+  env.CORRECTIONS_DB.groupMembershipOverrides.set("A2", {
+    xid: "A2",
+    group_id: "G1",
+    source_group_id: "group-b",
+    revision: 1,
+  });
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      success: true,
+      hostname: "example.com",
+      action: "merges_submit",
+    }), { headers: { "Content-Type": "application/json" } });
+    const response = await mergesOnRequest({
+      request: makeRequest("/api/merges", {
+        headers: { Origin: "https://example.com" },
+        jsonBody: {
+          group_id_a: "group-a",
+          group_id_b: "G1",
+          verdict: "different",
+          token: "ok",
+        },
+      }),
+      env,
+    });
+    assert.equal(response.status, 200);
+    assert.equal(env.CORRECTIONS_DB.merges.at(-1).group_id_a, "G1");
+    assert.equal(env.CORRECTIONS_DB.merges.at(-1).group_id_b, "group-a");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -425,10 +979,15 @@ test("GET /api/group-review-votes aggregates ok votes and current user state", a
       },
     });
 
-    assert.equal(
-      (await groupReviewVotesOnRequest({ request: firstVoteRequest, env })).status,
-      200,
-    );
+    const firstVoteResponse = await groupReviewVotesOnRequest({
+      request: firstVoteRequest,
+      env,
+    });
+    assert.equal(firstVoteResponse.status, 200);
+    const voterCookieMatch = String(
+      firstVoteResponse.headers.get("Set-Cookie") || "",
+    ).match(/opp_voter_id=[^;,]+/u);
+    assert.ok(voterCookieMatch);
     assert.equal(
       (await groupReviewVotesOnRequest({ request: secondVoteRequest, env })).status,
       200,
@@ -436,7 +995,10 @@ test("GET /api/group-review-votes aggregates ok votes and current user state", a
 
     const getRequest = makeRequest("/api/group-review-votes", {
       method: "GET",
-      headers: { "CF-Connecting-IP": "3.3.3.3" },
+      headers: {
+        Cookie: voterCookieMatch[0],
+        "CF-Connecting-IP": "3.3.3.3",
+      },
     });
     const response = await groupReviewVotesOnRequest({ request: getRequest, env });
     assert.equal(response.status, 200);
@@ -449,6 +1011,119 @@ test("GET /api/group-review-votes aggregates ok votes and current user state", a
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("GET /api/group-review-votes promotes independent split proposals", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.groupReviewVotes.push(
+    {
+      id: 1,
+      group_id: "group-a",
+      verdict: "split",
+      voter_key: "voter-a",
+      created_at: "2026-01-01 10:00:00",
+    },
+    {
+      id: 2,
+      group_id: "group-a",
+      verdict: "split",
+      voter_key: "voter-b",
+      created_at: "2026-01-01 10:01:00",
+    },
+  );
+  const request = makeRequest("/api/group-review-votes", { method: "GET" });
+  const response = await groupReviewVotesOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.items[0].split_votes, 2);
+  assert.equal(payload.items[0].needs_split, true);
+  assert.equal(payload.items[0].done, false);
+});
+
+test("GET /api/group-review-votes keeps constituent votes after groups merge", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.merges.push({
+    id: 1,
+    group_id_a: "group-a",
+    group_id_b: "group-b",
+    verdict: "same",
+    voter_key: "merge-voter",
+    created_at: "2026-01-01 09:00:00",
+  });
+  env.CORRECTIONS_DB.groupReviewVotes.push(
+    {
+      id: 1,
+      group_id: "group-a",
+      verdict: "ok",
+      voter_key: "voter-a",
+      created_at: "2026-01-01 10:00:00",
+    },
+    {
+      id: 2,
+      group_id: "group-b",
+      verdict: "ok",
+      voter_key: "voter-b",
+      created_at: "2026-01-01 10:01:00",
+    },
+  );
+
+  const response = await groupReviewVotesOnRequest({
+    request: makeRequest("/api/group-review-votes", { method: "GET" }),
+    env,
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.count, 1);
+  assert.equal(payload.items[0].group_id, "group-a");
+  assert.equal(payload.items[0].ok_votes, 2);
+  assert.equal(payload.items[0].done, true);
+});
+
+test("POST /api/group-review-votes stores the current merged root", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.merges.push({
+    id: 1,
+    group_id_a: "group-a",
+    group_id_b: "group-b",
+    verdict: "same",
+    voter_key: "merge-voter",
+    created_at: "2026-01-01 09:00:00",
+  });
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      success: true,
+      hostname: "example.com",
+      action: "group_review_submit",
+    }), { headers: { "Content-Type": "application/json" } });
+    const response = await groupReviewVotesOnRequest({
+      request: makeRequest("/api/group-review-votes", {
+        headers: { Origin: "https://example.com" },
+        jsonBody: {
+          group_id: "group-b",
+          verdict: "ok",
+          token: "ok",
+        },
+      }),
+      env,
+    });
+    assert.equal(response.status, 200);
+    assert.equal(env.CORRECTIONS_DB.groupReviewVotes[0].group_id, "group-a");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("GET /api/group-review-votes fails closed when votes cannot be read", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.failAllMatching(
+    "from current_group_review_votes",
+    new Error("D1 unavailable"),
+  );
+  const request = makeRequest("/api/group-review-votes", { method: "GET" });
+
+  const response = await groupReviewVotesOnRequest({ request, env });
+  assert.equal(response.status, 503);
 });
 
 test("POST /api/group-review-votes rejects unknown group ids", async () => {
@@ -498,11 +1173,273 @@ test("GET /api/admin/review exposes pending corrections", async () => {
     created_at: "2026-01-01 10:00:00",
   });
 
-  const request = makeRequest("/api/admin/review", { method: "GET" });
+  const request = makeRequest("/api/admin/review", {
+    method: "GET",
+    headers: { Authorization: "Bearer admin-test-token" },
+  });
   const response = await adminReviewOnRequest({ request, env });
   assert.equal(response.status, 200);
   const payload = await response.json();
   assert.equal(payload.counts.pendingCorrections, 1);
+});
+
+test("GET /api/admin/review rejects unauthenticated requests", async () => {
+  const env = makeEnv();
+  const request = makeRequest("/api/admin/review", { method: "GET" });
+  const response = await adminReviewOnRequest({ request, env });
+  assert.equal(response.status, 401);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+});
+
+test("POST /api/admin/group-membership atomically moves selected members", async () => {
+  const env = makeEnv({
+    ASSETS: makePhotosAsset([
+      { properties: { id: "A1", group_id: "group-a" } },
+      { properties: { id: "A2", group_id: "group-a" } },
+    ]),
+  });
+  const request = makeRequest("/api/admin/group-membership", {
+    headers: {
+      Authorization: "Bearer admin-test-token",
+      Origin: "https://example.com",
+    },
+    jsonBody: {
+      source_group_id: "group-a",
+      target_group_id: "series_curated_a",
+      xids: ["A2"],
+      reason: "Different viewpoint",
+    },
+  });
+
+  const response = await adminGroupMembershipOnRequest({ request, env });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.deepEqual(payload.moved_xids, ["A2"]);
+  assert.equal(
+    env.CORRECTIONS_DB.groupMembershipOverrides.get("A2").group_id,
+    "series_curated_a",
+  );
+  assert.equal(env.CORRECTIONS_DB.groupMembershipEvents.length, 1);
+});
+
+test("curator membership move consumes review votes for an existing target", async () => {
+  const env = makeEnv({
+    ASSETS: makePhotosAsset([
+      { properties: { id: "A1", group_id: "group-a" } },
+      { properties: { id: "A2", group_id: "group-a" } },
+      { properties: { id: "C1", group_id: "group-c" } },
+    ]),
+  });
+  env.CORRECTIONS_DB.groupReviewVotes.push(
+    {
+      id: 1,
+      group_id: "group-a",
+      verdict: "split",
+      voter_key: "voter-a",
+      created_at: "2026-01-01 10:00:00",
+    },
+    {
+      id: 2,
+      group_id: "group-c",
+      verdict: "ok",
+      voter_key: "voter-c",
+      created_at: "2026-01-01 10:01:00",
+    },
+  );
+
+  const response = await adminGroupMembershipOnRequest({
+    request: makeRequest("/api/admin/group-membership", {
+      headers: {
+        Authorization: "Bearer admin-test-token",
+        Origin: "https://example.com",
+      },
+      jsonBody: {
+        source_group_id: "group-a",
+        target_group_id: "group-c",
+        xids: ["A2"],
+        reason: "Belongs with existing target",
+      },
+    }),
+    env,
+  });
+  assert.equal(response.status, 200);
+  assert.equal(env.CORRECTIONS_DB.groupReviewResolutions.get("group-a"), 1);
+  assert.equal(env.CORRECTIONS_DB.groupReviewResolutions.get("group-c"), 2);
+});
+
+test("curator membership move rejects a target merged into the source root", async () => {
+  const env = makeEnv({
+    ASSETS: makePhotosAsset([
+      { properties: { id: "A1", group_id: "group-a" } },
+      { properties: { id: "A2", group_id: "group-a" } },
+      { properties: { id: "B1", group_id: "group-b" } },
+    ]),
+  });
+  env.CORRECTIONS_DB.merges.push({
+    id: 1,
+    group_id_a: "group-a",
+    group_id_b: "group-b",
+    verdict: "same",
+    voter_key: "merge-voter",
+    created_at: "2026-01-01 09:00:00",
+  });
+
+  const response = await adminGroupMembershipOnRequest({
+    request: makeRequest("/api/admin/group-membership", {
+      headers: {
+        Authorization: "Bearer admin-test-token",
+        Origin: "https://example.com",
+      },
+      jsonBody: {
+        source_group_id: "group-a",
+        target_group_id: "group-b",
+        xids: ["A2"],
+      },
+    }),
+    env,
+  });
+  assert.equal(response.status, 400);
+  assert.equal(env.CORRECTIONS_DB.groupMembershipEvents.length, 0);
+  assert.equal(env.CORRECTIONS_DB.groupMembershipOverrides.size, 0);
+  assert.equal(env.CORRECTIONS_DB.groupReviewResolutions.size, 0);
+});
+
+test("curator membership split consumes the split votes that opened it", async () => {
+  const env = makeEnv({
+    ASSETS: makePhotosAsset([
+      { properties: { id: "A1", group_id: "group-a" } },
+      { properties: { id: "A2", group_id: "group-a" } },
+    ]),
+  });
+  env.CORRECTIONS_DB.groupReviewVotes.push(
+    {
+      id: 1,
+      group_id: "group-a",
+      verdict: "split",
+      voter_key: "voter-a",
+      created_at: "2026-01-01 10:00:00",
+    },
+    {
+      id: 2,
+      group_id: "group-a",
+      verdict: "split",
+      voter_key: "voter-b",
+      created_at: "2026-01-01 10:01:00",
+    },
+  );
+
+  const adminHeaders = {
+    Authorization: "Bearer admin-test-token",
+    Origin: "https://example.com",
+  };
+  const reviewBefore = await adminReviewOnRequest({
+    request: makeRequest("/api/admin/review", {
+      method: "GET",
+      headers: adminHeaders,
+    }),
+    env,
+  });
+  assert.equal((await reviewBefore.json()).counts.splitCandidates, 1);
+
+  const resolution = await adminGroupMembershipOnRequest({
+    request: makeRequest("/api/admin/group-membership", {
+      headers: adminHeaders,
+      jsonBody: {
+        source_group_id: "group-a",
+        target_group_id: "series_curated_a",
+        xids: ["A2"],
+        reason: "Different viewpoint",
+      },
+    }),
+    env,
+  });
+  assert.equal(resolution.status, 200);
+
+  const reviewAfter = await adminReviewOnRequest({
+    request: makeRequest("/api/admin/review", {
+      method: "GET",
+      headers: adminHeaders,
+    }),
+    env,
+  });
+  assert.equal((await reviewAfter.json()).counts.splitCandidates, 0);
+
+  env.CORRECTIONS_DB.groupReviewVotes.push({
+    id: 3,
+    group_id: "group-a",
+    verdict: "split",
+    voter_key: "voter-c",
+    created_at: "2026-01-01 10:02:00",
+  });
+  const publicState = await groupReviewVotesOnRequest({
+    request: makeRequest("/api/group-review-votes", { method: "GET" }),
+    env,
+  });
+  const publicPayload = await publicState.json();
+  assert.equal(publicPayload.items[0].split_votes, 1);
+  assert.equal(publicPayload.items[0].needs_split, false);
+});
+
+test("curator can split members from a merged review root", async () => {
+  const env = makeEnv({
+    ASSETS: makePhotosAsset([
+      { properties: { id: "A1", group_id: "group-a" } },
+      { properties: { id: "B1", group_id: "group-b" } },
+    ]),
+  });
+  env.CORRECTIONS_DB.merges.push({
+    id: 1,
+    group_id_a: "group-a",
+    group_id_b: "group-b",
+    verdict: "same",
+    created_at: "2026-01-01 10:00:00",
+  });
+  env.CORRECTIONS_DB.groupReviewVotes.push(
+    {
+      id: 1,
+      group_id: "group-a",
+      verdict: "split",
+      voter_key: "voter-a",
+      created_at: "2026-01-01 10:01:00",
+    },
+    {
+      id: 2,
+      group_id: "group-b",
+      verdict: "split",
+      voter_key: "voter-b",
+      created_at: "2026-01-01 10:02:00",
+    },
+  );
+  const headers = {
+    Authorization: "Bearer admin-test-token",
+    Origin: "https://example.com",
+  };
+
+  const reviewResponse = await adminReviewOnRequest({
+    request: makeRequest("/api/admin/review", { method: "GET", headers }),
+    env,
+  });
+  const reviewPayload = await reviewResponse.json();
+  assert.deepEqual(reviewPayload.splitCandidates[0].xids, ["A1", "B1"]);
+
+  const splitResponse = await adminGroupMembershipOnRequest({
+    request: makeRequest("/api/admin/group-membership", {
+      headers,
+      jsonBody: {
+        source_group_id: "group-a",
+        target_group_id: "series_curated_merged",
+        xids: ["B1"],
+      },
+    }),
+    env,
+  });
+  assert.equal(splitResponse.status, 200);
+  assert.equal(
+    env.CORRECTIONS_DB.groupMembershipOverrides.get("B1").group_id,
+    "series_curated_merged",
+  );
+  assert.equal(env.CORRECTIONS_DB.groupReviewResolutions.get("group-a"), 1);
+  assert.equal(env.CORRECTIONS_DB.groupReviewResolutions.get("group-b"), 2);
 });
 
 test("GET /api/admin/review treats undo as merge-conflict reset", async () => {
@@ -531,7 +1468,10 @@ test("GET /api/admin/review treats undo as merge-conflict reset", async () => {
     },
   );
 
-  const request = makeRequest("/api/admin/review", { method: "GET" });
+  const request = makeRequest("/api/admin/review", {
+    method: "GET",
+    headers: { Authorization: "Bearer admin-test-token" },
+  });
   const response = await adminReviewOnRequest({ request, env });
   assert.equal(response.status, 200);
   const payload = await response.json();
@@ -549,10 +1489,14 @@ test("GET /api/admin/export supports CSV output", async () => {
     has_coordinates: 1,
     voter_key: "voter-a",
     verdict: "wrong",
+    message: "=HYPERLINK(\"https://evil.example\")",
     created_at: "2026-01-01 10:00:00",
   });
 
-  const request = makeRequest("/api/admin/export?format=csv", { method: "GET" });
+  const request = makeRequest("/api/admin/export?format=csv", {
+    method: "GET",
+    headers: { Authorization: "Bearer admin-test-token" },
+  });
   const response = await adminExportOnRequest({ request, env });
   assert.equal(response.status, 200);
   assert.match(
@@ -562,6 +1506,7 @@ test("GET /api/admin/export supports CSV output", async () => {
   const body = await response.text();
   assert.match(body, /record_type/u);
   assert.match(body, /correction/u);
+  assert.match(body, /'=HYPERLINK/u);
 });
 
 test("GET /api/admin/export includes group review votes in JSON output", async () => {
@@ -575,13 +1520,52 @@ test("GET /api/admin/export includes group review votes in JSON output", async (
     created_at: "2026-01-01 10:00:00",
   });
 
-  const request = makeRequest("/api/admin/export?format=json", { method: "GET" });
+  const request = makeRequest("/api/admin/export?format=json", {
+    method: "GET",
+    headers: { Authorization: "Bearer admin-test-token" },
+  });
   const response = await adminExportOnRequest({ request, env });
   assert.equal(response.status, 200);
   const payload = await response.json();
   assert.equal(Array.isArray(payload.groupReviewVotes), true);
   assert.equal(payload.groupReviewVotes.length, 1);
   assert.equal(payload.groupReviewVotes[0].group_id, "group-a");
+});
+
+test("GET /api/admin/export rejects a projection from an older data version", async () => {
+  const env = makeEnv({ COMMUNITY_DATA_VERSION: "new-deploy" });
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 4,
+    computed_revision: 4,
+    data_version: "old-deploy",
+    payload_json: JSON.stringify({
+      groupCorrections: [{ group_id: "stale-group" }],
+    }),
+  };
+  const response = await adminExportOnRequest({
+    request: makeRequest("/api/admin/export?format=json", {
+      method: "GET",
+      headers: { Authorization: "Bearer admin-test-token" },
+    }),
+    env,
+  });
+  const payload = await response.json();
+  assert.equal(payload.groupStateCurrent, false);
+  assert.deepEqual(payload.groupState, []);
+});
+
+test("GET /api/admin/export fails closed when an event table is unavailable", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.failAllMatching(
+    "from group_review_votes",
+    new Error("D1 unavailable"),
+  );
+  const request = makeRequest("/api/admin/export?format=json", {
+    method: "GET",
+    headers: { Authorization: "Bearer admin-test-token" },
+  });
+  const response = await adminExportOnRequest({ request, env });
+  assert.equal(response.status, 503);
 });
 
 test("GET /api/config exposes client full-res download mode", async () => {

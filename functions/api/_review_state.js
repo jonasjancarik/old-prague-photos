@@ -4,6 +4,7 @@ const SQLITE_DATETIME_PATTERN =
 
 let xidGroupCache = new Map();
 let xidGroupCacheExpiresAt = 0;
+let xidGroupCacheAsset = null;
 
 function normalizeId(value) {
   return String(value || "").trim();
@@ -303,7 +304,9 @@ function normalizedCorrections(correctionRows, xidGroupMap) {
 
     const mappedGroup = xidGroupMap.get(xid) || "";
     const storedGroup = normalizeId(row.group_id);
-    const baseGroup = mappedGroup || storedGroup || xid;
+    // Corrections belong to the group recorded when they were submitted. A
+    // later curator move of the representative XID must not transfer history.
+    const baseGroup = storedGroup || mappedGroup || xid;
     if (!baseGroup) return;
 
     const lat = toFiniteNumber(row.lat);
@@ -330,41 +333,73 @@ function normalizedCorrections(correctionRows, xidGroupMap) {
 }
 
 async function fetchPhotosJson(request, env) {
-  if (!request || !env?.ASSETS) return null;
+  if (!request || !env?.ASSETS) {
+    throw new Error("Missing ASSETS binding for photo metadata");
+  }
 
   const url = new URL(request.url);
   url.pathname = "/data/photos.geojson";
   url.search = "";
 
   const response = await env.ASSETS.fetch(new Request(url.toString()));
-  if (!response.ok) return null;
+  if (!response.ok) {
+    throw new Error(`Photo metadata request failed: ${response.status}`);
+  }
   return response.json();
 }
 
 export async function loadXidGroupMap(request, env) {
   const now = Date.now();
-  if (now < xidGroupCacheExpiresAt) {
-    return xidGroupCache;
+  if (env?.ASSETS !== xidGroupCacheAsset) {
+    xidGroupCache = new Map();
+    xidGroupCacheExpiresAt = 0;
+    xidGroupCacheAsset = env?.ASSETS || null;
+  }
+  if (now >= xidGroupCacheExpiresAt) {
+    const mapping = new Map();
+    try {
+      const photos = await fetchPhotosJson(request, env);
+      const features = Array.isArray(photos?.features) ? photos.features : [];
+      features.forEach((feature) => {
+        const props = feature?.properties || {};
+        const xid = normalizeId(props.id);
+        const groupId = normalizeId(props.group_id) || xid;
+        if (!xid || !groupId) return;
+        mapping.set(xid, groupId);
+      });
+      if (mapping.size === 0) {
+        throw new Error("Photo metadata contains no known groups");
+      }
+    } catch (error) {
+      if (xidGroupCache.size > 0) {
+        xidGroupCacheExpiresAt = now + 5_000;
+      } else {
+        throw error;
+      }
+    }
+    if (mapping.size > 0) {
+      xidGroupCache = mapping;
+      xidGroupCacheExpiresAt = now + PHOTOS_CACHE_TTL_MS;
+    }
   }
 
-  const mapping = new Map();
+  const resolved = new Map(xidGroupCache);
+  if (!env?.CORRECTIONS_DB) return resolved;
   try {
-    const photos = await fetchPhotosJson(request, env);
-    const features = Array.isArray(photos?.features) ? photos.features : [];
-    features.forEach((feature) => {
-      const props = feature?.properties || {};
-      const xid = normalizeId(props.id);
-      const groupId = normalizeId(props.group_id) || xid;
-      if (!xid || !groupId) return;
-      mapping.set(xid, groupId);
+    const result = await env.CORRECTIONS_DB.prepare(
+      `SELECT xid, group_id FROM group_membership_overrides`,
+    ).all();
+    (result?.results || []).forEach((row) => {
+      const xid = normalizeId(row.xid);
+      const groupId = normalizeId(row.group_id);
+      if (xid && groupId && resolved.has(xid)) resolved.set(xid, groupId);
     });
   } catch (error) {
-    // Keep empty mapping on read failure; API still works with xid fallback.
+    if (!/no such table[^]*group_membership_overrides/iu.test(String(error?.message || error))) {
+      throw error;
+    }
   }
-
-  xidGroupCache = mapping;
-  xidGroupCacheExpiresAt = now + PHOTOS_CACHE_TTL_MS;
-  return xidGroupCache;
+  return resolved;
 }
 
 export function buildReviewState({ correctionRows, mergeRows, xidGroupMap }) {
@@ -453,8 +488,6 @@ export function buildReviewState({ correctionRows, mergeRows, xidGroupMap }) {
       group_id_a: item.group_id_a,
       group_id_b: item.group_id_b,
       verdict: item.verdict,
-      voter_key: item.voter_key || "",
-      user_agent: item.user_agent || "",
       received_at: item.received_at || null,
     }))
     .sort((a, b) => {

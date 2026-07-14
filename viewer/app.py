@@ -5,6 +5,7 @@ import html
 import time
 import hmac
 import hashlib
+import secrets
 from io import BytesIO
 from urllib.parse import urljoin
 from datetime import datetime, timezone
@@ -20,6 +21,18 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pydantic import BaseModel, Field
+from viewer.community_candidates import (
+    build_duplicate_candidates,
+    build_effective_groups,
+    paginate,
+    remap_version_clusters,
+    StaleCandidateCursorError,
+)
+from viewer.local_membership import (
+    apply_membership_events,
+    load_membership_events,
+    review_resolution_boundaries,
+)
 
 # Load .env for local development
 load_dotenv()
@@ -31,10 +44,14 @@ STATIC_DATA_DIR = STATIC_DIR / "data"
 DATA_DIR = ROOT / "data"
 PHOTOS_PATH = STATIC_DATA_DIR / "photos.geojson"
 ORPHAN_IDS_PATH = STATIC_DATA_DIR / "orphan_xids.json"
+SIMILARITY_CANDIDATES_PATH = STATIC_DATA_DIR / "similarity_candidates.json"
+SERIES_VERSION_CLUSTERS_PATH = STATIC_DATA_DIR / "series_version_clusters.json"
+COMMUNITY_DATA_VERSION_PATH = STATIC_DATA_DIR / "community-data-version.json"
 FEEDBACK_PATH = DATA_DIR / "feedback.jsonl"
 CORRECTIONS_PATH = DATA_DIR / "corrections.jsonl"
 MERGES_PATH = DATA_DIR / "merges.jsonl"
 GROUP_REVIEW_VOTES_PATH = DATA_DIR / "group_review_votes.jsonl"
+GROUP_MEMBERSHIP_EVENTS_PATH = DATA_DIR / "group_membership_events.jsonl"
 LOCAL_PREVIEWS_DIR = PROJECT_ROOT / "downloads" / "archive" / "previews"
 
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
@@ -47,7 +64,9 @@ SQLITE_DATETIME_PATTERN = re.compile(
     r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$"
 )
 SESSION_COOKIE_NAME = "opp_turnstile_session"
+VOTER_COOKIE_NAME = "opp_voter_id"
 SESSION_TTL_SECONDS = 6 * 60 * 60
+VOTER_COOKIE_TTL_SECONDS = 365 * 24 * 60 * 60
 FULL_RES_MAX_PIXELS_DEFAULT = 80_000_000
 
 app = FastAPI(title="Prohlížeč historických fotografií Prahy")
@@ -99,9 +118,56 @@ class GroupReviewVotePayload(BaseModel):
     token: str | None = None
 
 
+class GroupMembershipPayload(BaseModel):
+    source_group_id: str = Field(min_length=1, max_length=128)
+    target_group_id: str | None = Field(default=None, max_length=128)
+    xids: list[str] = Field(default_factory=list)
+    reason: str | None = Field(default=None, max_length=1000)
+
+
 def is_turnstile_bypass() -> bool:
     value = os.environ.get("TURNSTILE_BYPASS", "").strip().lower()
     return value in {"1", "true", "yes", "on"}
+
+
+def _is_local_request(request: Request) -> bool:
+    return (request.url.hostname or "").lower() in {"localhost", "127.0.0.1", "::1", "testserver"}
+
+
+def _is_local_bypass_allowed(request: Request) -> bool:
+    return is_turnstile_bypass() and _is_local_request(request)
+
+
+def _assert_same_origin(request: Request) -> None:
+    if _is_local_bypass_allowed(request):
+        return
+    request_origin = f"{request.url.scheme}://{request.url.netloc}"
+    raw_origin = (request.headers.get("origin") or "").strip()
+    raw_referer = (request.headers.get("referer") or "").strip()
+    candidate = raw_origin or raw_referer
+    if not candidate:
+        raise HTTPException(status_code=403, detail="Neplatný původ požadavku")
+    from urllib.parse import urlparse
+
+    parsed = urlparse(candidate)
+    candidate_origin = f"{parsed.scheme}://{parsed.netloc}"
+    if candidate_origin != request_origin:
+        raise HTTPException(status_code=403, detail="Neplatný původ požadavku")
+
+
+def _assert_admin(request: Request) -> None:
+    if _is_local_bypass_allowed(request):
+        return
+    configured = os.environ.get("ADMIN_API_TOKEN", "").strip()
+    authorization = (request.headers.get("authorization") or "").strip()
+    supplied = authorization[7:].strip() if authorization.startswith("Bearer ") else ""
+    if configured and supplied and hmac.compare_digest(configured, supplied):
+        return
+    raise HTTPException(
+        status_code=401,
+        detail="Pro tuto část je potřeba přihlášení správce",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 def load_photos() -> dict[str, Any]:
@@ -177,7 +243,10 @@ def build_xid_group_cache() -> dict[str, str]:
             if xid and group_id:
                 mapping[xid] = group_id
         _xid_group_cache = mapping
-    return _xid_group_cache
+    return apply_membership_events(
+        dict(_xid_group_cache),
+        GROUP_MEMBERSHIP_EVENTS_PATH,
+    )
 
 
 def build_known_group_ids() -> set[str]:
@@ -454,7 +523,7 @@ def _load_group_review_vote_records() -> list[dict[str, Any]]:
 
             group_id = _normalize_id(record.get("group_id"))
             verdict = _normalize_id(record.get("verdict")).lower()
-            if not group_id or verdict not in {"ok", "undo"}:
+            if not group_id or verdict not in {"ok", "split", "undo"}:
                 continue
 
             rows.append(
@@ -499,7 +568,9 @@ def build_review_state() -> dict[str, Any]:
             continue
         mapped_group = xid_group.get(xid, "")
         stored_group = _normalize_id(record.get("group_id"))
-        base_group = mapped_group or stored_group or xid
+        # Keep historical corrections with their recorded group when a curator
+        # later moves the representative XID elsewhere.
+        base_group = stored_group or mapped_group or xid
         if not base_group:
             continue
 
@@ -590,8 +661,6 @@ def build_review_state() -> dict[str, Any]:
             "group_id_a": row["group_id_a"],
             "group_id_b": row["group_id_b"],
             "verdict": row["verdict"],
-            "voter_key": row.get("voter_key", ""),
-            "user_agent": row.get("user_agent", ""),
             "received_at": row.get("received_at"),
         }
         for row in merge_rows
@@ -617,23 +686,36 @@ def _group_review_vote_identity(record: dict[str, Any]) -> str:
 
 
 def build_group_review_vote_state(current_voter_key: str = "") -> list[dict[str, Any]]:
-    known_group_ids = build_known_group_ids()
+    review_state = build_review_state()
+    roots = review_state.get("groupRoots", {})
+    known_group_ids = {
+        _normalize_id(group_id)
+        for group_id in review_state.get("resolvedGroupByXid", {}).values()
+        if _normalize_id(group_id)
+    }
     if not known_group_ids:
         return []
 
+    review_boundaries = review_resolution_boundaries(
+        GROUP_MEMBERSHIP_EVENTS_PATH
+    )
     latest_by_group_voter: dict[str, dict[str, Any]] = {}
     for row in _load_group_review_vote_records():
-        group_id = _normalize_id(row.get("group_id"))
+        raw_group_id = _normalize_id(row.get("group_id"))
+        if int(row.get("_seq") or 0) <= review_boundaries.get(raw_group_id, 0):
+            continue
+        group_id = _normalize_id(roots.get(raw_group_id)) or raw_group_id
         if group_id not in known_group_ids:
             continue
-        key = f"{group_id}::{_group_review_vote_identity(row)}"
+        candidate = {**row, "group_id": group_id}
+        key = f"{group_id}::{_group_review_vote_identity(candidate)}"
         current = latest_by_group_voter.get(key)
-        if current is None or _is_newer_event(row, current):
-            latest_by_group_voter[key] = row
+        if current is None or _is_newer_event(candidate, current):
+            latest_by_group_voter[key] = candidate
 
     active_by_group: dict[str, list[dict[str, Any]]] = {}
     for row in latest_by_group_voter.values():
-        if _normalize_id(row.get("verdict")).lower() != "ok":
+        if _normalize_id(row.get("verdict")).lower() == "undo":
             continue
         active_by_group.setdefault(row["group_id"], []).append(row)
 
@@ -656,14 +738,25 @@ def build_group_review_vote_state(current_voter_key: str = "") -> list[dict[str,
             key=_parse_event_time,
             default="",
         )
-        ok_votes = len(votes)
+        ok_votes = len(
+            [row for row in votes if _normalize_id(row.get("verdict")) == "ok"]
+        )
+        split_votes = len(
+            [row for row in votes if _normalize_id(row.get("verdict")) == "split"]
+        )
         items.append(
             {
                 "group_id": group_id,
                 "ok_votes": ok_votes,
                 "required_ok_votes": 2,
-                "done": ok_votes >= 2,
+                "split_votes": split_votes,
+                "required_split_votes": 2,
+                "done": ok_votes >= 2 and split_votes == 0,
+                "needs_split": split_votes >= 2,
                 "current_user_voted": bool(current_user_vote),
+                "current_user_verdict": (
+                    current_user_vote.get("verdict") if current_user_vote else None
+                ),
                 "current_user_vote_at": (
                     current_user_vote.get("received_at")
                     or current_user_vote.get("created_at")
@@ -697,19 +790,73 @@ def _voter_key_secret() -> str:
 
 def _build_voter_key(request: Request) -> str:
     secret = _voter_key_secret()
-    if not secret and is_turnstile_bypass():
+    if not secret and _is_local_bypass_allowed(request):
         secret = "dev-voter-key"
     if not secret:
         return ""
+    raw_voter = request.cookies.get(VOTER_COOKIE_NAME, "")
+    parts = raw_voter.split(".", 1)
+    if len(parts) == 2:
+        stored_key, signature = parts
+        if re.fullmatch(r"[a-f0-9]{64}", stored_key) and re.fullmatch(
+            r"[a-f0-9]{64}", signature
+        ):
+            expected = hmac.new(
+                secret.encode("utf-8"),
+                f"voter:{stored_key}".encode("utf-8"),
+                hashlib.sha256,
+            ).hexdigest()
+            if hmac.compare_digest(expected, signature):
+                return stored_key
     ip = request.client.host if request.client else "unknown"
     session_value = request.cookies.get(SESSION_COOKIE_NAME, "")
     payload = f"{secret}:{ip}:{session_value}".encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 
 
-def _sign_session(exp: int) -> str:
+def _ensure_voter_identity(request: Request) -> tuple[str, str]:
+    secret = _voter_key_secret()
+    if not secret and _is_local_bypass_allowed(request):
+        secret = "dev-voter-key"
+    if not secret:
+        raise HTTPException(status_code=500, detail="Chybí voter identity secret")
+
+    stored_key = _build_voter_key(request)
+    raw_voter = request.cookies.get(VOTER_COOKIE_NAME, "")
+    if raw_voter and stored_key and raw_voter.startswith(f"{stored_key}."):
+        return stored_key, ""
+
+    voter_key = (
+        stored_key
+        if request.cookies.get(SESSION_COOKIE_NAME) and _has_valid_session(request)
+        else hashlib.sha256(
+            f"{secret}:voter:{secrets.token_hex(32)}".encode("utf-8")
+        ).hexdigest()
+    )
+    signature = hmac.new(
+        secret.encode("utf-8"),
+        f"voter:{voter_key}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return voter_key, f"{voter_key}.{signature}"
+
+
+def _set_voter_cookie(response: Response, request: Request, value: str) -> None:
+    if not value:
+        return
+    response.set_cookie(
+        VOTER_COOKIE_NAME,
+        value,
+        max_age=VOTER_COOKIE_TTL_SECONDS,
+        httponly=True,
+        samesite="strict",
+        secure=request.url.scheme == "https",
+    )
+
+
+def _sign_session(exp: int, request: Request) -> str:
     secret = _session_secret()
-    if not secret and is_turnstile_bypass():
+    if not secret and _is_local_bypass_allowed(request):
         secret = "dev-bypass"
     if not secret:
         raise HTTPException(status_code=500, detail="Chybí session secret")
@@ -731,14 +878,18 @@ def _has_valid_session(request: Request) -> bool:
     if exp < int(time.time()):
         return False
     try:
-        expected = _sign_session(exp)
+        expected = _sign_session(exp, request)
     except HTTPException:
         return False
     return hmac.compare_digest(expected, sig)
 
 
-def verify_turnstile(token: str, remoteip: str | None) -> None:
-    if is_turnstile_bypass():
+def verify_turnstile(
+    token: str,
+    request: Request,
+    expected_action: str,
+) -> None:
+    if _is_local_bypass_allowed(request):
         return
 
     secret = os.environ.get("TURNSTILE_SECRET_KEY", "").strip()
@@ -746,8 +897,8 @@ def verify_turnstile(token: str, remoteip: str | None) -> None:
         raise HTTPException(status_code=500, detail="Turnstile není nastaven")
 
     data = {"secret": secret, "response": token}
-    if remoteip:
-        data["remoteip"] = remoteip
+    if request.client:
+        data["remoteip"] = request.client.host
 
     try:
         response = requests.post(TURNSTILE_VERIFY_URL, data=data, timeout=8)
@@ -760,6 +911,16 @@ def verify_turnstile(token: str, remoteip: str | None) -> None:
 
     if not payload.get("success"):
         raise HTTPException(status_code=400, detail="Ověření Turnstile selhalo")
+
+    allowed_hostnames = {
+        value.strip().lower()
+        for value in os.environ.get("TURNSTILE_ALLOWED_HOSTNAMES", "").split(",")
+        if value.strip()
+    } or {(request.url.hostname or "").lower()}
+    if str(payload.get("hostname") or "").strip().lower() not in allowed_hostnames:
+        raise HTTPException(status_code=400, detail="Neplatný Turnstile hostname")
+    if str(payload.get("action") or "").strip() != expected_action:
+        raise HTTPException(status_code=400, detail="Neplatná Turnstile akce")
 
 
 def _fetch_text(session: requests.Session, url: str) -> str:
@@ -943,7 +1104,7 @@ def normalize_corrections() -> list[dict[str, Any]]:
 
 
 @app.get("/api/config")
-def get_config() -> JSONResponse:
+def get_config(request: Request) -> JSONResponse:
     photos = load_photos()
     archive_base_url = os.environ.get(
         "ARCHIVE_BASE_URL", "https://katalog.ahmp.cz/pragapublica"
@@ -951,9 +1112,10 @@ def get_config() -> JSONResponse:
     return JSONResponse(
         {
             "turnstileSiteKey": os.environ.get("TURNSTILE_SITE_KEY", ""),
-            "turnstileBypass": is_turnstile_bypass(),
+            "turnstileBypass": _is_local_bypass_allowed(request),
             "archiveBaseUrl": archive_base_url,
             "r2TilesBase": os.environ.get("R2_TILES_BASE", "").rstrip("/"),
+            "mapyCzApiKey": os.environ.get("MAPY_CZ_API_KEY", ""),
             "fullResDownloadMode": "server",
             "totalPhotos": len(photos.get("features", [])),
         }
@@ -967,25 +1129,26 @@ def get_photos() -> JSONResponse:
 
 @app.post("/api/verify")
 def verify_session(payload: VerifyPayload, request: Request) -> JSONResponse:
-    if not is_turnstile_bypass():
+    _assert_same_origin(request)
+    if not _is_local_bypass_allowed(request):
         if payload.token:
-            verify_turnstile(
-                payload.token, request.client.host if request.client else None
-            )
+            verify_turnstile(payload.token, request, "session_verify")
         elif not _has_valid_session(request):
             raise HTTPException(status_code=400, detail="Turnstile je povinný")
 
     exp = int(time.time()) + SESSION_TTL_SECONDS
-    value = f"{exp}.{_sign_session(exp)}"
+    value = f"{exp}.{_sign_session(exp, request)}"
+    _voter_key, voter_cookie = _ensure_voter_identity(request)
     response = JSONResponse({"ok": True})
     response.set_cookie(
         SESSION_COOKIE_NAME,
         value,
         max_age=SESSION_TTL_SECONDS,
         httponly=True,
-        samesite="lax",
+        samesite="strict",
         secure=request.url.scheme == "https",
     )
+    _set_voter_cookie(response, request, voter_cookie)
     return response
 
 
@@ -1048,19 +1211,20 @@ def get_preview_url(xid: str) -> JSONResponse:
 
 
 @app.get("/api/zoomify")
-def get_zoomify(xid: str) -> JSONResponse:
-    xid = xid.strip()
-    if not xid:
-        raise HTTPException(status_code=400, detail="Chybí xid")
+def get_zoomify(xid: str, scanIndex: int = 0) -> JSONResponse:
+    xid = _sanitize_xid(xid)
+    scanIndex = _sanitize_scan_index(scanIndex)
 
-    cached = _zoomify_cache.get(xid)
+    cache_key = f"{xid}::{scanIndex}"
+    cached = _zoomify_cache.get(cache_key)
     if cached:
         return JSONResponse(cached)
 
     archive_base_url = os.environ.get(
         "ARCHIVE_BASE_URL", "https://katalog.ahmp.cz/pragapublica"
     ).rstrip("/")
-    permalink_url = f"{archive_base_url}/permalink?xid={xid}&scan=1"
+    scan_param = scanIndex + 1
+    permalink_url = f"{archive_base_url}/permalink?xid={xid}&scan={scan_param}"
 
     session = requests.Session()
     session.headers.update(
@@ -1070,9 +1234,9 @@ def get_zoomify(xid: str) -> JSONResponse:
         }
     )
     try:
-        r2_payload = _resolve_r2_zoomify(session, xid, 0)
+        r2_payload = _resolve_r2_zoomify(session, xid, scanIndex)
         if r2_payload:
-            _zoomify_cache[xid] = r2_payload
+            _zoomify_cache[cache_key] = r2_payload
             return JSONResponse(r2_payload)
 
         permalink_html = _fetch_text(session, permalink_url)
@@ -1095,12 +1259,14 @@ def get_zoomify(xid: str) -> JSONResponse:
             "imagePropertiesUrl": props_url,
             **props,
         }
-        _zoomify_cache[xid] = payload
+        _zoomify_cache[cache_key] = payload
         return JSONResponse(payload)
     except requests.RequestException as exc:
         raise HTTPException(
             status_code=502, detail="Nepodařilo se načíst zoomify"
         ) from exc
+    finally:
+        session.close()
 
 
 @app.get("/api/dezoomify")
@@ -1238,8 +1404,117 @@ def get_review_state() -> JSONResponse:
     return JSONResponse(payload)
 
 
+def _candidate_data_version() -> str:
+    configured = _normalize_id(os.environ.get("COMMUNITY_DATA_VERSION"))
+    if configured:
+        return configured
+    if COMMUNITY_DATA_VERSION_PATH.exists():
+        try:
+            payload = json.loads(
+                COMMUNITY_DATA_VERSION_PATH.read_text(encoding="utf-8")
+            )
+            version = _normalize_id(payload.get("version"))
+            if version:
+                return version
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    signature = []
+    for path in [
+        PHOTOS_PATH,
+        ORPHAN_IDS_PATH,
+        SIMILARITY_CANDIDATES_PATH,
+        SERIES_VERSION_CLUSTERS_PATH,
+    ]:
+        if path.exists():
+            stat = path.stat()
+            signature.append((path.name, stat.st_size, stat.st_mtime_ns))
+        else:
+            signature.append((path.name, None, None))
+    raw = json.dumps(signature, separators=(",", ":"))
+    return f"local:{hashlib.sha256(raw.encode('utf-8')).hexdigest()}"
+
+
+@app.get("/api/community-candidates")
+def get_community_candidates(
+    flow: str,
+    cursor: str = "",
+    limit: int = 20,
+    group_id: str = "",
+) -> JSONResponse:
+    if flow not in {"location", "group", "duplicate"}:
+        raise HTTPException(status_code=400, detail="Neplatný typ kontroly")
+    review_state = build_review_state()
+    resolved_focus_group_id = ""
+    if flow == "duplicate" and group_id:
+        roots = review_state.get("groupRoots", {})
+        resolved_focus_group_id = _normalize_id(roots.get(group_id)) or group_id
+        known_group_ids = set(review_state.get("resolvedGroupByXid", {}).values())
+        if resolved_focus_group_id not in known_group_ids:
+            raise HTTPException(status_code=400, detail="Neznámá skupina")
+    groups = build_effective_groups(
+        load_photos_filtered().get("features", []),
+        load_orphan_ids(),
+        review_state,
+    )
+
+    if flow == "location":
+        done_groups = set(review_state.get("doneGroupIds", []))
+        candidates = [group for group in groups if group["id"] not in done_groups]
+    elif flow == "group":
+        clusters_payload: dict[str, Any] = {"clusters": []}
+        if SERIES_VERSION_CLUSTERS_PATH.exists():
+            with SERIES_VERSION_CLUSTERS_PATH.open(encoding="utf-8") as handle:
+                clusters_payload = json.load(handle)
+        clusters_by_series = remap_version_clusters(
+            clusters_payload.get("clusters", []),
+            groups,
+        )
+        candidates = [
+            {
+                **group,
+                "version_clusters": clusters_by_series.get(group["id"], []),
+            }
+            for group in groups
+            if len(group.get("items", [])) > 1
+        ]
+    else:
+        similarity_payload: dict[str, Any] = {"pairs": []}
+        if SIMILARITY_CANDIDATES_PATH.exists():
+            with SIMILARITY_CANDIDATES_PATH.open(encoding="utf-8") as handle:
+                similarity_payload = json.load(handle)
+        candidates = build_duplicate_candidates(
+            groups,
+            similarity_payload.get("pairs", []),
+            review_state,
+            resolved_focus_group_id,
+        )
+
+    revision_payload = json.dumps(
+        {
+            "roots": review_state.get("groupRoots", {}),
+            "resolved_membership": review_state.get("resolvedGroupByXid", {}),
+            "corrections": review_state.get("groupCorrections", []),
+            "merges": review_state.get("mergeDecisions", []),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    revision = int(hashlib.sha256(revision_payload.encode("utf-8")).hexdigest()[:12], 16)
+    data_version = _candidate_data_version()
+    try:
+        page = paginate(candidates, cursor, limit, revision, data_version)
+    except StaleCandidateCursorError as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Seznam se změnil. Načtěte ho znovu.",
+        ) from error
+    return JSONResponse({"flow": flow, **page})
+
+
 @app.post("/api/corrections")
 def submit_correction(payload: CorrectionPayload, request: Request) -> JSONResponse:
+    _assert_same_origin(request)
     email = (payload.email or "").strip()
     if email and not is_valid_email(email):
         raise HTTPException(status_code=400, detail="Neplatný e-mail")
@@ -1271,11 +1546,9 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
         ):
             raise HTTPException(status_code=400, detail="Neplatná poloha")
 
-    if not is_turnstile_bypass():
+    if not _is_local_bypass_allowed(request):
         if payload.token:
-            verify_turnstile(
-                payload.token, request.client.host if request.client else None
-            )
+            verify_turnstile(payload.token, request, "corrections_submit")
         elif not _has_valid_session(request):
             raise HTTPException(status_code=400, detail="Turnstile je povinný")
 
@@ -1286,10 +1559,19 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
     mapped_group_id = xid_group_cache.get(payload.xid, "")
     if not mapped_group_id:
         raise HTTPException(status_code=400, detail="Neznámé xid")
-    if mapped_group_id and requested_group_id and requested_group_id != mapped_group_id:
+    review_state = build_review_state()
+    resolved_group_id = (
+        _normalize_id(review_state.get("resolvedGroupByXid", {}).get(payload.xid))
+        or mapped_group_id
+    )
+    if (
+        requested_group_id
+        and requested_group_id not in {mapped_group_id, resolved_group_id}
+    ):
         raise HTTPException(status_code=400, detail="Neplatná skupina pro xid")
-    group_id = mapped_group_id or requested_group_id or payload.xid
+    group_id = mapped_group_id or payload.xid
 
+    voter_key, voter_cookie = _ensure_voter_identity(request)
     record = {
         "id": f"corr_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
         "xid": payload.xid,
@@ -1301,7 +1583,7 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
         "message": (payload.message or "Nahlášena špatná poloha.").strip(),
         "email": email or None,
         "newsletter_opt_in": bool(email),
-        "voter_key": _build_voter_key(request),
+        "voter_key": voter_key,
         "user_agent": request.headers.get("user-agent", ""),
         "received_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -1312,7 +1594,9 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
             handle.write(json.dumps(record, ensure_ascii=False))
             handle.write("\n")
 
-    return JSONResponse({"ok": True})
+    response = JSONResponse({"ok": True, "accepted_group_id": resolved_group_id})
+    _set_voter_cookie(response, request, voter_cookie)
+    return response
 
 
 def normalize_merges() -> list[dict[str, Any]]:
@@ -1341,6 +1625,7 @@ def get_group_review_votes(request: Request) -> JSONResponse:
 
 @app.post("/api/merges")
 def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
+    _assert_same_origin(request)
     group_id_a = payload.group_id_a.strip()
     group_id_b = payload.group_id_b.strip()
     if group_id_a == group_id_b:
@@ -1352,29 +1637,45 @@ def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
     if verdict not in {"same", "different", "undo"}:
         raise HTTPException(status_code=400, detail="Neplatný typ rozhodnutí")
 
-    known_group_ids = build_known_group_ids()
+    review_state = build_review_state()
+    roots = review_state.get("groupRoots", {})
+    known_group_ids = {
+        _normalize_id(item)
+        for item in [
+            *roots.keys(),
+            *roots.values(),
+            *review_state.get("resolvedGroupByXid", {}).values(),
+        ]
+        if _normalize_id(item)
+    }
     if not known_group_ids:
         raise HTTPException(status_code=500, detail="Chybí metadata skupin")
     if group_id_a not in known_group_ids or group_id_b not in known_group_ids:
         raise HTTPException(status_code=400, detail="Neznámá skupina")
+    resolved_group_id_a = _normalize_id(roots.get(group_id_a)) or group_id_a
+    resolved_group_id_b = _normalize_id(roots.get(group_id_b)) or group_id_b
+    if verdict != "undo":
+        if resolved_group_id_a == resolved_group_id_b:
+            raise HTTPException(status_code=400, detail="Nelze sloučit stejnou skupinu")
+        group_id_a = resolved_group_id_a
+        group_id_b = resolved_group_id_b
 
-    if not is_turnstile_bypass():
+    if not _is_local_bypass_allowed(request):
         if payload.token:
-            verify_turnstile(
-                payload.token, request.client.host if request.client else None
-            )
+            verify_turnstile(payload.token, request, "merges_submit")
         elif not _has_valid_session(request):
             raise HTTPException(status_code=400, detail="Turnstile je povinný")
 
     if group_id_a > group_id_b:
         group_id_a, group_id_b = group_id_b, group_id_a
 
+    voter_key, voter_cookie = _ensure_voter_identity(request)
     record = {
         "id": f"merge_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
         "group_id_a": group_id_a,
         "group_id_b": group_id_b,
         "verdict": verdict,
-        "voter_key": _build_voter_key(request),
+        "voter_key": voter_key,
         "user_agent": request.headers.get("user-agent", ""),
         "received_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -1385,39 +1686,55 @@ def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
             handle.write(json.dumps(record, ensure_ascii=False))
             handle.write("\n")
 
-    return JSONResponse({"ok": True})
+    response = JSONResponse({
+        "ok": True,
+        "decision": {
+            "group_id_a": group_id_a,
+            "group_id_b": group_id_b,
+            "verdict": verdict,
+        },
+    })
+    _set_voter_cookie(response, request, voter_cookie)
+    return response
 
 
 @app.post("/api/group-review-votes")
 def submit_group_review_vote(
     payload: GroupReviewVotePayload, request: Request
 ) -> JSONResponse:
+    _assert_same_origin(request)
     group_id = payload.group_id.strip()
     verdict = (payload.verdict or "").strip().lower()
     if not verdict:
         verdict = "ok"
-    if verdict not in {"ok", "undo"}:
+    if verdict not in {"ok", "split", "undo"}:
         raise HTTPException(status_code=400, detail="Neplatný typ rozhodnutí")
 
-    known_group_ids = build_known_group_ids()
+    review_state = build_review_state()
+    roots = review_state.get("groupRoots", {})
+    known_group_ids = {
+        _normalize_id(item)
+        for item in review_state.get("resolvedGroupByXid", {}).values()
+        if _normalize_id(item)
+    }
     if not known_group_ids:
         raise HTTPException(status_code=500, detail="Chybí metadata skupin")
-    if group_id not in known_group_ids:
+    resolved_group_id = _normalize_id(roots.get(group_id)) or group_id
+    if resolved_group_id not in known_group_ids:
         raise HTTPException(status_code=400, detail="Neznámá skupina")
 
-    if not is_turnstile_bypass():
+    if not _is_local_bypass_allowed(request):
         if payload.token:
-            verify_turnstile(
-                payload.token, request.client.host if request.client else None
-            )
+            verify_turnstile(payload.token, request, "group_review_submit")
         elif not _has_valid_session(request):
             raise HTTPException(status_code=400, detail="Turnstile je povinný")
 
+    voter_key, voter_cookie = _ensure_voter_identity(request)
     record = {
         "id": f"group_vote_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
-        "group_id": group_id,
+        "group_id": resolved_group_id,
         "verdict": verdict,
-        "voter_key": _build_voter_key(request),
+        "voter_key": voter_key,
         "user_agent": request.headers.get("user-agent", ""),
         "received_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -1428,7 +1745,12 @@ def submit_group_review_vote(
             handle.write(json.dumps(record, ensure_ascii=False))
             handle.write("\n")
 
-    return JSONResponse({"ok": True})
+    response = JSONResponse({
+        "ok": True,
+        "decision": {"group_id": resolved_group_id, "verdict": verdict},
+    })
+    _set_voter_cookie(response, request, voter_cookie)
+    return response
 
 
 def _resolved_correction_records(
@@ -1443,7 +1765,7 @@ def _resolved_correction_records(
             continue
         mapped_group = xid_group.get(xid, "")
         stored_group = _normalize_id(record.get("group_id"))
-        base_group = mapped_group or stored_group or xid
+        base_group = stored_group or mapped_group or xid
         resolved_group = _normalize_id(roots.get(base_group)) or base_group
         lat = _to_finite_float(record.get("lat"))
         lon = _to_finite_float(record.get("lon"))
@@ -1542,8 +1864,28 @@ def _merge_conflict_pairs(merge_rows: list[dict[str, Any]]) -> set[str]:
     return conflicts
 
 
+def _build_split_candidates(review_state: dict[str, Any]) -> list[dict[str, Any]]:
+    members_by_group: dict[str, list[str]] = {}
+    for xid, group_id in review_state.get("resolvedGroupByXid", {}).items():
+        normalized_group_id = _normalize_id(group_id)
+        if normalized_group_id:
+            members_by_group.setdefault(normalized_group_id, []).append(xid)
+
+    return [
+        {
+            "group_id": item["group_id"],
+            "split_votes": item["split_votes"],
+            "required_split_votes": item["required_split_votes"],
+            "xids": sorted(members_by_group.get(item["group_id"], [])),
+        }
+        for item in build_group_review_vote_state()
+        if item.get("needs_split")
+    ]
+
+
 @app.get("/api/admin/review")
-def get_admin_review() -> JSONResponse:
+def get_admin_review(request: Request) -> JSONResponse:
+    _assert_admin(request)
     review_state = build_review_state()
     correction_rows = _resolved_correction_records(review_state, _load_correction_records())
     merge_rows = _load_merge_records()
@@ -1552,6 +1894,7 @@ def get_admin_review() -> JSONResponse:
         review_state.get("groupCorrections", []), correction_rows
     )
     merge_conflicts = _merge_conflict_pairs(merge_rows)
+    split_candidates = _build_split_candidates(review_state)
 
     pending_corrections = [
         {
@@ -1626,17 +1969,140 @@ def get_admin_review() -> JSONResponse:
                 ),
                 "mergeConflicts": len(merge_conflicts),
                 "recentMerges": len(recent_merges_payload),
+                "splitCandidates": len(split_candidates),
             },
             "pendingCorrections": pending_corrections,
             "unresolvedFlags": unresolved_flags,
             "conflictCandidates": conflict_candidates,
             "recentMerges": recent_merges_payload,
+            "splitCandidates": split_candidates,
+        }
+    )
+
+
+@app.post("/api/admin/group-membership")
+def apply_admin_group_membership(
+    payload: GroupMembershipPayload,
+    request: Request,
+) -> JSONResponse:
+    _assert_admin(request)
+    _assert_same_origin(request)
+    source_group_id = _normalize_id(payload.source_group_id)
+    target_group_id = _normalize_id(payload.target_group_id)
+    if not target_group_id:
+        target_group_id = f"series_{secrets.token_hex(16)}"
+    if (
+        not XID_PATTERN.fullmatch(source_group_id)
+        or not XID_PATTERN.fullmatch(target_group_id)
+    ):
+        raise HTTPException(status_code=400, detail="Neplatná skupina")
+
+    xids = sorted({_normalize_id(xid) for xid in payload.xids if _normalize_id(xid)})
+    if not xids:
+        raise HTTPException(
+            status_code=400,
+            detail="Vyberte alespoň jednu fotografii",
+        )
+
+    review_state = build_review_state()
+    roots = review_state.get("groupRoots", {})
+    resolved_membership = review_state.get("resolvedGroupByXid", {})
+    resolved_source_group_id = (
+        _normalize_id(roots.get(source_group_id)) or source_group_id
+    )
+    target_exists = (
+        target_group_id in roots
+        or target_group_id in resolved_membership.values()
+    )
+    resolved_target_group_id = (
+        _normalize_id(roots.get(target_group_id)) or target_group_id
+        if target_exists
+        else target_group_id
+    )
+    if resolved_source_group_id == resolved_target_group_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Cílová skupina musí být jiná",
+        )
+
+    source_members = sorted(
+        xid
+        for xid, group_id in resolved_membership.items()
+        if group_id == resolved_source_group_id
+    )
+    if len(source_members) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Zdrojovou skupinu nelze rozdělit",
+        )
+    if any(resolved_membership.get(xid) != resolved_source_group_id for xid in xids):
+        raise HTTPException(
+            status_code=409,
+            detail="Některá fotografie už do zdrojové skupiny nepatří",
+        )
+    if len(xids) >= len(source_members):
+        raise HTTPException(
+            status_code=400,
+            detail="Ve zdrojové skupině musí něco zůstat",
+        )
+
+    review_group_ids: set[str] = set()
+
+    def add_review_root(root_id: str) -> None:
+        review_group_ids.add(root_id)
+        review_group_ids.update(
+            group_id
+            for group_id, current_root_id in roots.items()
+            if current_root_id == root_id
+        )
+
+    add_review_root(resolved_source_group_id)
+    if target_exists:
+        add_review_root(resolved_target_group_id)
+
+    vote_rows = _load_group_review_vote_records()
+    review_boundaries = {
+        group_id: max(
+            (
+                int(row.get("_seq") or 0)
+                for row in vote_rows
+                if row.get("group_id") == group_id
+            ),
+            default=0,
+        )
+        for group_id in sorted(review_group_ids)
+    }
+    event = {
+        "id": f"membership_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
+        "source_group_id": resolved_source_group_id,
+        "target_group_id": resolved_target_group_id,
+        "assignments": xids,
+        "reason": _normalize_id(payload.reason) or None,
+        "curator": "admin-token",
+        "review_boundaries": review_boundaries,
+        "received_at": datetime.now(timezone.utc).isoformat(),
+    }
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with _feedback_lock:
+        with GROUP_MEMBERSHIP_EVENTS_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, ensure_ascii=False))
+            handle.write("\n")
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "source_group_id": resolved_source_group_id,
+            "target_group_id": resolved_target_group_id,
+            "moved_xids": xids,
         }
     )
 
 
 def _csv_escape(value: Any) -> str:
     text = str(value or "")
+    dangerous_prefixes = ("=", "+", "-", "@", "\t", "\r")
+    if isinstance(value, str) and text.startswith(dangerous_prefixes):
+        text = f"'{text}"
     if any(char in text for char in [",", '"', "\n"]):
         return '"' + text.replace('"', '""') + '"'
     return text
@@ -1644,6 +2110,7 @@ def _csv_escape(value: Any) -> str:
 
 @app.get("/api/admin/export")
 def get_admin_export(request: Request) -> Response:
+    _assert_admin(request)
     format_value = _normalize_id(request.query_params.get("format")).lower() or "json"
     if format_value not in {"json", "csv"}:
         raise HTTPException(status_code=400, detail="Neplatný format")
@@ -1842,14 +2309,15 @@ def get_admin_export(request: Request) -> Response:
 
 @app.post("/api/feedback")
 def submit_feedback(payload: FeedbackPayload, request: Request) -> JSONResponse:
+    _assert_same_origin(request)
     email = (payload.email or "").strip()
     if email and not is_valid_email(email):
         raise HTTPException(status_code=400, detail="Neplatný e-mail")
 
-    if not is_turnstile_bypass():
+    if not _is_local_bypass_allowed(request):
         if not payload.token:
             raise HTTPException(status_code=400, detail="Turnstile je povinný")
-        verify_turnstile(payload.token, request.client.host if request.client else None)
+        verify_turnstile(payload.token, request, "feedback_submit")
 
     record = {
         "id": f"fb_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",

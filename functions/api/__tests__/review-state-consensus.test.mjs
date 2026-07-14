@@ -196,6 +196,30 @@ test("new correction resets prior approvals", () => {
   assert.equal(item.lon, 14.5);
 });
 
+test("curator membership move does not transfer historical correction", () => {
+  const state = buildReviewState({
+    correctionRows: [
+      {
+        id: 1,
+        xid: "X1",
+        group_id: "SOURCE",
+        lat: 50.1,
+        lon: 14.4,
+        has_coordinates: 1,
+        voter_key: "voter-a",
+        verdict: "wrong",
+        created_at: "2026-01-01 10:00:00",
+      },
+    ],
+    mergeRows: [],
+    xidGroupMap: buildMap([["X1", "TARGET"]]),
+  });
+
+  assert.equal(state.resolvedGroupByXid.X1, "TARGET");
+  assert.equal(state.groupCorrections.length, 1);
+  assert.equal(state.groupCorrections[0].group_id, "SOURCE");
+});
+
 test("flag creates pending unresolved state while preserving last approved coords", () => {
   const state = buildReviewState({
     correctionRows: [
@@ -269,8 +293,6 @@ test("merge same resolves group roots across xids", () => {
       group_id_a: "G1",
       group_id_b: "G2",
       verdict: "same",
-      voter_key: "",
-      user_agent: "",
       received_at: "2026-01-01 10:00:00",
     },
   ]);

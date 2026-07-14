@@ -1,6 +1,8 @@
 const TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const SESSION_COOKIE_NAME = "opp_turnstile_session";
+const VOTER_COOKIE_NAME = "opp_voter_id";
+const VOTER_COOKIE_TTL_SECONDS = 365 * 24 * 60 * 60;
 
 class HttpError extends Error {
   constructor(status, detail, headers = {}) {
@@ -301,14 +303,72 @@ export async function buildSessionCookie(request, env) {
   return { cookie, ttlSeconds };
 }
 
+async function readValidVoterKey(request, secret) {
+  const cookieHeader = request.headers.get("Cookie") || "";
+  const cookies = parseCookies(cookieHeader);
+  const voterCookie = String(cookies[VOTER_COOKIE_NAME] || "");
+  const [storedKey, storedSignature] = voterCookie.split(".", 2);
+  if (
+    /^[a-f0-9]{64}$/u.test(storedKey || "") &&
+    /^[a-f0-9]{64}$/u.test(storedSignature || "")
+  ) {
+    const expectedSignature = await hmacSign(
+      secret,
+      `voter:${storedKey}`,
+    );
+    if (timingSafeEqual(expectedSignature, storedSignature)) {
+      return storedKey;
+    }
+  }
+  return "";
+}
+
 export async function buildVoterKey(request, env) {
   const secret = voterKeySecret(request, env);
   if (!secret) return "";
+  const storedKey = await readValidVoterKey(request, secret);
+  if (storedKey) return storedKey;
   const cookieHeader = request.headers.get("Cookie") || "";
   const cookies = parseCookies(cookieHeader);
   const sessionValue = String(cookies[SESSION_COOKIE_NAME] || "");
   const keyMaterial = `${secret}:${clientIp(request)}:${sessionValue}`;
   return sha256Hex(keyMaterial);
+}
+
+export async function ensureVoterIdentity(request, env) {
+  const secret = voterKeySecret(request, env);
+  if (!secret) {
+    throw new HttpError(500, "Chybí voter identity secret");
+  }
+
+  const cookieHeader = request.headers.get("Cookie") || "";
+  const cookies = parseCookies(cookieHeader);
+  const storedKey = await readValidVoterKey(request, secret);
+  if (storedKey) {
+    return { voterKey: storedKey, cookie: "" };
+  }
+
+  const existingKey = await buildVoterKey(request, env);
+  const sessionValue = String(cookies[SESSION_COOKIE_NAME] || "");
+  const canPreserveLegacyIdentity =
+    Boolean(sessionValue) && (await hasValidSession(request, env));
+  const voterKey = canPreserveLegacyIdentity
+    ? existingKey
+    : await sha256Hex(`${secret}:voter:${crypto.randomUUID()}`);
+  const signature = await hmacSign(secret, `voter:${voterKey}`);
+  const isSecure = getRequestUrl(request).protocol === "https:";
+  const cookie = [
+    `${VOTER_COOKIE_NAME}=${voterKey}.${signature}`,
+    `Max-Age=${VOTER_COOKIE_TTL_SECONDS}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Strict",
+    isSecure ? "Secure" : "",
+  ]
+    .filter(Boolean)
+    .join("; ");
+
+  return { voterKey, cookie };
 }
 
 function maxForBucket(env, bucket) {

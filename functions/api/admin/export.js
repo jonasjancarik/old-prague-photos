@@ -1,4 +1,6 @@
-import { buildReviewState, loadXidGroupMap } from "../_review_state.js";
+import { authorizeAdmin } from "../_admin_auth.js";
+import { loadCommunityDataVersion } from "../_data_version.js";
+import { isMissingColumnError, logDatabaseError } from "../_db.js";
 
 function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
@@ -27,7 +29,10 @@ function parseEventTime(value) {
 }
 
 function escapeCsv(value) {
-  const text = String(value ?? "");
+  let text = String(value ?? "");
+  if (typeof value === "string" && /^[=+\-@\t\r]/u.test(text)) {
+    text = `'${text}`;
+  }
   if (!/[",\n]/.test(text)) return text;
   return `"${text.replace(/"/g, "\"\"")}"`;
 }
@@ -43,9 +48,38 @@ function toCsv(rows, columns) {
   return lines.join("\n");
 }
 
-async function queryRows(env, query) {
-  const result = await env.CORRECTIONS_DB.prepare(query).all();
+async function queryRows(env, query, ...args) {
+  let statement = env.CORRECTIONS_DB.prepare(query);
+  if (args.length) statement = statement.bind(...args);
+  const result = await statement.all();
   return result?.results || [];
+}
+
+async function loadProjectedGroupState(request, env) {
+  const row = await env.CORRECTIONS_DB.prepare(
+    `
+      SELECT current_revision, computed_revision, data_version, payload_json
+      FROM community_state_projection
+      WHERE id = 1
+    `,
+  ).first();
+  const current = Number(row?.current_revision);
+  const computed = Number(row?.computed_revision);
+  const expectedDataVersion = await loadCommunityDataVersion(request, env);
+  if (
+    !row?.payload_json ||
+    current !== computed ||
+    String(row?.data_version || "") !== expectedDataVersion
+  ) {
+    return { items: [], current: false };
+  }
+  const payload = JSON.parse(row.payload_json);
+  return {
+    items: Array.isArray(payload?.groupCorrections)
+      ? payload.groupCorrections
+      : [],
+    current: true,
+  };
 }
 
 function keepAfterSince(rows, sinceTs) {
@@ -63,6 +97,8 @@ export async function onRequest({ request, env }) {
   if (!env.CORRECTIONS_DB) {
     return jsonResponse({ detail: "Chybí CORRECTIONS_DB" }, 500);
   }
+  const authResponse = authorizeAdmin(request, env);
+  if (authResponse) return authResponse;
 
   const url = new URL(request.url);
   const format = normalizeId(url.searchParams.get("format")).toLowerCase() || "json";
@@ -80,10 +116,16 @@ export async function onRequest({ request, env }) {
     5000,
     Math.max(1, Number.parseInt(normalizeId(url.searchParams.get("limit")) || "500", 10) || 500),
   );
+  const sinceSql = sinceTs
+    ? new Date(sinceTs)
+      .toISOString()
+      .replace("T", " ")
+      .replace(/\.\d{3}Z$/u, "")
+    : "";
 
-  const correctionRows = await queryRows(
-    env,
-    `
+  let correctionRows;
+  try {
+    correctionRows = await queryRows(env, `
       SELECT
         id,
         xid,
@@ -98,8 +140,14 @@ export async function onRequest({ request, env }) {
         user_agent,
         created_at
       FROM corrections
-    `,
-  );
+      WHERE (? = '' OR created_at >= ?)
+      ORDER BY id DESC
+      LIMIT ?
+    `, sinceSql, sinceSql, limit);
+  } catch (error) {
+    logDatabaseError("/api/admin/export", "load corrections", error);
+    return jsonResponse({ detail: "Export není dočasně dostupný" }, 503);
+  }
 
   let mergeRows = [];
   try {
@@ -115,9 +163,19 @@ export async function onRequest({ request, env }) {
           user_agent,
           created_at
         FROM merge_decisions
+        WHERE (? = '' OR created_at >= ?)
+        ORDER BY id DESC
+        LIMIT ?
       `,
+      sinceSql,
+      sinceSql,
+      limit,
     );
   } catch (error) {
+    if (!isMissingColumnError(error, ["voter_key", "user_agent"])) {
+      logDatabaseError("/api/admin/export", "load merges", error);
+      return jsonResponse({ detail: "Export není dočasně dostupný" }, 503);
+    }
     mergeRows = await queryRows(
       env,
       `
@@ -128,13 +186,19 @@ export async function onRequest({ request, env }) {
           verdict,
           created_at
         FROM merge_decisions
+        WHERE (? = '' OR created_at >= ?)
+        ORDER BY id DESC
+        LIMIT ?
       `,
+      sinceSql,
+      sinceSql,
+      limit,
     );
   }
 
-  const groupReviewVoteRows = await queryRows(
-    env,
-    `
+  let groupReviewVoteRows;
+  try {
+    groupReviewVoteRows = await queryRows(env, `
       SELECT
         id,
         group_id,
@@ -143,15 +207,22 @@ export async function onRequest({ request, env }) {
         user_agent,
         created_at
       FROM group_review_votes
-    `,
-  ).catch(() => []);
+      WHERE (? = '' OR created_at >= ?)
+      ORDER BY id DESC
+      LIMIT ?
+    `, sinceSql, sinceSql, limit);
+  } catch (error) {
+    logDatabaseError("/api/admin/export", "load group review votes", error);
+    return jsonResponse({ detail: "Export není dočasně dostupný" }, 503);
+  }
 
-  const xidGroupMap = await loadXidGroupMap(request, env);
-  const reviewState = buildReviewState({
-    correctionRows,
-    mergeRows,
-    xidGroupMap,
-  });
+  let projectedGroupState;
+  try {
+    projectedGroupState = await loadProjectedGroupState(request, env);
+  } catch (error) {
+    logDatabaseError("/api/admin/export", "load group state projection", error);
+    return jsonResponse({ detail: "Export není dočasně dostupný" }, 503);
+  }
 
   const filteredCorrections = keepAfterSince(correctionRows, sinceTs)
     .sort((a, b) => parseEventTime(b.created_at) - parseEventTime(a.created_at))
@@ -173,7 +244,8 @@ export async function onRequest({ request, env }) {
       corrections: filteredCorrections,
       merges: filteredMerges,
       groupReviewVotes: filteredGroupReviewVotes,
-      groupState: reviewState.groupCorrections,
+      groupState: projectedGroupState.items,
+      groupStateCurrent: projectedGroupState.current,
     });
   }
 
@@ -253,7 +325,7 @@ export async function onRequest({ request, env }) {
     });
   });
 
-  reviewState.groupCorrections.forEach((row) => {
+  projectedGroupState.items.forEach((row) => {
     exportRows.push({
       record_type: "group_state",
       id: "",

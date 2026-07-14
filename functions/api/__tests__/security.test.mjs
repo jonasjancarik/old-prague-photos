@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   assertSameOrigin,
   buildSessionCookie,
+  buildVoterKey,
+  ensureVoterIdentity,
   enforceRateLimit,
   hasValidSession,
   isLocalBypassAllowed,
@@ -64,6 +66,41 @@ test("buildSessionCookie + hasValidSession validates cookie signature", async ()
     headers: { Cookie: sessionCookie, Origin: "https://example.com" },
   });
   assert.equal(await hasValidSession(requestWithCookie, env), true);
+});
+
+test("durable voter identity survives session and IP changes", async () => {
+  const env = { TURNSTILE_SECRET_KEY: "identity-secret" };
+  const firstRequest = makeRequest("/api/corrections", {
+    headers: { "CF-Connecting-IP": "1.2.3.4" },
+  });
+  const firstIdentity = await ensureVoterIdentity(firstRequest, env);
+  const voterCookie = String(firstIdentity.cookie.split(";")[0] || "");
+  assert.match(voterCookie, /^opp_voter_id=/u);
+
+  const laterRequest = makeRequest("/api/corrections", {
+    headers: {
+      Cookie: voterCookie,
+      "CF-Connecting-IP": "5.6.7.8",
+    },
+  });
+  const laterIdentity = await ensureVoterIdentity(laterRequest, env);
+  assert.equal(laterIdentity.voterKey, firstIdentity.voterKey);
+  assert.equal(await buildVoterKey(laterRequest, env), firstIdentity.voterKey);
+  assert.equal(laterIdentity.cookie, "");
+});
+
+test("tampered voter identity cookie is replaced", async () => {
+  const env = { TURNSTILE_SECRET_KEY: "identity-secret" };
+  const tamperedKey = "a".repeat(64);
+  const request = makeRequest("/api/corrections", {
+    headers: {
+      Cookie: `opp_voter_id=${tamperedKey}.${"b".repeat(64)}`,
+    },
+  });
+
+  const identity = await ensureVoterIdentity(request, env);
+  assert.notEqual(identity.voterKey, tamperedKey);
+  assert.match(identity.cookie, /^opp_voter_id=/u);
 });
 
 test("verifyTurnstileToken enforces hostname and action", async () => {

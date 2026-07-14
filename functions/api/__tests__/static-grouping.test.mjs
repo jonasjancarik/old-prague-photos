@@ -89,3 +89,18 @@ test("applyReviewState restores original coordinates after merge split", () => {
   });
   assert.equal(features[1].properties.corrected, undefined);
 });
+
+test("candidate payload restores its explicit source-coordinate baseline", () => {
+  const grouping = loadGrouping();
+  const item = feature("X1", "G1", [15.1, 51.1]);
+  item.properties.original_coordinates = [14.1, 50.1];
+  item.properties.corrected = { lat: 51.1, lon: 15.1 };
+
+  grouping.applyReviewState([item], {
+    resolvedGroupByXid: { X1: "G1" },
+    groupCorrections: [],
+  });
+
+  assert.deepEqual(coordinatesOf(item), [14.1, 50.1]);
+  assert.equal(item.properties.corrected, undefined);
+});

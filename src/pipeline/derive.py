@@ -9,11 +9,16 @@ from src.pipeline.run_manifest import append_stage_event, write_run_manifest
 from viewer.build_geojson import build_geojson
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PUBLISHED_GROUPS_PATH = PROJECT_ROOT / "viewer/static/data/photos.geojson"
+
+
 def derive_snapshot(
     run_dir: str | Path,
     *,
     minimal_export: bool = True,
     write_manifest: bool = True,
+    existing_groups_path: str | Path | None = PUBLISHED_GROUPS_PATH,
 ) -> dict[str, int | str]:
     paths = PipelinePaths.from_run_dir(run_dir)
     paths.assert_snapshot_inputs()
@@ -32,6 +37,9 @@ def derive_snapshot(
     geojson_count = build_geojson(
         input_path=paths.photos_csv_path,
         output_path=paths.photos_geojson_path,
+        existing_groups_path=(
+            Path(existing_groups_path) if existing_groups_path is not None else None
+        ),
     )
 
     if write_manifest:

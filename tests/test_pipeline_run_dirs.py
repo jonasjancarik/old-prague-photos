@@ -121,6 +121,56 @@ class PipelineRunDirTests(unittest.TestCase):
             self.assertIn("export/old_prague_photos.csv", artifact_paths)
             self.assertNotIn("output/old_prague_photos.csv", artifact_paths)
 
+    def test_derive_snapshot_carries_published_series_into_fresh_run(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            paths = PipelinePaths.from_run_dir(root / "run")
+            paths.create(config={"schema_version": 1})
+            write_json(
+                paths.raw_records_dir / "A1.json",
+                {
+                    "xid": "A1",
+                    "obsah": "Changed metadata",
+                    "rejstříkové záznamy": [{"typ": "Místo", "obsah": "Praha"}],
+                },
+            )
+            write_json(
+                paths.geolocation_ok_dir / "A1.json",
+                {
+                    "xid": "A1",
+                    "obsah": "Changed metadata",
+                    "autor": "Autor",
+                    "datace": "1901",
+                    "geolocation": {
+                        "position": {"lon": 14.0, "lat": 50.0},
+                        "type": "regional.address",
+                        "endpoint": "geocode",
+                    },
+                },
+            )
+            published = root / "published.geojson"
+            write_json(
+                published,
+                {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "geometry": {"type": "Point", "coordinates": [14, 50]},
+                            "properties": {"id": "A1", "group_id": "series_stable"},
+                        }
+                    ],
+                },
+            )
+
+            derive_snapshot(paths.root, existing_groups_path=published)
+
+            geojson = json.loads(paths.photos_geojson_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                geojson["features"][0]["properties"]["group_id"],
+                "series_stable",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

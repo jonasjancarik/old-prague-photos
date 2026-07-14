@@ -1,4 +1,9 @@
 import { buildReviewState, loadXidGroupMap } from "./_review_state.js";
+import { loadCommunityDataVersion } from "./_data_version.js";
+import {
+  isMissingColumnError,
+  logDatabaseError,
+} from "./_db.js";
 
 const CACHE_TTL_SECONDS = 30;
 const FRESH_PARAM_VALUES = new Set(["1", "true", "yes", "on"]);
@@ -18,36 +23,38 @@ async function queryRows(env, query) {
   return result?.results || [];
 }
 
-function cacheKeyFor(request) {
+function cacheKeyFor(request, dataVersion) {
   const url = new URL(request.url);
   url.search = "";
+  url.searchParams.set("__community_data_version", dataVersion);
   url.hash = "";
   return new Request(url.toString(), { method: "GET" });
 }
 
-export async function onRequest(context) {
-  const { request, env } = context;
+function responseCacheControl(forceFresh) {
+  return forceFresh
+    ? "no-store"
+    : `public, max-age=0, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${CACHE_TTL_SECONDS}`;
+}
 
-  if (request.method !== "GET") {
-    return jsonResponse({ detail: "Method Not Allowed" }, 405, {
-      "Cache-Control": "no-store",
-    });
-  }
-
-  const url = new URL(request.url);
-  const freshParam = String(url.searchParams.get("fresh") || "").toLowerCase();
-  const forceFresh = FRESH_PARAM_VALUES.has(freshParam);
-  const key = cacheKeyFor(request);
-  const edgeCache =
-    typeof caches !== "undefined" && caches.default ? caches.default : null;
-
-  if (!forceFresh && edgeCache) {
-    const cached = await edgeCache.match(key);
-    if (cached) {
-      return cached;
+async function readProjection(env) {
+  try {
+    return await env.CORRECTIONS_DB.prepare(
+      `
+        SELECT current_revision, computed_revision, data_version, payload_json
+        FROM community_state_projection
+        WHERE id = 1
+      `,
+    ).first();
+  } catch (error) {
+    if (/no such table[^]*community_state_projection/iu.test(String(error?.message || error))) {
+      return null;
     }
+    throw error;
   }
+}
 
+async function loadReviewRows(env) {
   const correctionRows = await queryRows(
     env,
     `
@@ -65,38 +72,139 @@ export async function onRequest(context) {
     `,
   );
 
-  let mergeRows = [];
+  let mergeRows;
   try {
     mergeRows = await queryRows(
       env,
       `
         SELECT
-          id,
+          source_event_id AS id,
           group_id_a,
           group_id_b,
           verdict,
           voter_key,
           user_agent,
           created_at
-        FROM merge_decisions
+        FROM current_merge_decisions
       `,
     );
   } catch (error) {
+    if (!isMissingColumnError(error, ["voter_key", "user_agent"])) {
+      throw error;
+    }
     mergeRows = await queryRows(
       env,
       `
         SELECT
-          id,
+          source_event_id AS id,
           group_id_a,
           group_id_b,
           verdict,
           created_at
-        FROM merge_decisions
+        FROM current_merge_decisions
       `,
-    ).catch(() => []);
+    );
   }
 
-  const xidGroupMap = await loadXidGroupMap(request, env);
+  return { correctionRows, mergeRows };
+}
+
+export async function onRequest(context) {
+  const { request, env } = context;
+
+  if (request.method !== "GET") {
+    return jsonResponse({ detail: "Method Not Allowed" }, 405, {
+      "Cache-Control": "no-store",
+    });
+  }
+
+  const url = new URL(request.url);
+  const freshParam = String(url.searchParams.get("fresh") || "").toLowerCase();
+  const forceFresh = FRESH_PARAM_VALUES.has(freshParam);
+  const snapshotParam = String(url.searchParams.get("snapshot") || "").toLowerCase();
+  const stableSnapshot = FRESH_PARAM_VALUES.has(snapshotParam);
+  const bypassEdgeCache = forceFresh || stableSnapshot;
+  let dataVersion;
+  try {
+    dataVersion = await loadCommunityDataVersion(request, env);
+  } catch (error) {
+    logDatabaseError("/api/review-state", "load community data version", error);
+    return jsonResponse(
+      { detail: "Verze dat komunity není dočasně dostupná" },
+      503,
+      { "Cache-Control": "no-store" },
+    );
+  }
+  const key = cacheKeyFor(request, dataVersion);
+  const edgeCache =
+    typeof caches !== "undefined" && caches.default ? caches.default : null;
+
+  if (!bypassEdgeCache && edgeCache) {
+    const cached = await edgeCache.match(key);
+    if (cached) {
+      return cached;
+    }
+  }
+
+
+  let projection;
+  try {
+    projection = await readProjection(env);
+  } catch (error) {
+    logDatabaseError("/api/review-state", "load state projection", error);
+    return jsonResponse(
+      { detail: "Stav komunity není dočasně dostupný" },
+      503,
+      { "Cache-Control": "no-store" },
+    );
+  }
+  if (
+    !forceFresh &&
+    projection?.payload_json &&
+    Number(projection.computed_revision) === Number(projection.current_revision) &&
+    String(projection.data_version || "") === dataVersion
+  ) {
+    try {
+      const projectedPayload = JSON.parse(projection.payload_json);
+      const response = jsonResponse(projectedPayload, 200, {
+        "Cache-Control": responseCacheControl(stableSnapshot),
+        "X-Community-Revision": String(Number(projection.current_revision) || 0),
+        "X-Community-Revision-Stable": "1",
+        "X-Community-Data-Version": dataVersion,
+      });
+      if (!bypassEdgeCache && edgeCache) {
+        context.waitUntil(edgeCache.put(key, response.clone()));
+      }
+      return response;
+    } catch (error) {
+      logDatabaseError("/api/review-state", "parse state projection", error);
+    }
+  }
+
+  let correctionRows;
+  let mergeRows;
+  try {
+    ({ correctionRows, mergeRows } = await loadReviewRows(env));
+  } catch (error) {
+    logDatabaseError("/api/review-state", "load review rows", error);
+    return jsonResponse(
+      { detail: "Stav komunity není dočasně dostupný" },
+      503,
+      { "Cache-Control": "no-store" },
+    );
+  }
+
+  let xidGroupMap;
+  try {
+    xidGroupMap = await loadXidGroupMap(request, env);
+  } catch (error) {
+    logDatabaseError("/api/review-state", "load photo groups", error);
+    return jsonResponse(
+      { detail: "Stav komunity není dočasně dostupný" },
+      503,
+      { "Cache-Control": "no-store" },
+    );
+  }
   const reviewState = buildReviewState({
     correctionRows,
     mergeRows,
@@ -122,13 +230,41 @@ export async function onRequest(context) {
     },
   };
 
+  let projectionStayedCurrent = true;
+  if (projection) {
+    try {
+      const updateResult = await env.CORRECTIONS_DB.prepare(
+        `
+          UPDATE community_state_projection
+          SET payload_json = ?, computed_revision = ?, data_version = ?,
+              updated_at = datetime('now')
+          WHERE id = 1 AND current_revision = ?
+        `,
+      )
+        .bind(
+          JSON.stringify(payload),
+          Number(projection.current_revision),
+          dataVersion,
+          Number(projection.current_revision),
+        )
+        .run();
+      projectionStayedCurrent = Number(updateResult?.meta?.changes || 0) === 1;
+    } catch (error) {
+      projectionStayedCurrent = false;
+      logDatabaseError("/api/review-state", "store state projection", error);
+    }
+  }
+
   const response = jsonResponse(payload, 200, {
-    "Cache-Control": forceFresh
-      ? "no-store"
-      : `public, max-age=0, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${CACHE_TTL_SECONDS}`,
+    "Cache-Control": projectionStayedCurrent
+      ? responseCacheControl(bypassEdgeCache)
+      : "no-store",
+    "X-Community-Revision": String(Number(projection?.current_revision) || 0),
+    "X-Community-Revision-Stable": projectionStayedCurrent ? "1" : "0",
+    "X-Community-Data-Version": dataVersion,
   });
 
-  if (!forceFresh && edgeCache) {
+  if (!bypassEdgeCache && edgeCache && projectionStayedCurrent) {
     context.waitUntil(edgeCache.put(key, response.clone()));
   }
 

@@ -1,4 +1,6 @@
 import json
+import hashlib
+import hmac
 import os
 import time
 import unittest
@@ -33,6 +35,10 @@ class ViewerPreviewApiTests(unittest.TestCase):
         self.data_dir = self.root / "data"
         self.corrections_path = self.data_dir / "corrections.jsonl"
         self.merges_path = self.data_dir / "merges.jsonl"
+        self.group_review_votes_path = self.data_dir / "group_review_votes.jsonl"
+        self.group_membership_events_path = (
+            self.data_dir / "group_membership_events.jsonl"
+        )
         self.previews_dir.mkdir(parents=True, exist_ok=True)
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -42,12 +48,16 @@ class ViewerPreviewApiTests(unittest.TestCase):
             "DATA_DIR": viewer_app.DATA_DIR,
             "CORRECTIONS_PATH": viewer_app.CORRECTIONS_PATH,
             "MERGES_PATH": viewer_app.MERGES_PATH,
+            "GROUP_REVIEW_VOTES_PATH": viewer_app.GROUP_REVIEW_VOTES_PATH,
+            "GROUP_MEMBERSHIP_EVENTS_PATH": viewer_app.GROUP_MEMBERSHIP_EVENTS_PATH,
         }
         viewer_app.PHOTOS_PATH = self.photos_path
         viewer_app.LOCAL_PREVIEWS_DIR = self.previews_dir
         viewer_app.DATA_DIR = self.data_dir
         viewer_app.CORRECTIONS_PATH = self.corrections_path
         viewer_app.MERGES_PATH = self.merges_path
+        viewer_app.GROUP_REVIEW_VOTES_PATH = self.group_review_votes_path
+        viewer_app.GROUP_MEMBERSHIP_EVENTS_PATH = self.group_membership_events_path
 
         self._mtime = time.time()
         self._write_photos(
@@ -69,6 +79,12 @@ class ViewerPreviewApiTests(unittest.TestCase):
         viewer_app.DATA_DIR = self._original["DATA_DIR"]
         viewer_app.CORRECTIONS_PATH = self._original["CORRECTIONS_PATH"]
         viewer_app.MERGES_PATH = self._original["MERGES_PATH"]
+        viewer_app.GROUP_REVIEW_VOTES_PATH = self._original[
+            "GROUP_REVIEW_VOTES_PATH"
+        ]
+        viewer_app.GROUP_MEMBERSHIP_EVENTS_PATH = self._original[
+            "GROUP_MEMBERSHIP_EVENTS_PATH"
+        ]
         self._reset_caches()
         self.tmpdir.cleanup()
 
@@ -221,6 +237,404 @@ class ViewerPreviewApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("Neznámé xid", response.json().get("detail", ""))
 
+    def test_submit_correction_accepts_resolved_merged_group(self) -> None:
+        self._append_jsonl(
+            self.merges_path,
+            {
+                "id": "merge_1",
+                "group_id_a": "group-LOCALONLY",
+                "group_id_b": "group-R2ONLY",
+                "verdict": "same",
+                "received_at": "2026-01-01T00:00:00+00:00",
+            },
+        )
+        payload = {
+            "xid": "R2ONLY",
+            "group_id": "group-LOCALONLY",
+            "verdict": "ok",
+        }
+
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            response = self.client.post("/api/corrections", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["accepted_group_id"], "group-LOCALONLY")
+        record = json.loads(self.corrections_path.read_text(encoding="utf-8"))
+        self.assertEqual(record["group_id"], "group-R2ONLY")
+
+    def test_merge_undo_accepts_a_pair_that_now_has_one_root(self) -> None:
+        self._append_jsonl(
+            self.merges_path,
+            {
+                "id": "merge_1",
+                "group_id_a": "group-LOCALONLY",
+                "group_id_b": "group-R2ONLY",
+                "verdict": "same",
+                "received_at": "2026-01-01T00:00:00+00:00",
+            },
+        )
+
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            response = self.client.post(
+                "/api/merges",
+                json={
+                    "group_id_a": "group-LOCALONLY",
+                    "group_id_b": "group-R2ONLY",
+                    "verdict": "undo",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        rows = [
+            json.loads(line)
+            for line in self.merges_path.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(rows[-1]["verdict"], "undo")
+        self.assertEqual(rows[-1]["group_id_a"], "group-LOCALONLY")
+        self.assertEqual(rows[-1]["group_id_b"], "group-R2ONLY")
+
+    def test_merge_undo_keeps_the_exact_historical_pair(self) -> None:
+        self._append_jsonl(
+            self.merges_path,
+            {
+                "id": "merge_1",
+                "group_id_a": "group-FEATUREONLY",
+                "group_id_b": "group-R2ONLY",
+                "verdict": "different",
+                "received_at": "2026-01-01T00:00:00+00:00",
+            },
+        )
+        self._append_jsonl(
+            self.merges_path,
+            {
+                "id": "merge_2",
+                "group_id_a": "group-LOCALONLY",
+                "group_id_b": "group-R2ONLY",
+                "verdict": "same",
+                "received_at": "2026-01-01T00:01:00+00:00",
+            },
+        )
+
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            response = self.client.post(
+                "/api/merges",
+                json={
+                    "group_id_a": "group-FEATUREONLY",
+                    "group_id_b": "group-R2ONLY",
+                    "verdict": "undo",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        rows = [
+            json.loads(line)
+            for line in self.merges_path.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(rows[-1]["group_id_a"], "group-FEATUREONLY")
+        self.assertEqual(rows[-1]["group_id_b"], "group-R2ONLY")
+
+    def test_membership_move_does_not_transfer_historical_correction(self) -> None:
+        self._append_jsonl(
+            self.corrections_path,
+            {
+                "id": "correction_1",
+                "xid": "R2ONLY",
+                "group_id": "group-R2ONLY",
+                "lat": 50.2,
+                "lon": 14.2,
+                "has_coordinates": True,
+                "verdict": "wrong",
+                "voter_key": "voter-a",
+                "received_at": "2026-01-01T00:00:00+00:00",
+            },
+        )
+        self._append_jsonl(
+            self.group_membership_events_path,
+            {
+                "id": "membership_1",
+                "source_group_id": "group-R2ONLY",
+                "target_group_id": "group-LOCALONLY",
+                "assignments": ["R2ONLY"],
+                "review_boundaries": {},
+                "received_at": "2026-01-01T00:01:00+00:00",
+            },
+        )
+
+        state = self.client.get("/api/review-state").json()
+
+        self.assertEqual(state["resolvedGroupByXid"]["R2ONLY"], "group-LOCALONLY")
+        self.assertEqual(state["groupCorrections"][0]["group_id"], "group-R2ONLY")
+
+    def test_durable_voter_cookie_is_reused_across_corrections(self) -> None:
+        payload = {"xid": "R2ONLY", "group_id": "group-R2ONLY", "verdict": "ok"}
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            first = self.client.post("/api/corrections", json=payload)
+            second = self.client.post("/api/corrections", json=payload)
+
+        self.assertEqual(first.status_code, 200)
+        self.assertIn("opp_voter_id=", first.headers.get("set-cookie", ""))
+        rows = [
+            json.loads(line)
+            for line in self.corrections_path.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(rows[0]["voter_key"], rows[1]["voter_key"])
+
+    def test_independent_split_votes_create_curator_candidate(self) -> None:
+        payload = {"group_id": "group-R2ONLY", "verdict": "split"}
+        first_client = TestClient(viewer_app.app)
+        second_client = TestClient(viewer_app.app)
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            self.assertEqual(
+                first_client.post("/api/group-review-votes", json=payload).status_code,
+                200,
+            )
+            self.assertEqual(
+                second_client.post("/api/group-review-votes", json=payload).status_code,
+                200,
+            )
+            response = first_client.get("/api/group-review-votes")
+
+        self.assertEqual(response.status_code, 200)
+        state = next(
+            item
+            for item in response.json()["items"]
+            if item["group_id"] == "group-R2ONLY"
+        )
+        self.assertEqual(state["split_votes"], 2)
+        self.assertTrue(state["needs_split"])
+
+    def test_fastapi_admin_can_apply_a_curator_group_split(self) -> None:
+        first = _feature("R2ONLY")
+        second = _feature("LOCALONLY")
+        first["properties"]["group_id"] = "group-shared"
+        second["properties"]["group_id"] = "group-shared"
+        self._write_photos([first, second])
+        self._append_jsonl(
+            self.group_review_votes_path,
+            {
+                "id": "vote_1",
+                "group_id": "group-shared",
+                "verdict": "split",
+                "voter_key": "voter-a",
+                "received_at": "2026-01-01T10:00:00+00:00",
+            },
+        )
+        self._append_jsonl(
+            self.group_review_votes_path,
+            {
+                "id": "vote_2",
+                "group_id": "group-shared",
+                "verdict": "split",
+                "voter_key": "voter-b",
+                "received_at": "2026-01-01T10:01:00+00:00",
+            },
+        )
+
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            before = self.client.get("/api/admin/review")
+            split = self.client.post(
+                "/api/admin/group-membership",
+                json={
+                    "source_group_id": "group-shared",
+                    "target_group_id": "series-curated-local",
+                    "xids": ["LOCALONLY"],
+                    "reason": "Different viewpoint",
+                },
+            )
+            after = self.client.get("/api/admin/review")
+
+        self.assertEqual(before.status_code, 200)
+        before_payload = before.json()
+        self.assertEqual(before_payload["counts"]["splitCandidates"], 1)
+        self.assertEqual(
+            before_payload["splitCandidates"][0]["xids"],
+            ["LOCALONLY", "R2ONLY"],
+        )
+        self.assertEqual(split.status_code, 200)
+        self.assertEqual(split.json()["moved_xids"], ["LOCALONLY"])
+        self.assertEqual(
+            split.json()["target_group_id"],
+            "series-curated-local",
+        )
+        self.assertEqual(after.status_code, 200)
+        self.assertEqual(after.json()["counts"]["splitCandidates"], 0)
+        state = self.client.get("/api/review-state").json()
+        self.assertEqual(
+            state["resolvedGroupByXid"]["LOCALONLY"],
+            "series-curated-local",
+        )
+        self.assertEqual(
+            state["resolvedGroupByXid"]["R2ONLY"],
+            "group-shared",
+        )
+        event = json.loads(
+            self.group_membership_events_path.read_text(encoding="utf-8")
+        )
+        self.assertEqual(event["review_boundaries"]["group-shared"], 2)
+
+    def test_candidate_cursor_changes_after_existing_group_membership_move(self) -> None:
+        first = _feature("R2ONLY")
+        second = _feature("LOCALONLY")
+        target = _feature("FEATUREONLY")
+        first["properties"]["group_id"] = "group-source"
+        second["properties"]["group_id"] = "group-source"
+        target["properties"]["group_id"] = "group-target"
+        self._write_photos([first, second, target])
+
+        page = self.client.get(
+            "/api/community-candidates",
+            params={"flow": "location", "limit": 1},
+        )
+        self.assertEqual(page.status_code, 200)
+        cursor = page.json()["nextCursor"]
+        self.assertTrue(cursor)
+
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            moved = self.client.post(
+                "/api/admin/group-membership",
+                json={
+                    "source_group_id": "group-source",
+                    "target_group_id": "group-target",
+                    "xids": ["LOCALONLY"],
+                },
+            )
+        self.assertEqual(moved.status_code, 200)
+
+        stale = self.client.get(
+            "/api/community-candidates",
+            params={"flow": "location", "limit": 1, "cursor": cursor},
+        )
+        self.assertEqual(stale.status_code, 409)
+
+    def test_group_review_votes_follow_current_merged_root(self) -> None:
+        self._append_jsonl(
+            self.merges_path,
+            {
+                "id": "merge_1",
+                "group_id_a": "group-LOCALONLY",
+                "group_id_b": "group-R2ONLY",
+                "verdict": "same",
+                "received_at": "2026-01-01T00:00:00+00:00",
+            },
+        )
+        self._append_jsonl(
+            self.group_review_votes_path,
+            {
+                "id": "vote_1",
+                "group_id": "group-R2ONLY",
+                "verdict": "ok",
+                "voter_key": "voter-a",
+                "received_at": "2026-01-01T10:00:00+00:00",
+            },
+        )
+        self._append_jsonl(
+            self.group_review_votes_path,
+            {
+                "id": "vote_2",
+                "group_id": "group-LOCALONLY",
+                "verdict": "ok",
+                "voter_key": "voter-b",
+                "received_at": "2026-01-01T10:01:00+00:00",
+            },
+        )
+
+        response = self.client.get("/api/group-review-votes")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["count"], 1)
+        item = response.json()["items"][0]
+        self.assertEqual(item["group_id"], "group-LOCALONLY")
+        self.assertEqual(item["ok_votes"], 2)
+        self.assertTrue(item["done"])
+
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            submitted = self.client.post(
+                "/api/group-review-votes",
+                json={"group_id": "group-R2ONLY", "verdict": "split"},
+            )
+        self.assertEqual(submitted.status_code, 200)
+        self.assertEqual(
+            submitted.json()["decision"]["group_id"],
+            "group-LOCALONLY",
+        )
+        written = [
+            json.loads(line)
+            for line in self.group_review_votes_path.read_text(
+                encoding="utf-8"
+            ).splitlines()
+        ]
+        self.assertEqual(written[-1]["group_id"], "group-LOCALONLY")
+
+    def test_admin_api_requires_configured_bearer_token(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"TURNSTILE_BYPASS": "0", "ADMIN_API_TOKEN": "admin-secret"},
+            clear=False,
+        ):
+            denied = self.client.get("/api/admin/review")
+            allowed = self.client.get(
+                "/api/admin/review",
+                headers={"Authorization": "Bearer admin-secret"},
+            )
+
+        self.assertEqual(denied.status_code, 401)
+        self.assertEqual(allowed.status_code, 200)
+
+    def test_admin_csv_neutralizes_spreadsheet_formulas(self) -> None:
+        self._append_jsonl(
+            self.corrections_path,
+            {
+                "id": "formula-1",
+                "xid": "R2ONLY",
+                "group_id": "group-R2ONLY",
+                "verdict": "flag",
+                "has_coordinates": False,
+                "message": "=HYPERLINK(\"https://evil.example\")",
+                "received_at": "2026-01-01T00:00:00+00:00",
+            },
+        )
+        with patch.dict(
+            os.environ,
+            {"TURNSTILE_BYPASS": "0", "ADMIN_API_TOKEN": "admin-secret"},
+            clear=False,
+        ):
+            response = self.client.get(
+                "/api/admin/export",
+                params={"format": "csv"},
+                headers={"Authorization": "Bearer admin-secret"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("'=HYPERLINK", response.text)
+
+    def test_bypass_session_fallback_is_not_valid_on_public_hosts(self) -> None:
+        exp = int(time.time()) + 3600
+        signature = hmac.new(
+            b"dev-bypass", str(exp).encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+        public_client = TestClient(viewer_app.app, base_url="https://public.example")
+        public_client.cookies.set(
+            viewer_app.SESSION_COOKIE_NAME,
+            f"{exp}.{signature}",
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "TURNSTILE_BYPASS": "1",
+                "TURNSTILE_SESSION_SECRET": "",
+                "TURNSTILE_SECRET_KEY": "",
+                "API_RATE_LIMIT_SECRET": "",
+            },
+            clear=False,
+        ):
+            response = public_client.post(
+                "/api/corrections",
+                headers={"Origin": "https://public.example"},
+                json={"xid": "R2ONLY", "verdict": "ok"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Turnstile", response.json().get("detail", ""))
+
     def test_review_state_picks_latest_verdict_and_latest_coordinates_per_group(self) -> None:
         self._append_jsonl(
             self.merges_path,
@@ -316,6 +730,27 @@ class ViewerPreviewApiTests(unittest.TestCase):
         self.assertEqual(resolved["R2ONLY"], "group-R2ONLY")
         self.assertEqual(resolved["LOCALONLY"], "group-LOCALONLY")
         self.assertEqual(payload["mergeDecisions"], [])
+
+    def test_community_candidates_are_paginated(self) -> None:
+        response = self.client.get(
+            "/api/community-candidates?flow=location&cursor=0&limit=2"
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload["items"]), 2)
+        self.assertEqual(payload["limit"], 2)
+        self.assertRegex(
+            payload["nextCursor"],
+            r"^v[A-Za-z0-9_-]+:r\d+:2$",
+        )
+        self.assertEqual(payload["total"], 5)
+
+    def test_duplicate_candidates_reject_unknown_focus_group(self) -> None:
+        response = self.client.get(
+            "/api/community-candidates",
+            params={"flow": "duplicate", "group_id": "attacker-value"},
+        )
+        self.assertEqual(response.status_code, 400)
 
 
 if __name__ == "__main__":

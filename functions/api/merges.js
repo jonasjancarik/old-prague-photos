@@ -1,12 +1,16 @@
 import {
   assertSameOrigin,
-  buildVoterKey,
+  ensureVoterIdentity,
   enforceRateLimit,
   hasValidSession,
   toHttpError,
   verifyTurnstileToken,
 } from "./_security.js";
-import { loadXidGroupMap } from "./_review_state.js";
+import { onRequest as reviewStateOnRequest } from "./review-state.js";
+import {
+  isMissingColumnError,
+  logDatabaseError,
+} from "./_db.js";
 
 function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
@@ -20,49 +24,47 @@ function jsonResponse(payload, status = 200, headers = {}) {
 }
 
 async function handleGet(env) {
-  let result;
-  try {
-    result = await env.CORRECTIONS_DB.prepare(
-      `
-        WITH latest AS (
-          SELECT group_id_a, group_id_b, MAX(id) AS any_id
-          FROM merge_decisions
-          GROUP BY group_id_a, group_id_b
-        )
-        SELECT
-          m.group_id_a,
-          m.group_id_b,
-          m.verdict,
-          m.voter_key,
-          m.user_agent,
-          m.created_at AS received_at
-        FROM latest l
-        JOIN merge_decisions m ON m.id = l.any_id
-        WHERE m.verdict IN ('same', 'different')
-      `,
-    ).all();
-  } catch (error) {
-    result = await env.CORRECTIONS_DB.prepare(
-      `
-        WITH latest AS (
-          SELECT group_id_a, group_id_b, MAX(id) AS any_id
-          FROM merge_decisions
-          GROUP BY group_id_a, group_id_b
-        )
-        SELECT
-          m.group_id_a,
-          m.group_id_b,
-          m.verdict,
-          m.created_at AS received_at
-        FROM latest l
-        JOIN merge_decisions m ON m.id = l.any_id
-        WHERE m.verdict IN ('same', 'different')
-      `,
-    ).all();
-  }
+  const result = await env.CORRECTIONS_DB.prepare(
+    `
+      SELECT
+        group_id_a,
+        group_id_b,
+        verdict,
+        created_at AS received_at
+      FROM current_merge_decisions
+      WHERE verdict IN ('same', 'different')
+    `,
+  ).all();
 
   const items = result?.results || [];
   return jsonResponse({ items, count: items.length });
+}
+
+async function loadAuthoritativeGroups(request, env) {
+  const url = new URL("/api/review-state?snapshot=1", request.url);
+  const response = await reviewStateOnRequest({
+    request: new Request(url.toString(), {
+      method: "GET",
+      headers: request.headers,
+    }),
+    env,
+    waitUntil() {},
+  });
+  if (
+    !response.ok ||
+    response.headers.get("X-Community-Revision-Stable") !== "1"
+  ) {
+    throw new Error("Authoritative community groups are changing");
+  }
+  const payload = await response.json();
+  const groupRoots = payload?.groupRoots || {};
+  const knownGroupIds = new Set([
+    ...Object.keys(groupRoots),
+    ...Object.values(groupRoots),
+    ...Object.values(payload?.resolvedGroupByXid || {}),
+  ].map((value) => String(value || "").trim()).filter(Boolean));
+  if (knownGroupIds.size === 0) return null;
+  return { groupRoots, knownGroupIds };
 }
 
 async function handlePost(request, env) {
@@ -100,13 +102,37 @@ async function handlePost(request, env) {
     return jsonResponse({ detail: "Neplatný typ rozhodnutí" }, 400);
   }
 
-  const xidGroupMap = await loadXidGroupMap(request, env);
-  if (xidGroupMap.size === 0) {
+  let authoritativeGroups;
+  try {
+    authoritativeGroups = await loadAuthoritativeGroups(request, env);
+  } catch (error) {
+    logDatabaseError("/api/merges", "load photo groups", error);
+    return jsonResponse(
+      { detail: "Stav komunity není dočasně dostupný" },
+      503,
+    );
+  }
+  if (!authoritativeGroups) {
     return jsonResponse({ detail: "Chybí metadata skupin" }, 500);
   }
-  const knownGroupIds = new Set(xidGroupMap.values());
-  if (!knownGroupIds.has(groupIdA) || !knownGroupIds.has(groupIdB)) {
+  if (
+    !authoritativeGroups.knownGroupIds.has(groupIdA) ||
+    !authoritativeGroups.knownGroupIds.has(groupIdB)
+  ) {
     return jsonResponse({ detail: "Neznámá skupina" }, 400);
+  }
+  const resolvedGroupIdA = String(
+    authoritativeGroups.groupRoots[groupIdA] || groupIdA,
+  );
+  const resolvedGroupIdB = String(
+    authoritativeGroups.groupRoots[groupIdB] || groupIdB,
+  );
+  if (verdict !== "undo") {
+    if (resolvedGroupIdA === resolvedGroupIdB) {
+      return jsonResponse({ detail: "Nelze sloučit stejnou skupinu" }, 400);
+    }
+    groupIdA = resolvedGroupIdA;
+    groupIdB = resolvedGroupIdB;
   }
 
   const hasSession = await hasValidSession(request, env);
@@ -132,7 +158,7 @@ async function handlePost(request, env) {
     [groupIdA, groupIdB] = [groupIdB, groupIdA];
   }
 
-  const voterKey = await buildVoterKey(request, env);
+  const voterIdentity = await ensureVoterIdentity(request, env);
   const userAgent = request.headers.get("User-Agent") || "";
 
   try {
@@ -148,31 +174,63 @@ async function handlePost(request, env) {
         VALUES (?, ?, ?, ?, ?)
       `,
     )
-      .bind(groupIdA, groupIdB, verdict, voterKey, userAgent)
+      .bind(groupIdA, groupIdB, verdict, voterIdentity.voterKey, userAgent)
       .run();
   } catch (error) {
-    await env.CORRECTIONS_DB.prepare(
-      `
-        INSERT INTO merge_decisions (
-          group_id_a,
-          group_id_b,
-          verdict
-        )
-        VALUES (?, ?, ?)
-      `,
-    )
-      .bind(groupIdA, groupIdB, verdict)
-      .run();
+    if (!isMissingColumnError(error, ["voter_key", "user_agent"])) {
+      logDatabaseError("/api/merges", "insert merge decision", error);
+      return jsonResponse({ detail: "Nepodařilo se uložit příspěvek" }, 503);
+    }
+    try {
+      await env.CORRECTIONS_DB.prepare(
+        `
+          INSERT INTO merge_decisions (
+            group_id_a,
+            group_id_b,
+            verdict
+          )
+          VALUES (?, ?, ?)
+        `,
+      )
+        .bind(groupIdA, groupIdB, verdict)
+        .run();
+    } catch (fallbackError) {
+      logDatabaseError(
+        "/api/merges",
+        "insert legacy merge decision",
+        fallbackError,
+      );
+      return jsonResponse({ detail: "Nepodařilo se uložit příspěvek" }, 503);
+    }
   }
 
-  return jsonResponse({ ok: true });
+  const response = jsonResponse({
+    ok: true,
+    decision: {
+      group_id_a: groupIdA,
+      group_id_b: groupIdB,
+      verdict,
+    },
+  });
+  if (voterIdentity.cookie) {
+    response.headers.append("Set-Cookie", voterIdentity.cookie);
+  }
+  return response;
 }
 
 export async function onRequest(context) {
   const { request, env } = context;
 
   if (request.method === "GET") {
-    return handleGet(env);
+    try {
+      return await handleGet(env);
+    } catch (error) {
+      logDatabaseError("/api/merges", "load merge decisions", error);
+      return jsonResponse(
+        { detail: "Stav komunity není dočasně dostupný" },
+        503,
+      );
+    }
   }
 
   if (request.method === "POST") {

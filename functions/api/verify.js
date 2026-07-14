@@ -1,6 +1,7 @@
 import {
   assertSameOrigin,
   buildSessionCookie,
+  ensureVoterIdentity,
   enforceRateLimit,
   toHttpError,
   verifyTurnstileToken,
@@ -48,8 +49,15 @@ export async function onRequest({ request, env }) {
       token: String(body?.token || "").trim(),
       expectedAction: "session_verify",
     });
-    const { cookie } = await buildSessionCookie(request, env);
-    return jsonResponse({ ok: true }, 200, { "Set-Cookie": cookie });
+    const { cookie: sessionCookie } = await buildSessionCookie(request, env);
+    const { cookie: voterCookie } = await ensureVoterIdentity(request, env);
+    const response = jsonResponse(
+      { ok: true },
+      200,
+      { "Set-Cookie": sessionCookie },
+    );
+    if (voterCookie) response.headers.append("Set-Cookie", voterCookie);
+    return response;
   } catch (error) {
     const httpError = toHttpError(error, 400, "Ověření selhalo");
     return jsonResponse(
