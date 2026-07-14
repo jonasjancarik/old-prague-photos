@@ -6,6 +6,81 @@ from tempfile import TemporaryDirectory
 
 
 class ReleaseScriptTests(unittest.TestCase):
+    def _staging_env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        for name in (
+            "CONFIRM_STAGING_DEPLOY",
+            "D1_BACKUP_DIR",
+            "PAGES_STAGING_URL",
+            "ADMIN_API_TOKEN",
+            "CF_ACCESS_CLIENT_ID",
+            "CF_ACCESS_CLIENT_SECRET",
+        ):
+            env.pop(name, None)
+        return env
+
+    def test_staging_deploy_requires_explicit_confirmation(self) -> None:
+        result = subprocess.run(
+            ["sh", "scripts/deploy-pages-staging.sh"],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=self._staging_env(),
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Staging deployment is disabled by default", result.stderr)
+
+    def test_staging_deploy_requires_checkpoint_destination(self) -> None:
+        env = self._staging_env()
+        env["CONFIRM_STAGING_DEPLOY"] = "old-prague-photos-staging"
+        result = subprocess.run(
+            ["sh", "scripts/deploy-pages-staging.sh"],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Set D1_BACKUP_DIR", result.stderr)
+
+    def test_staging_checkpoint_precedes_remote_migrations(self) -> None:
+        script = Path("scripts/deploy-pages-staging.sh").read_text(encoding="utf-8")
+
+        self.assertLess(
+            script.index("scripts/checkpoint-d1.sh preview"),
+            script.index("d1 migrations apply CORRECTIONS_DB --remote --env preview"),
+        )
+
+    def test_staging_deploy_fails_when_worktree_status_cannot_be_verified(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            git = Path(tmpdir) / "git"
+            git.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+            git.chmod(0o755)
+            env = self._staging_env()
+            env.update(
+                {
+                    "PATH": f"{tmpdir}:{env['PATH']}",
+                    "CONFIRM_STAGING_DEPLOY": "old-prague-photos-staging",
+                    "D1_BACKUP_DIR": "/tmp/not-used",
+                    "PAGES_STAGING_URL": "https://staging.example.test",
+                    "ADMIN_API_TOKEN": "x",
+                    "CF_ACCESS_CLIENT_ID": "x",
+                    "CF_ACCESS_CLIENT_SECRET": "x",
+                }
+            )
+            result = subprocess.run(
+                ["sh", "scripts/deploy-pages-staging.sh"],
+                check=False,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Could not verify that the staging worktree is clean", result.stderr)
+
     def test_legacy_deploy_uses_the_guarded_production_release(self) -> None:
         env = os.environ.copy()
         env.pop("CONFIRM_PRODUCTION_DEPLOY", None)

@@ -47,17 +47,22 @@ Run from a clean, reviewed commit:
 
 ```bash
 PAGES_STAGING_URL=https://staging.example.com \
+D1_BACKUP_DIR=/secure/retained/old-prague-photos \
 ADMIN_API_TOKEN=... \
 CF_ACCESS_CLIENT_ID=... \
 CF_ACCESS_CLIENT_SECRET=... \
+CONFIRM_STAGING_DEPLOY=old-prague-photos-staging \
 npm run deploy:pages:staging
 ```
 
-The command refuses production-like branch names and an absent, all-zero, or
-production-equal staging D1 UUID. It verifies the full local test/build gate,
-migrates the preview database, deploys a Pages preview, then checks secure
-configuration, candidate delivery, Access enforcement, the signed HttpOnly
-curator session, and current operational diagnostics.
+The command requires an explicit staging confirmation, a clean worktree, a
+retained checkpoint directory, the protected staging URL, and every credential
+needed by the smoke check before it does remote work. It refuses production-like
+branch names and an absent, all-zero, or production-equal staging D1 UUID. It
+verifies the full local test/build gate, captures a private SQL export and Time
+Travel bookmark, migrates the preview database, deploys a Pages preview, then
+checks secure configuration, candidate delivery, Access enforcement, the signed
+HttpOnly curator session, and current operational diagnostics.
 
 After the automated check, use a fresh browser session to submit one location
 correction, duplicate decision with undo, and group-split vote. Use a second

@@ -303,15 +303,20 @@ requests reach the application.
 
 ```bash
 PAGES_STAGING_URL=https://staging.example.com \
+D1_BACKUP_DIR=/secure/retained/old-prague-photos \
 ADMIN_API_TOKEN=... \
 CF_ACCESS_CLIENT_ID=... \
 CF_ACCESS_CLIENT_SECRET=... \
+CONFIRM_STAGING_DEPLOY=old-prague-photos-staging \
 npm run deploy:pages:staging
 ```
 
-This applies migrations only to the preview D1 database, deploys the `staging`
-branch preview, and checks configuration, all three candidate queues, Access,
-and the curator API.
+This captures a private preview-D1 export and Time Travel bookmark, applies
+migrations only to the preview database, deploys the `staging` branch preview,
+and checks configuration, all three candidate queues, Access, and the curator
+API. The command fails before remote work unless the worktree is clean and the
+staging URL, checkpoint destination, confirmation, and smoke credentials are
+present.
 
 ### 5) Deploy to production
 
