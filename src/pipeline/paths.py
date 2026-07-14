@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -204,6 +206,140 @@ class PipelinePaths:
             target = self.llm_batch_requests_dir / source.name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
+
+    def publish_current_output_snapshot(
+        self,
+        output_dir: Path = Path("output"),
+        photos_geojson_path: Path = Path("viewer/static/data/photos.geojson"),
+    ) -> None:
+        """Publish a completed run back to the legacy snapshot and web dataset."""
+        self.assert_snapshot_inputs()
+        if not self.photos_geojson_path.exists():
+            raise FileNotFoundError(
+                f"Missing derived viewer dataset: {self.photos_geojson_path}"
+            )
+
+        output_dir = Path(output_dir)
+        photos_geojson_path = Path(photos_geojson_path)
+        publish_id = uuid.uuid4().hex
+        output_staging = output_dir.parent / f".{output_dir.name}.publish-{publish_id}"
+        output_backup = output_dir.parent / f".{output_dir.name}.backup-{publish_id}"
+        photo_staging = photos_geojson_path.parent / (
+            f".{photos_geojson_path.name}.publish-{publish_id}"
+        )
+        photo_backup = photos_geojson_path.parent / (
+            f".{photos_geojson_path.name}.backup-{publish_id}"
+        )
+
+        output_dir.parent.mkdir(parents=True, exist_ok=True)
+        photos_geojson_path.parent.mkdir(parents=True, exist_ok=True)
+        directory_specs = [
+            (self.raw_records_dir, output_staging / "raw_records"),
+            (self.geolocation_ok_dir, output_staging / "geolocation" / "ok"),
+            (self.geolocation_failed_dir, output_staging / "geolocation" / "failed"),
+            (self.llm_batch_results_dir, output_staging / "batch_results"),
+        ]
+        file_specs = [
+            (self.available_record_ids_path, output_staging / "available_record_ids.json"),
+            (self.failed_xids_path, output_staging / "failed_xids.jsonl"),
+            (self.missing_details_xids_path, output_staging / "missing_details_xids.json"),
+            (self.nav_partition_progress_path, output_staging / "nav_partition_progress.json"),
+            (self.llm_batches_path, output_staging / "batches.json"),
+            (self.llm_prompts_path, output_staging / "prompts.json"),
+            (self.photos_csv_path, output_staging / "old_prague_photos.csv"),
+        ]
+
+        try:
+            if output_dir.exists():
+                shutil.copytree(output_dir, output_staging)
+            else:
+                output_staging.mkdir()
+            for source, target in directory_specs:
+                if source.exists():
+                    self._replace_directory(source, target)
+            for source, target in file_specs:
+                if source.exists():
+                    self._replace_file(source, target)
+                elif target.exists():
+                    target.unlink()
+
+            published_requests = set()
+            for source in sorted(
+                self.llm_batch_requests_dir.glob("batch_request_*.jsonl")
+            ):
+                target = output_staging / source.name
+                self._replace_file(source, target)
+                published_requests.add(target.name)
+            for target in output_staging.glob("batch_request_*.jsonl"):
+                if target.name not in published_requests:
+                    target.unlink()
+
+            shutil.copy2(self.photos_geojson_path, photo_staging)
+            self._commit_staged_publication(
+                output_dir=output_dir,
+                output_staging=output_staging,
+                output_backup=output_backup,
+                photos_path=photos_geojson_path,
+                photo_staging=photo_staging,
+                photo_backup=photo_backup,
+            )
+        finally:
+            for path in (output_staging, output_backup):
+                if path.exists():
+                    shutil.rmtree(path)
+            for path in (photo_staging, photo_backup):
+                if path.exists():
+                    path.unlink()
+
+    @staticmethod
+    def _commit_staged_publication(
+        *,
+        output_dir: Path,
+        output_staging: Path,
+        output_backup: Path,
+        photos_path: Path,
+        photo_staging: Path,
+        photo_backup: Path,
+    ) -> None:
+        output_had_original = output_dir.exists()
+        photo_had_original = photos_path.exists()
+        output_committed = False
+        photo_backed_up = False
+        try:
+            if output_had_original:
+                os.replace(output_dir, output_backup)
+            os.replace(output_staging, output_dir)
+            output_committed = True
+            if photo_had_original:
+                os.replace(photos_path, photo_backup)
+                photo_backed_up = True
+            os.replace(photo_staging, photos_path)
+        except Exception:
+            if photo_backed_up:
+                if photos_path.exists():
+                    photos_path.unlink()
+                os.replace(photo_backup, photos_path)
+            if output_committed and output_dir.exists():
+                shutil.rmtree(output_dir)
+            if output_had_original and output_backup.exists():
+                os.replace(output_backup, output_dir)
+            raise
+
+    @staticmethod
+    def _replace_file(source: Path, target: Path) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        staging = target.parent / f".{target.name}.publish-{uuid.uuid4().hex}"
+        shutil.copy2(source, staging)
+        os.replace(staging, target)
+
+    @staticmethod
+    def _replace_directory(source: Path, target: Path) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        staging = target.parent / f".{target.name}.publish-{uuid.uuid4().hex}"
+        shutil.copytree(source, staging)
+        if target.exists():
+            shutil.rmtree(target)
+        os.replace(staging, target)
 
     def _relative(self, path: Path) -> str:
         return path.relative_to(self.root).as_posix()

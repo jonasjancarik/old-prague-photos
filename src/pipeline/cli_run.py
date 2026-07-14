@@ -199,6 +199,37 @@ def run_collect(
     typer.echo(f"Collected into {paths.collect_dir}")
 
 
+@run_app.command("publish")
+def run_publish(
+    run_dir: Annotated[
+        Path,
+        typer.Argument(help="Completed run directory to publish"),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Legacy output snapshot destination"),
+    ] = Path("output"),
+    photos_path: Annotated[
+        Path,
+        typer.Option("--photos-path", help="Published viewer GeoJSON destination"),
+    ] = Path("viewer/static/data/photos.geojson"),
+):
+    """Publish a completed run to the compatibility snapshot and web dataset."""
+    from src.pipeline.paths import PipelinePaths
+
+    paths = PipelinePaths.from_run_dir(run_dir)
+    paths.publish_current_output_snapshot(
+        output_dir=output_dir,
+        photos_geojson_path=photos_path,
+    )
+    _record_run_stage(
+        paths,
+        "publish",
+        {"output_dir": str(output_dir), "photos_path": str(photos_path)},
+    )
+    typer.echo(f"Published {run_dir} to {output_dir} and {photos_path}")
+
+
 @run_app.command("geolocate-mapy")
 def run_geolocate_mapy(
     run_dir: Annotated[

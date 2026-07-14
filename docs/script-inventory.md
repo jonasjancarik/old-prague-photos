@@ -36,6 +36,7 @@ Status meanings:
 | `scripts/checkpoint-d1.sh` | maintenance | deployment/recovery | Captures a private D1 SQL export and Time Travel bookmark before a remote migration. |
 | `scripts/restore-d1-time-travel.sh` | maintenance | recovery | Guarded destructive D1 Time Travel restore for production or preview. |
 | `scripts/smoke-pages.mjs` | maintenance | testing/deployment | Checks secure Pages configuration, candidate queues, Cloudflare Access, and curator authentication. |
+| `scripts/smoke-pages-validation.mjs` | maintenance | testing/deployment | Provides pure payload validation shared by the Pages smoke command and its regression test. |
 | `scripts/deploy-pages-staging.sh` | maintenance | deployment | Verifies, migrates the isolated preview D1 database, deploys staging, and runs remote smoke checks. |
 | `scripts/deploy-pages.sh` | maintenance | deployment | Captures a recovery checkpoint, runs the full gate, migrates production D1, deploys Pages, and runs smoke checks. |
 | `ops.sh` | maintenance | development/deployment | Legacy local ops wrapper; its production deploy command delegates to the guarded backup/migration/smoke release script. |

@@ -85,6 +85,7 @@ while true; do
   log "cycle_start cycle=${cycle} run_dir=${RUN_DIR}"
 
   CURRENT_PHOTOS_GEOJSON="$PHOTOS_GEOJSON_PATH"
+  NEXT_ORPHAN_LIST_PATH="$ORPHAN_LIST_PATH"
 
   run_cmd "probe" uv run python scripts/orphan_recovery.py probe \
     --input "$ORPHAN_LIST_PATH" \
@@ -110,6 +111,7 @@ while true; do
       --geo-dir "$RUN_DIR/geolocation/ok" || cycle_ok=0
     run_cmd "derive" uv run cli derive --run-dir "$RUN_DIR" || cycle_ok=0
     CURRENT_PHOTOS_GEOJSON="$RUN_DIR/viewer-data/photos.geojson"
+    NEXT_ORPHAN_LIST_PATH="$RUN_DIR/orphan_xids.next.json"
   else
     log "skip_dataset_refresh update_tracked_datasets=${UPDATE_TRACKED_DATASETS}"
   fi
@@ -123,7 +125,15 @@ while true; do
     --photos "$CURRENT_PHOTOS_GEOJSON" \
     --raw-dir "$RUN_DIR/collect/raw_records" \
     --downloads-root downloads/archive \
-    --output-orphans "$ORPHAN_LIST_PATH" || cycle_ok=0
+    --output-orphans "$NEXT_ORPHAN_LIST_PATH" || cycle_ok=0
+
+  if [ "$cycle_ok" -eq 1 ] && [ "$UPDATE_TRACKED_DATASETS" -eq 1 ]; then
+    run_cmd "publish-snapshot" uv run cli run publish "$RUN_DIR" \
+      --photos-path "$PHOTOS_GEOJSON_PATH" || cycle_ok=0
+    if [ "$cycle_ok" -eq 1 ]; then
+      run_cmd "publish-orphan-list" cp "$NEXT_ORPHAN_LIST_PATH" "$ORPHAN_LIST_PATH" || cycle_ok=0
+    fi
+  fi
 
   if [ "$cycle_ok" -ne 1 ]; then
     printf '{"timestamp":"%s","cycle":%s,"run_dir":"%s","status":"error"}\n' "$(date -u +%FT%TZ)" "$cycle" "$RUN_DIR" >> "$HISTORY_FILE"

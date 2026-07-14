@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { isValidCandidatePayload } from "./smoke-pages-validation.mjs";
+
 const baseUrl = String(process.argv[2] || "").replace(/\/$/, "");
 if (!baseUrl || !/^https?:\/\//.test(baseUrl)) {
   console.error("Usage: node scripts/smoke-pages.mjs https://staging.example.com");
@@ -40,7 +42,7 @@ if (process.env.SMOKE_REQUIRE_SECURE_CONFIG === "1") {
 
 for (const flow of ["location", "duplicate", "group"]) {
   const payload = await getJson(`/api/community-candidates?flow=${flow}&limit=1`);
-  if (!Array.isArray(payload.items) || !String(payload.revision || "")) {
+  if (!isValidCandidatePayload(payload)) {
     throw new Error(`/api/community-candidates: invalid ${flow} payload`);
   }
 }

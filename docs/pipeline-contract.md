@@ -96,6 +96,16 @@ uv run cli derive --run-dir runs/current-output
 
 Derived outputs for that snapshot are written under the run directory.
 
+To intentionally publish a completed run back to the compatibility snapshot
+and the web dataset, use:
+
+```bash
+uv run cli run publish runs/<run-id>
+```
+
+The orphan-recovery loop uses this only when `UPDATE_TRACKED_DATASETS=1`, and
+publishes the matching orphan list only after the snapshot succeeds.
+
 ## Verification
 
 Before handing off non-web pipeline changes, run:

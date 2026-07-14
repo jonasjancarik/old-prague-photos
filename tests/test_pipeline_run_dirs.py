@@ -1,8 +1,10 @@
 import csv
 import json
+import os
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from src.pipeline.derive import derive_snapshot
 from src.pipeline.paths import PipelinePaths
@@ -120,6 +122,74 @@ class PipelineRunDirTests(unittest.TestCase):
             self.assertIn("geolocation/llm/prompts.json", artifact_paths)
             self.assertIn("export/old_prague_photos.csv", artifact_paths)
             self.assertNotIn("output/old_prague_photos.csv", artifact_paths)
+
+    def test_publish_snapshot_replaces_legacy_output_and_viewer_data(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            paths = PipelinePaths.from_run_dir(root / "run")
+            paths.create(config={"schema_version": 1})
+            write_json(paths.raw_records_dir / "new.json", {"xid": "new"})
+            write_json(paths.geolocation_ok_dir / "new.json", {"xid": "new"})
+            write_json(paths.photos_geojson_path, {"features": [{"id": "new"}]})
+            paths.photos_csv_path.write_text("xid\nnew\n", encoding="utf-8")
+
+            output = root / "output"
+            write_json(output / "raw_records" / "stale.json", {"xid": "stale"})
+            write_json(output / "geolocation" / "ok" / "stale.json", {"xid": "stale"})
+            write_json(output / "missing_details_xids.json", ["stale"])
+            write_json(output / "batches.json", {"stale": True})
+            published = root / "published" / "photos.geojson"
+
+            paths.publish_current_output_snapshot(
+                output_dir=output,
+                photos_geojson_path=published,
+            )
+
+            self.assertFalse((output / "raw_records" / "stale.json").exists())
+            self.assertTrue((output / "raw_records" / "new.json").exists())
+            self.assertFalse((output / "geolocation" / "ok" / "stale.json").exists())
+            self.assertTrue((output / "geolocation" / "ok" / "new.json").exists())
+            self.assertFalse((output / "missing_details_xids.json").exists())
+            self.assertFalse((output / "batches.json").exists())
+            self.assertEqual(
+                json.loads(published.read_text(encoding="utf-8")),
+                {"features": [{"id": "new"}]},
+            )
+
+    def test_publish_snapshot_rolls_back_when_the_live_swap_fails(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            paths = PipelinePaths.from_run_dir(root / "run")
+            paths.create(config={"schema_version": 1})
+            write_json(paths.raw_records_dir / "new.json", {"xid": "new"})
+            write_json(paths.geolocation_ok_dir / "new.json", {"xid": "new"})
+            write_json(paths.photos_geojson_path, {"features": [{"id": "new"}]})
+            paths.photos_csv_path.write_text("xid\nnew\n", encoding="utf-8")
+
+            output = root / "output"
+            write_json(output / "raw_records" / "old.json", {"xid": "old"})
+            published = root / "published" / "photos.geojson"
+            write_json(published, {"features": [{"id": "old"}]})
+            real_replace = os.replace
+
+            def fail_photo_swap(source: Path, target: Path) -> None:
+                if Path(target) == published and ".publish-" in Path(source).name:
+                    raise OSError("simulated viewer-data swap failure")
+                real_replace(source, target)
+
+            with patch("src.pipeline.paths.os.replace", side_effect=fail_photo_swap):
+                with self.assertRaisesRegex(OSError, "simulated viewer-data"):
+                    paths.publish_current_output_snapshot(
+                        output_dir=output,
+                        photos_geojson_path=published,
+                    )
+
+            self.assertTrue((output / "raw_records" / "old.json").exists())
+            self.assertFalse((output / "raw_records" / "new.json").exists())
+            self.assertEqual(
+                json.loads(published.read_text(encoding="utf-8")),
+                {"features": [{"id": "old"}]},
+            )
 
     def test_derive_snapshot_carries_published_series_into_fresh_run(self) -> None:
         with TemporaryDirectory() as tmpdir:

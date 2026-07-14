@@ -72,6 +72,9 @@ private contribution and anti-abuse data; permissions are created owner-only.
 ```bash
 D1_BACKUP_DIR=/secure/retained/old-prague-photos \
 PAGES_PRODUCTION_URL=https://example.com \
+PAGES_PRODUCTION_BRANCH=main \
+CLOUDFLARE_ACCOUNT_ID=... \
+CLOUDFLARE_API_TOKEN=... \
 ADMIN_API_TOKEN=... \
 CF_ACCESS_CLIENT_ID=... \
 CF_ACCESS_CLIENT_SECRET=... \
@@ -79,7 +82,14 @@ CONFIRM_PRODUCTION_DEPLOY=old-prague-photos \
 npm run deploy:pages
 ```
 
-The checkpoint is written before migrations and contains `database.sql`,
+The release refuses to run from a branch other than
+`PAGES_PRODUCTION_BRANCH` (default `main`) and passes that branch explicitly to
+Pages. Before migrations, it also queries the current Pages project setting
+with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, then fails closed if
+the configured production branch differs. This prevents a migrated production
+database from being paired accidentally with a
+preview upload. The checkpoint is written before migrations and contains
+`database.sql`,
 `time-travel.json`, the deployed Git commit, and its UTC creation time. Retain
 it according to the project's backup policy and periodically test an import
 against a disposable database.
