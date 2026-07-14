@@ -41,6 +41,30 @@ test("effective candidates use resolved groups, corrections, and orphan filterin
   assert.deepEqual(groups[0].primary.geometry.coordinates, [14.5, 50.2]);
 });
 
+test("corrections without coordinates preserve the source location", () => {
+  const groups = buildEffectiveGroups({
+    features: [feature("A1", "G1", 14.4, 50.1)],
+    orphanIds: new Set(),
+    reviewState: {
+      resolvedGroupByXid: {},
+      groupCorrections: [
+        {
+          group_id: "G1",
+          lat: null,
+          lon: null,
+          correction_state: "pending",
+          anchor_type: "flag",
+        },
+      ],
+    },
+  });
+
+  assert.deepEqual(groups[0].primary.geometry.coordinates, [14.4, 50.1]);
+  assert.equal(groups[0].lat, 50.1);
+  assert.equal(groups[0].lon, 14.4);
+  assert.equal(groups[0].primary.properties.corrected, undefined);
+});
+
 test("duplicate coordinate expansion is bounded for large buckets", () => {
   const groups = buildEffectiveGroups({
     features: Array.from({ length: 212 }, (_, index) =>
