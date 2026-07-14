@@ -17,6 +17,28 @@ async function postFromOrigin(request, path, data) {
 }
 
 test.describe.serial("community contribution flows", () => {
+  test("keeps the map performance confirmation inside the page", async ({ page }) => {
+    let nativeDialogCount = 0;
+    page.on("dialog", async (dialog) => {
+      nativeDialogCount += 1;
+      await dialog.dismiss();
+    });
+
+    await page.goto("/");
+    await expect(page.locator("#photo-count")).not.toHaveText("—");
+    await page.locator(".cluster-toggle-container .toggle-switch").click();
+
+    await expect(page.locator("#cluster-warning")).toBeVisible();
+    await expect(page.locator("#cluster-toggle")).toBeChecked();
+    expect(nativeDialogCount).toBe(0);
+
+    await page.getByRole("button", { name: "Zobrazit jednotlivé body" }).click();
+    await expect(page.locator("#cluster-warning")).toBeHidden();
+    await expect(page.locator("#cluster-toggle")).not.toBeChecked();
+    await expect(page.locator("#cluster-toggle")).toBeFocused();
+    expect(nativeDialogCount).toBe(0);
+  });
+
   test("submits a location correction from the map", async ({ page }) => {
     await page.goto("/pomoc.html?mode=location");
     await waitForFlow(page, "#current-xid", "#vote-down");

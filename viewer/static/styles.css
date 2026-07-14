@@ -250,6 +250,52 @@ h1 {
   box-shadow: 0 4px 15px rgba(31, 30, 28, 0.05);
 }
 
+.cluster-toggle-wrap {
+  position: relative;
+}
+
+.cluster-warning {
+  position: absolute;
+  z-index: 1200;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(380px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid rgba(31, 30, 28, 0.14);
+  border-radius: 16px;
+  background: #fdfaf4;
+  box-shadow: 0 18px 42px rgba(31, 30, 28, 0.18);
+}
+
+.cluster-warning p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.cluster-warning-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.cluster-warning-actions button {
+  width: auto;
+}
+
+@media (max-width: 640px) {
+  .cluster-warning-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cluster-warning-actions button {
+    width: 100%;
+  }
+}
+
 .year-filter {
   display: flex;
   align-items: center;

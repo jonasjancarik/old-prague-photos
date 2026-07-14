@@ -1,4 +1,4 @@
-import{m as n}from"./loadLegacyScripts-Bx9VO4vc.js";const s=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const s=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Kontrola skupin</p>

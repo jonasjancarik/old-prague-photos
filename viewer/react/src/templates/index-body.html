@@ -65,12 +65,39 @@
               </span>
             </label>
           </div>
-          <div class="cluster-toggle-container">
-            <label class="toggle-switch">
-              <input type="checkbox" id="cluster-toggle" checked />
-              <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label">Seskupit body</span>
+          <div class="cluster-toggle-wrap">
+            <div class="cluster-toggle-container">
+              <label class="toggle-switch">
+                <input
+                  type="checkbox"
+                  id="cluster-toggle"
+                  aria-expanded="false"
+                  aria-controls="cluster-warning"
+                  checked
+                />
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label">Seskupit body</span>
+            </div>
+            <div
+              class="cluster-warning is-hidden"
+              id="cluster-warning"
+              role="group"
+              aria-labelledby="cluster-warning-text"
+            >
+              <p id="cluster-warning-text">
+                Zobrazení každého bodu zvlášť může mapu s mnoha fotografiemi zpomalit.
+                Fotografie na přesně stejném místě zůstanou spolu.
+              </p>
+              <div class="cluster-warning-actions">
+                <button type="button" class="secondary" id="cluster-warning-cancel">
+                  Ponechat seskupení
+                </button>
+                <button type="button" class="primary" id="cluster-warning-continue">
+                  Zobrazit jednotlivé body
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

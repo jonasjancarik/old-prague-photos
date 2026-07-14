@@ -106,6 +106,9 @@ const nearbyNextBtn = document.getElementById("nearby-next");
 const nearbyState = document.getElementById("nearby-state");
 const photoMinimapWrap = document.getElementById("photo-minimap-wrap");
 const photoMinimapEl = document.getElementById("photo-minimap");
+const clusterWarning = document.getElementById("cluster-warning");
+const clusterWarningContinue = document.getElementById("cluster-warning-continue");
+const clusterWarningCancel = document.getElementById("cluster-warning-cancel");
 
 const infoModal = document.getElementById("info-modal");
 const infoOpenBtn = document.getElementById("info-open");
@@ -2203,9 +2206,37 @@ function initMap() {
   if (clusterToggle) {
     state.clusteringEnabled = clusterToggle.checked;
     clusterToggle.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        hideClusterWarning();
+        toggleClustering(true);
+        return;
+      }
+      if (!hasSeenClusterWarning()) {
+        e.target.checked = true;
+        showClusterWarning();
+        return;
+      }
       toggleClustering(e.target.checked);
     });
   }
+
+  clusterWarningContinue?.addEventListener("click", () => {
+    try {
+      localStorage.setItem("cluster-warning-shown", "true");
+    } catch (error) {
+      // The choice still applies when browser storage is unavailable.
+    }
+    hideClusterWarning();
+    if (clusterToggle) clusterToggle.checked = false;
+    toggleClustering(false);
+    clusterToggle?.focus();
+  });
+
+  clusterWarningCancel?.addEventListener("click", () => {
+    hideClusterWarning();
+    if (clusterToggle) clusterToggle.checked = true;
+    clusterToggle?.focus();
+  });
 
   state.cluster = L.markerClusterGroup({
     showCoverageOnHover: false,
@@ -2241,18 +2272,27 @@ function initMap() {
   state.map.on("mousemove", schedulePreviewProximityCheck);
 }
 
-function toggleClustering(enabled) {
-  if (!enabled && !localStorage.getItem("cluster-warning-shown")) {
-    const proceed = confirm(
-      "Vypnutí seskupování může při velkém počtu fotek výrazně zpomalit prohlížeč. Chcete pokračovat?\n\n(Body se stejnou polohou zůstanou seskupené i tak, aby byly přístupné.)"
-    );
-    if (!proceed) {
-      const toggle = document.getElementById("cluster-toggle");
-      if (toggle) toggle.checked = true;
-      return;
-    }
-    localStorage.setItem("cluster-warning-shown", "true");
+function hasSeenClusterWarning() {
+  try {
+    return localStorage.getItem("cluster-warning-shown") === "true";
+  } catch (error) {
+    return false;
   }
+}
+
+function showClusterWarning() {
+  clusterWarning?.classList.remove("is-hidden");
+  const toggle = document.getElementById("cluster-toggle");
+  toggle?.setAttribute("aria-expanded", "true");
+  clusterWarningContinue?.focus();
+}
+
+function hideClusterWarning() {
+  clusterWarning?.classList.add("is-hidden");
+  document.getElementById("cluster-toggle")?.setAttribute("aria-expanded", "false");
+}
+
+function toggleClustering(enabled) {
 
   state.clusteringEnabled = enabled;
   state.previewProximityActiveGroupId = "";
