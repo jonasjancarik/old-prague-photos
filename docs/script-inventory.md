@@ -29,7 +29,11 @@ Status meanings:
 | `scripts/dev-pages.sh` | maintenance | development | Cloudflare Pages local development helper. |
 | `scripts/test-d1.sh` | maintenance | testing | Applies all migrations to a fresh local D1 instance and runs projection trigger assertions. |
 | `scripts/update-community-data-version.mjs` | maintenance | build/deployment | Hashes every static community-queue input into the deployment-bound projection/cache version manifest. |
-| `scripts/deploy-pages.sh` | maintenance | deployment | Runs the full gate, builds the viewer, applies remote D1 migrations, then deploys Pages. |
+| `scripts/checkpoint-d1.sh` | maintenance | deployment/recovery | Captures a private D1 SQL export and Time Travel bookmark before a remote migration. |
+| `scripts/restore-d1-time-travel.sh` | maintenance | recovery | Guarded destructive D1 Time Travel restore for production or preview. |
+| `scripts/smoke-pages.mjs` | maintenance | testing/deployment | Checks secure Pages configuration, candidate queues, Cloudflare Access, and curator authentication. |
+| `scripts/deploy-pages-staging.sh` | maintenance | deployment | Verifies, migrates the isolated preview D1 database, deploys staging, and runs remote smoke checks. |
+| `scripts/deploy-pages.sh` | maintenance | deployment | Captures a recovery checkpoint, runs the full gate, migrates production D1, deploys Pages, and runs smoke checks. |
 | `ops.sh` | maintenance | development/deployment | Legacy local ops wrapper for viewer build/dev/deploy tasks. |
 | `research/ahmp_limit/probe_filters.py` | research | archive-limit | AHMP result-limit research probe; not part of reproducible pipeline runs. |
 | `research/ahmp_limit/nav_partition.py` | research | archive-limit | Early nav-partition experiment; supported implementation is `src/scraper/nav_partition.py`. |

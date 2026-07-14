@@ -13,7 +13,10 @@
     "test:d1": "sh scripts/test-d1.sh",
     "prebuild:viewer": "npm run prepare:community-data",
     "build:viewer": "npm --prefix viewer/react run build",
-    "deploy:pages": "sh scripts/deploy-pages.sh"
+    "release:verify": "npm test && npm run build:viewer",
+    "deploy:pages": "sh scripts/deploy-pages.sh",
+    "deploy:pages:staging": "sh scripts/deploy-pages-staging.sh",
+    "smoke:pages": "node scripts/smoke-pages.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.110.0"

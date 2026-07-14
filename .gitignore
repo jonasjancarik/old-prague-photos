@@ -5,6 +5,7 @@ downloads/archive/
 .ignore*
 zoomify_tiles
 .wrangler/
+.local/
 .dev.vars
 viewer/data/*.jsonl
 node_modules/

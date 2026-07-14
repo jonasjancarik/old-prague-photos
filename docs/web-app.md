@@ -235,20 +235,25 @@ and starts Wrangler Pages. Open the URL printed by Wrangler, typically
 
 ## Cloudflare Pages + D1
 
-### 1) Create database
+### 1) Create databases
 
 ```bash
 npx wrangler login
 npx wrangler d1 create old-prague-photos
+npx wrangler d1 create old-prague-photos-staging --location weur
 ```
 
-Update `wrangler.toml` with the `database_id`.
+Update the production and `env.preview` entries in `wrangler.toml` with their
+distinct `database_id` values. The checked-in all-zero preview UUID is an
+intentional fail-closed value: staging deployment cannot run until it is
+replaced.
 
 ### 2) Run migrations
 
 ```bash
 npx wrangler d1 migrations apply CORRECTIONS_DB --local
 npx wrangler d1 migrations apply CORRECTIONS_DB --remote
+npx wrangler d1 migrations apply CORRECTIONS_DB --remote --env preview
 ```
 
 ### 3) Local Pages dev
@@ -257,18 +262,48 @@ npx wrangler d1 migrations apply CORRECTIONS_DB --remote
 npm run dev:pages
 ```
 
-### 4) Deploy
+### 4) Deploy to staging
 
-Use the guarded release command. It runs Python/API/real-D1 tests, builds the
-frontend, applies additive migrations remotely, and only then deploys Pages:
+Configure a stable staging hostname, separate Turnstile keys and hostname
+allowlist, a hostname-restricted Mapy.cz browser key, `ADMIN_API_TOKEN`, and a
+Cloudflare Access policy. The smoke check requires a Cloudflare Access service
+token so it can prove that anonymous admin requests are blocked and authorized
+requests reach the application.
 
 ```bash
-PAGES_PROJECT_NAME=<project-name> npm run deploy:pages
+PAGES_STAGING_URL=https://staging.example.com \
+ADMIN_API_TOKEN=... \
+CF_ACCESS_CLIENT_ID=... \
+CF_ACCESS_CLIENT_SECRET=... \
+npm run deploy:pages:staging
+```
+
+This applies migrations only to the preview D1 database, deploys the `staging`
+branch preview, and checks configuration, all three candidate queues, Access,
+and the curator API.
+
+### 5) Deploy to production
+
+Use the guarded release command. It runs Python/API/real-D1 tests, builds the
+frontend, captures a private SQL export and Time Travel bookmark, applies
+additive migrations remotely, deploys Pages, and runs the same smoke checks:
+
+```bash
+D1_BACKUP_DIR=/secure/retained/old-prague-photos \
+PAGES_PRODUCTION_URL=https://example.com \
+ADMIN_API_TOKEN=... \
+CF_ACCESS_CLIENT_ID=... \
+CF_ACCESS_CLIENT_SECRET=... \
+CONFIRM_PRODUCTION_DEPLOY=old-prague-photos \
+npm run deploy:pages
 ```
 
 Do not deploy the Functions separately before migrations `0009` through `0011`.
 The migration-first sequence is backward compatible with the previous code; the
 reverse sequence is not.
+
+See `docs/RELEASING.md` for the complete secret, Access, backup, rollback, and
+post-release checklist.
 
 ## Environment variables
 

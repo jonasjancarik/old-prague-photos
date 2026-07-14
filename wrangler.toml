@@ -7,3 +7,11 @@ binding = "CORRECTIONS_DB"
 database_name = "old-prague-photos"
 database_id = "11954f0f-b2d1-4d2e-b98e-a89069069a68"
 migrations_dir = "migrations"
+
+# Pages preview deployments must never inherit the production contribution
+# database. Replace the fail-closed UUID after creating old-prague-photos-staging.
+[[env.preview.d1_databases]]
+binding = "CORRECTIONS_DB"
+database_name = "old-prague-photos-staging"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
