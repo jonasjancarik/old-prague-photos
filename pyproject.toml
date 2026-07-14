@@ -37,6 +37,11 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["cli.py", "dezoomify.py", "src"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"viewer/build_geojson.py" = "viewer/build_geojson.py"
+"viewer/static/data/photos.geojson" = "viewer/static/data/photos.geojson"
+"scripts/write_pipeline_manifest.py" = "scripts/write_pipeline_manifest.py"
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
