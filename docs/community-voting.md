@@ -62,7 +62,12 @@ Important fields:
 
 Scope:
 - Corrections apply to `group_id`, not only to one photo version.
-- Groups are based on the exported metadata grouping (`obsah + autor + datace`).
+- Metadata suggests initial membership, but immutable series IDs survive metadata
+  corrections. Versioned D1 membership overrides are the curator authority.
+- Fresh run-directory derivations carry XID-to-series assignments from the
+  published `photos.geojson`; an empty run output does not mint replacement IDs.
+- A correction stays with the group recorded when it was submitted. Moving its
+  representative XID later does not transfer the historical correction.
 
 Consensus rules:
 - The latest anchor event controls the current state.
@@ -85,11 +90,11 @@ Frontend behavior:
   state. This prevents stale corrected coordinates after merge undo/split flows.
 
 Core code:
-- [functions/api/corrections.js](/Users/janca/projects/old-prague-photos/functions/api/corrections.js)
-- [functions/api/_review_state.js](/Users/janca/projects/old-prague-photos/functions/api/_review_state.js)
-- [viewer/static/grouping.js](/Users/janca/projects/old-prague-photos/viewer/static/grouping.js)
-- [viewer/static/pomoc.js](/Users/janca/projects/old-prague-photos/viewer/static/pomoc.js)
-- [viewer/static/correction-ui.js](/Users/janca/projects/old-prague-photos/viewer/static/correction-ui.js)
+- [functions/api/corrections.js](../functions/api/corrections.js)
+- [functions/api/_review_state.js](../functions/api/_review_state.js)
+- [viewer/static/grouping.js](../viewer/static/grouping.js)
+- [viewer/static/pomoc.js](../viewer/static/pomoc.js)
+- [viewer/static/correction-ui.js](../viewer/static/correction-ui.js)
 
 ## Workflow 2: Duplicate / Merge Review
 
@@ -134,6 +139,8 @@ Consensus model:
 - Active `different` decisions suppress that candidate pair but do not affect map
   correctness.
 - `undo` clears the active pair decision so the pair can be considered again.
+- An `undo` remains attached to the exact submitted historical pair even when a
+  later merge has changed one member's current resolved root.
 
 Runtime behavior:
 - After a merge decision is saved, the duplicate-review UI fetches
@@ -143,9 +150,9 @@ Runtime behavior:
   decided pairs.
 
 Core code:
-- [functions/api/merges.js](/Users/janca/projects/old-prague-photos/functions/api/merges.js)
-- [functions/api/_review_state.js](/Users/janca/projects/old-prague-photos/functions/api/_review_state.js)
-- [viewer/static/dup-review.js](/Users/janca/projects/old-prague-photos/viewer/static/dup-review.js)
+- [functions/api/merges.js](../functions/api/merges.js)
+- [functions/api/_review_state.js](../functions/api/_review_state.js)
+- [viewer/static/dup-review.js](../viewer/static/dup-review.js)
 
 ## Workflow 3: Group / Series Review
 
@@ -160,10 +167,12 @@ Question:
 
 Verdicts:
 - `ok`
+- `split`
+  The group mixes different photographs and should enter the curator split queue.
 - `undo`
 
 Current public UI:
-- lets a user submit `ok`
+- lets a user submit `ok` or `split`
 - keeps a browser-local hide list so already-clicked groups do not immediately
   reappear
 - does not expose a prominent backend undo button
@@ -183,8 +192,26 @@ Important fields:
 
 Consensus rules:
 - A series is community-reviewed after two independent active `ok` votes.
-- Aggregation is per `group_id`.
-- Only the latest vote per `(group_id, voter)` counts.
+- A series becomes a curator split candidate after two independent active
+  `split` votes. Any active split vote prevents the group from being marked done.
+- Completing a curator split records a vote-resolution boundary in the same D1
+  transaction as the membership changes and audit event. Votes through that
+  boundary are consumed; later votes start a new review round and projection
+  rebuilds cannot reopen the resolved candidate.
+- FastAPI local development persists the equivalent membership assignments and
+  vote boundaries together as one append-only event in
+  `viewer/data/group_membership_events.jsonl`; its admin review and split API
+  expose the same curator flow as Pages.
+- Split candidates and curator validation use merged-root membership, including
+  members from every merged constituent group. Similarity candidates follow
+  each referenced XID after a curator moves it to another series.
+- Version clusters are split, filtered, and reattached by each XID's effective
+  membership, so moved-away versions disappear from the source and appear on
+  the target series immediately.
+- Pages and FastAPI both resolve historical constituent `group_id` values to
+  the current merged root before aggregation, and new votes are stored on that
+  root.
+- Only the latest vote per `(resolved group root, voter)` counts.
 - `undo` removes that voter's active `ok` vote for the group.
 
 Important consequence:
@@ -193,8 +220,8 @@ Important consequence:
   correct."
 
 Core code:
-- [functions/api/group-review-votes.js](/Users/janca/projects/old-prague-photos/functions/api/group-review-votes.js)
-- [viewer/static/group-review.js](/Users/janca/projects/old-prague-photos/viewer/static/group-review.js)
+- [functions/api/group-review-votes.js](../functions/api/group-review-votes.js)
+- [viewer/static/group-review.js](../viewer/static/group-review.js)
 
 ## Shared State vs Local Browser State
 
@@ -202,6 +229,15 @@ Shared, server-backed state:
 - location corrections
 - merge decisions
 - group-review votes
+
+The three contribution pages consume `/api/community-candidates` in bounded
+pages. They no longer download `photos.geojson`, version clusters, or similarity
+data directly. The server resolves current memberships and corrections first;
+corrected candidates retain `properties.original_coordinates` so the browser
+can restore the source position after a split or merge undo;
+large exact-coordinate duplicate buckets use a bounded neighbor graph instead
+of every possible pair. Pagination cursors carry the state revision, so a write
+between pages causes a current-page restart instead of an offset skip.
 
 Local browser-only state:
 - `/group-review.html` keeps a hide list in local storage after the current user
@@ -231,16 +267,17 @@ resolution. Group review has its own API and state model.
 
 All three workflows use `voter_key` to distinguish independent voters.
 
-`voter_key` is derived from request context and session/cookie material. The
-practical effect is:
+`voter_key` is stored in a signed, HttpOnly, one-year anonymous cookie. It is
+separate from the short Turnstile session and survives IP/session changes. An
+active legacy session is preserved during rollout. The practical effect is:
 - two clicks from the same effective voter do not count as two independent
   confirmations
 - repeated clicks can update that voter's latest state, but they do not satisfy
   independent consensus by themselves
 
 Core code:
-- [functions/api/_security.js](/Users/janca/projects/old-prague-photos/functions/api/_security.js)
-- [viewer/app.py](/Users/janca/projects/old-prague-photos/viewer/app.py)
+- [functions/api/_security.js](../functions/api/_security.js)
+- [viewer/app.py](../viewer/app.py)
 
 ## Verification and Write Protection
 
@@ -270,43 +307,48 @@ It includes:
 
 Admin review screen:
 - `GET /api/admin/review`
+- `POST /api/admin/group-membership`
 
 It focuses on:
 - pending coordinate corrections
 - unresolved flags
 - merge conflicts
 - recent merge decisions
+- series with enough independent split votes
+- atomic, audited XID moves into a new immutable series
 
-It does not currently expose a dedicated group-review moderation dashboard.
+Admin APIs require a bearer token; Cloudflare Access should also protect the
+route at the edge. Public APIs never expose email, user agent, or voter
+fingerprints.
 
 ## Deploy / Migration Notes
 
-Tables must exist in D1 before Pages code can use them.
-
-Current group-review migration:
-- [migrations/0008_group_review_votes.sql](/Users/janca/projects/old-prague-photos/migrations/0008_group_review_votes.sql)
-
-Apply migrations:
+Migrations `0009`, `0010`, and `0011` add versioned membership overrides, audit
+events, current merge/vote projections, the revisioned review-state snapshot,
+and durable group-review resolution boundaries. Apply them before deploying
+Functions. The guarded release command enforces this order:
 
 ```bash
-npx wrangler d1 migrations apply CORRECTIONS_DB --local
-npx wrangler d1 migrations apply CORRECTIONS_DB
+npm run deploy:pages
 ```
 
-If the group-review migration is missing:
-- Pages group-review vote writes will fail
-- FastAPI local dev still works because it writes JSONL files directly
+The build also hashes the photo, orphan, similarity, and series-cluster inputs
+into `/data/community-data-version.json`. Review projections and candidate
+caches are accepted only for that deployed version. A missing or empty version
+fails closed; `COMMUNITY_DATA_VERSION` is available only as an explicit
+operator override.
 
 ## Test Coverage
 
 Relevant tests:
-- [functions/api/__tests__/review-state-consensus.test.mjs](/Users/janca/projects/old-prague-photos/functions/api/__tests__/review-state-consensus.test.mjs)
-- [functions/api/__tests__/routes.test.mjs](/Users/janca/projects/old-prague-photos/functions/api/__tests__/routes.test.mjs)
-- [functions/api/__tests__/security.test.mjs](/Users/janca/projects/old-prague-photos/functions/api/__tests__/security.test.mjs)
-- [functions/api/__tests__/static-grouping.test.mjs](/Users/janca/projects/old-prague-photos/functions/api/__tests__/static-grouping.test.mjs)
+- [functions/api/__tests__/review-state-consensus.test.mjs](../functions/api/__tests__/review-state-consensus.test.mjs)
+- [functions/api/__tests__/routes.test.mjs](../functions/api/__tests__/routes.test.mjs)
+- [functions/api/__tests__/security.test.mjs](../functions/api/__tests__/security.test.mjs)
+- [functions/api/__tests__/static-grouping.test.mjs](../functions/api/__tests__/static-grouping.test.mjs)
 
 Run:
 
 ```bash
-node --test functions/api/__tests__/*.mjs
+npm run test:api
+npm run test:d1
 ```

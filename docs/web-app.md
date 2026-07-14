@@ -1,6 +1,9 @@
 # Web App (Viewer)
 
-The viewer is a static frontend (Leaflet map + review UIs) with an optional backend for corrections. It can run locally via FastAPI or be deployed to Cloudflare Pages + D1.
+The production architecture is a static Vite frontend on Cloudflare Pages with
+Pages Functions and D1 for community state. FastAPI remains a compatibility
+runtime for the server-side full-resolution image stitcher and the quick local
+preview loop; Pages + D1 is the canonical contribution runtime.
 
 Community help docs:
 - maintainer reference: [Community Help Workflows](./community-voting.md)
@@ -8,9 +11,14 @@ Community help docs:
 
 ## Frontend source + build
 
-- React source: `viewer/react/`
+- Page templates and Vite entries: `viewer/react/` (the directory name is kept
+  for path compatibility; the React runtime has been removed)
 - Static output: `viewer/static/`
-- Runtime UI logic (legacy modules): `viewer/static/*.js`
+- Runtime UI modules: `viewer/static/*.js`
+
+Each page has one HTML template and one vanilla Vite entry. The entry mounts the
+template before loading the page modules in a fixed order. There is no parallel
+React component tree.
 
 Build once before serving/deploying:
 
@@ -118,6 +126,10 @@ Hashing source order in `build_similarity.py`:
 Group review progress:
 - `group-review.html` writes a dedicated backend vote separate from location corrections and merge decisions.
 - A series is treated as community-reviewed after `2` independent `ok` votes.
+- Two independent `split` votes put the series into the curator split queue.
+- A curator split atomically moves the selected photographs, records the audit
+  event, and consumes the votes that opened that review round. A later vote can
+  start a new round without old votes resurfacing after a projection rebuild.
 - The reset button on the page only clears the browser-local hide list; it does not delete backend votes.
 
 Index page filtering behavior:
@@ -128,7 +140,13 @@ Index page filtering behavior:
 - On fine-pointer devices, map preview thumbnails are prefetched for the nearest visible marker when the cursor moves close to it; the popup still opens only on hover.
 
 Grouping rules:
-- Groups are based on identical `obsah + autor + datace`
+- Metadata (`obsah + autor + datace`) suggests initial membership, but it is not
+  the identity of a series.
+- `viewer/build_geojson.py` creates an immutable `series_*` ID and preserves the
+  published XID-to-series mapping across metadata changes, rebuilds, and fresh
+  run-directory outputs.
+- Curator overrides in D1 are versioned per XID and take precedence over the
+  static mapping.
 - Corrections apply to the group_id
 - Version clusters are optional and come from `series_version_clusters.json`
 
@@ -144,10 +162,26 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `POST /api/corrections` - submit correction / flag
 - `GET /api/merges` - latest merge decisions
 - `POST /api/merges` - submit merge decision (`same`, `different`, `undo` for last-vote revert)
-- `GET /api/group-review-votes` - aggregated series-review votes (`ok_votes`, `done`)
-- `POST /api/group-review-votes` - submit series-review vote (`ok`, `undo`)
+  - `undo` targets the exact historical pair supplied by the client, even when
+    another merge changed a member's current root.
+- `GET /api/group-review-votes` - current per-voter series-review aggregation (`ok_votes`, `split_votes`, `done`, `needs_split`)
+- `POST /api/group-review-votes` - submit series-review vote (`ok`, `split`, `undo`)
+- `GET /api/community-candidates?flow=location|group|duplicate` - authoritative,
+  paginated work queues. Responses contain at most 50 items; the contribution
+  pages request 24–40 at a time instead of downloading the full photo corpus.
+  Corrected features include `properties.original_coordinates`, allowing the
+  client to restore their source position after membership changes or undo.
+  Cursors are bound to both the community-state revision and deployed static
+  data version; a stale cursor returns `409`, and the browser restarts from a
+  current first page instead of skipping or duplicating work.
 - `GET /api/admin/review` - maintainer overview (pending corrections, flags, conflicts, recent merges)
 - `GET /api/admin/export?format=json|csv&since=...&limit=...` - maintainer export
+  (projected group state is included only when both its D1 revision and deployed
+  data version are current)
+  - filtering/order/limit run in D1; JSON reports `groupStateCurrent=false`
+    instead of scanning all history when the materialized group state is stale
+- `POST /api/admin/group-membership` - atomically move selected XIDs into a new
+  or specified series and append a curator audit event
 - `GET /api/preview-url?xid=...` - preview URL resolver (R2 tile probe -> feature preview/zoomify fallback)
 - `GET /api/preview-local?xid=...&scanIndex=0` - serve local preview file from `downloads/archive/previews`
 - `GET /api/zoomify?xid=...&scanIndex=0` - server-side Zoomify metadata
@@ -158,7 +192,12 @@ Write API hardening:
 - `POST /api/verify`, `POST /api/corrections`, `POST /api/merges`, `POST /api/group-review-votes` require same-origin (`Origin`/`Referer` match).
 - Per-IP rate limits are enforced in D1.
 - Turnstile verification checks `success`, `hostname`, and expected `action`.
-- Recommended for production: protect `/admin*` and `/api/admin/*` at Cloudflare WAF/Access.
+- An anonymous contributor receives a signed, HttpOnly one-year voter cookie.
+  Turnstile sessions may expire without changing that contributor's consensus identity.
+- Admin APIs require `ADMIN_API_TOKEN`. Cloudflare Access is an additional edge
+  layer, not a substitute for application authentication. PII and voter
+  fingerprints are not returned by public state endpoints.
+- Protect `/admin*` and `/api/admin/*` with Cloudflare Access as an additional edge layer.
 - Typical failures: `403` origin mismatch/missing, `429` rate limit exceeded (`Retry-After`), `400` invalid Turnstile action/hostname.
 
 ## Local development (FastAPI)
@@ -167,6 +206,9 @@ FastAPI serves the static app and stores corrections locally in JSONL files:
 
 - `viewer/data/corrections.jsonl`
 - `viewer/data/merges.jsonl`
+- `viewer/data/group_review_votes.jsonl`
+- `viewer/data/group_membership_events.jsonl` (append-only curator membership
+  moves plus vote-resolution boundaries)
 - `viewer/data/feedback.jsonl`
 
 Run:
@@ -187,7 +229,7 @@ For the production-like local path, run:
 npm run dev:pages
 ```
 
-This applies local D1 migrations, runs the React/static watcher in the background,
+This applies local D1 migrations, runs the Vite/static watcher in the background,
 and starts Wrangler Pages. Open the URL printed by Wrangler, typically
 `http://127.0.0.1:8788`.
 
@@ -206,7 +248,7 @@ Update `wrangler.toml` with the `database_id`.
 
 ```bash
 npx wrangler d1 migrations apply CORRECTIONS_DB --local
-npx wrangler d1 migrations apply CORRECTIONS_DB
+npx wrangler d1 migrations apply CORRECTIONS_DB --remote
 ```
 
 ### 3) Local Pages dev
@@ -217,10 +259,16 @@ npm run dev:pages
 
 ### 4) Deploy
 
+Use the guarded release command. It runs Python/API/real-D1 tests, builds the
+frontend, applies additive migrations remotely, and only then deploys Pages:
+
 ```bash
-npm --prefix viewer/react run build
-npx wrangler pages deploy viewer/static --project-name <project-name>
+PAGES_PROJECT_NAME=<project-name> npm run deploy:pages
 ```
+
+Do not deploy the Functions separately before migrations `0009` through `0011`.
+The migration-first sequence is backward compatible with the previous code; the
+reverse sequence is not.
 
 ## Environment variables
 
@@ -236,8 +284,16 @@ For Pages (set in the Cloudflare dashboard or `wrangler.toml`):
 - `API_RATE_LIMIT_VERIFY_MAX` (optional; defaults to `15`)
 - `API_RATE_LIMIT_WRITE_MAX` (optional; defaults to `30`)
 - `API_RATE_LIMIT_SECRET` (optional; falls back to Turnstile/session secret)
+- `ADMIN_API_TOKEN` (required for admin APIs)
+- `COMMUNITY_DATA_VERSION` (optional explicit projection-version override).
+  Normal builds generate `/data/community-data-version.json` from every static
+  input used by the community queues. Functions require that nonempty,
+  deployment-bound version and fail closed if it is missing, so an asset-only
+  Pages deployment cannot reuse a projection built for older group/XID data.
 - `ARCHIVE_BASE_URL` (optional)
 - `R2_TILES_BASE` (optional; points to public R2 prefix with tiles)
+- `MAPY_CZ_API_KEY` (optional public browser tile key; restrict it to the
+  production/local origins in Mapy.cz and rotate any previously committed key)
 - `ALLOW_ARCHIVE_FALLBACK` (optional; default `0`. When `1`, `/api/preview-url` and `/api/zoomify` may use archive-host URLs as a last resort)
 - `FULLRES_MAX_PIXELS` (FastAPI-only; optional; default `80000000` for `/api/dezoomify`)
 
@@ -270,9 +326,33 @@ SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
 - `/api/zoomify` resolves in this order: `R2_TILES_BASE` -> feature `scan_zoomify_paths` -> archive permalink (only when `ALLOW_ARCHIVE_FALLBACK=1`).
 - In client mode, full-res download is disabled when Zoomify source is archive-host/CORS-blocked or image area exceeds `80,000,000` pixels.
 - Frontend filters out xids listed in `viewer/static/data/orphan_xids.json` on `/`, `/pomoc.html`, `/dup-review.html`, and `/group-review.html`.
-- D1 stores corrections + merge decisions (see `migrations/*.sql`).
+- D1 stores append-only contribution events, current merge/vote projections,
+  versioned group membership overrides, and a revisioned public-state snapshot.
+- Candidate delivery is a bounded read model shared by Pages and the FastAPI
+  compatibility runtime. It applies current merges, membership overrides,
+  corrections, and orphan filtering before pagination. Duplicate candidates
+  prioritize similarity pairs and cap exact-coordinate expansion at eight
+  neighbors per group, avoiding quadratic all-pairs queues for large buckets.
+  Similarity pairs follow their referenced XIDs through curator membership
+  moves rather than trusting the group IDs captured when the artifact was built.
+  Version-cluster XIDs are likewise filtered and reattached to their current
+  series, with per-series version labels regenerated after curator moves.
+- Candidate cursor revisions include effective XID membership in both Pages and
+  FastAPI, so moving members between already-existing series invalidates old
+  offsets instead of skipping or repeating work.
+- A write marks the public snapshot dirty. The next review-state read rebuilds
+  against a captured revision and only publishes the snapshot if no concurrent
+  write changed that revision. Warm reads do not scan contribution history.
 - `review-state` includes consensus metadata per group:
   - `correction_state`: `none | pending | approved`
   - `anchor_type`: `none | flag | correction`
   - `ok_votes`, `required_ok_votes`, `done`, `needs_confirmation`
-- UI copy is Czech-only (React templates in `viewer/react/src/templates/*.html` + runtime logic in `viewer/static/*.js`).
+- UI copy is Czech-only (templates in `viewer/react/src/templates/*.html` + runtime logic in `viewer/static/*.js`).
+
+## Verification
+
+- `npm run test:api` exercises API contracts, failure behavior, durable voter
+  identity, split consensus, admin auth, and the curator assignment endpoint.
+- `npm run test:d1` applies every migration to a fresh real local D1 database
+  and asserts the projection triggers.
+- `npm test` runs Python, API, and real-D1 coverage.

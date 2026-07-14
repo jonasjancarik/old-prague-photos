@@ -563,7 +563,8 @@ Use `--allow-partial` only for smoke/test materializations.
 
 The viewer is a static web app with optional Cloudflare Pages + D1 backend for corrections.
 
-Frontend source now lives in `viewer/react/` (React + Vite multi-page app).
+Frontend templates and vanilla entries live in `viewer/react/` (Vite multi-page
+build; the historical directory name remains, but React is no longer used).
 Build output stays in `viewer/static/` (served by FastAPI / Wrangler Pages).
 
 ### Build frontend
@@ -596,7 +597,7 @@ npm run dev:pages
 ```
 
 Open the URL printed by Wrangler (typically `http://127.0.0.1:8788`).
-`dev:pages` applies local D1 migrations, runs the React/static watcher in the background,
+`dev:pages` applies local D1 migrations, runs the Vite/static watcher in the background,
 and starts Wrangler Pages with local Turnstile bypass.
 
 Full-resolution download (map modal):
@@ -605,6 +606,9 @@ Full-resolution download (map modal):
 - Client mode auto-disables full-res download for archive-host/CORS-blocked sources or scans over `80,000,000` pixels.
 
 See `docs/web-app.md` for full setup, API endpoints, and deployment.
+
+Production releases use `npm run deploy:pages`; this verifies the app, applies
+additive D1 migrations first, and deploys Pages only after migration success.
 
 ## Utility scripts
 
