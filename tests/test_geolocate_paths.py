@@ -7,11 +7,17 @@ from unittest.mock import patch
 from src.pipeline.geolocate import (
     geolocate_record,
     get_processed_ids,
+    main,
     process_records,
 )
 
 
 class GeolocatePathTests(unittest.TestCase):
+    def test_main_fails_when_mapy_key_is_missing(self) -> None:
+        with patch.dict("os.environ", {"MAPY_CZ_API_KEY": ""}):
+            with self.assertRaisesRegex(RuntimeError, "MAPY_CZ_API_KEY not set"):
+                main()
+
     def test_get_processed_ids_uses_custom_directories(self) -> None:
         with TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

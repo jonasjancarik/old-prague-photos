@@ -1,6 +1,7 @@
 .vscode
 .DS_Store
 output/
+runs/
 downloads/archive/
 .ignore*
 zoomify_tiles

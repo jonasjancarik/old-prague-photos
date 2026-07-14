@@ -15,12 +15,12 @@ Použití:
   ./ops.sh dev-pages            # lokální Pages (Functions + D1 local)
   ./ops.sh migrate-local        # D1 migrace (local persist)
   ./ops.sh migrate-remote       # D1 migrace (remote)
-  ./ops.sh deploy               # deploy na Cloudflare Pages
+  ./ops.sh deploy               # guarded production release (backup + migrate + deploy + smoke)
   ./ops.sh r2-sync [args]       # sync tiles to R2
 
 Env:
   TURNSTILE_BYPASS=1            # vypne Turnstile (lokálně)
-  PROJECT_NAME=...              # Pages project (pro deploy)
+  PAGES_PROJECT_NAME=...        # Pages project (optional; default is old-prague-photos-viewer)
 EOF
 }
 
@@ -84,12 +84,8 @@ case "$cmd" in
     npx wrangler d1 migrations apply CORRECTIONS_DB --remote
     ;;
   deploy)
-    project="${PROJECT_NAME:-}"
-    if [[ -z "$project" ]]; then
-      echo "Missing PROJECT_NAME. Example: PROJECT_NAME=old-prague-photos-viewer ./ops.sh deploy" >&2
-      exit 2
-    fi
-    npx wrangler pages deploy viewer/static --project-name "$project"
+    PAGES_PROJECT_NAME="${PAGES_PROJECT_NAME:-${PROJECT_NAME:-}}" \
+      sh scripts/deploy-pages.sh
     ;;
   r2-sync)
     shift

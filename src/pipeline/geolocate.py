@@ -468,8 +468,7 @@ def main(
 
     api_key = os.getenv("MAPY_CZ_API_KEY")
     if not api_key:
-        logging.error("MAPY_CZ_API_KEY not set")
-        return
+        raise RuntimeError("MAPY_CZ_API_KEY not set")
 
     request_delay_s = float(os.getenv("MAPY_REQUEST_DELAY_S", "0.2"))
     timeout_s = float(os.getenv("MAPY_REQUEST_TIMEOUT_S", "20"))

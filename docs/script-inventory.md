@@ -38,7 +38,7 @@ Status meanings:
 | `scripts/smoke-pages.mjs` | maintenance | testing/deployment | Checks secure Pages configuration, candidate queues, Cloudflare Access, and curator authentication. |
 | `scripts/deploy-pages-staging.sh` | maintenance | deployment | Verifies, migrates the isolated preview D1 database, deploys staging, and runs remote smoke checks. |
 | `scripts/deploy-pages.sh` | maintenance | deployment | Captures a recovery checkpoint, runs the full gate, migrates production D1, deploys Pages, and runs smoke checks. |
-| `ops.sh` | maintenance | development/deployment | Legacy local ops wrapper for viewer build/dev/deploy tasks. |
+| `ops.sh` | maintenance | development/deployment | Legacy local ops wrapper; its production deploy command delegates to the guarded backup/migration/smoke release script. |
 | `research/ahmp_limit/probe_filters.py` | research | archive-limit | AHMP result-limit research probe; not part of reproducible pipeline runs. |
 | `research/ahmp_limit/nav_partition.py` | research | archive-limit | Early nav-partition experiment; supported implementation is `src/scraper/nav_partition.py`. |
 New loose scripts must be added to this table with an explicit status. Prefer
