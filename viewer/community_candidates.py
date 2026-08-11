@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import re
 from typing import Any
 
@@ -21,6 +22,14 @@ def _pair_key(left: str, right: str) -> str:
     if not left or not right or left == right:
         return ""
     return f"{left}::{right}" if left < right else f"{right}::{left}"
+
+
+def _location_revision(group_id: str, anchor_id: Any = None) -> str:
+    return json.dumps(
+        [_normalize_id(group_id), _normalize_id(anchor_id) or None],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
 
 
 class StaleCandidateCursorError(ValueError):
@@ -55,6 +64,9 @@ def build_effective_groups(
         original_coordinates = list(coordinates)
         corrected_lat = _finite(correction.get("lat"))
         corrected_lon = _finite(correction.get("lon"))
+        proposed_lat = _finite(correction.get("proposed_lat"))
+        proposed_lon = _finite(correction.get("proposed_lon"))
+        proposed_id = _normalize_id(correction.get("proposed_id"))
         if corrected_lat is not None and corrected_lon is not None:
             coordinates = [corrected_lon, corrected_lat]
 
@@ -64,7 +76,20 @@ def build_effective_groups(
             "group_root": group_id,
             "correction_state": correction.get("correction_state", "none"),
             "anchor_type": correction.get("anchor_type", "none"),
+            "anchor_id": _normalize_id(correction.get("anchor_id")) or None,
             "needs_confirmation": bool(correction.get("needs_confirmation")),
+            "location_revision": _normalize_id(
+                correction.get("location_revision")
+            )
+            or _location_revision(group_id, correction.get("anchor_id")),
+            "proposed_id": proposed_id or None,
+            "proposed_has_coordinates": bool(
+                correction.get("proposed_has_coordinates")
+                and proposed_lat is not None
+                and proposed_lon is not None
+            ),
+            "proposed_lat": proposed_lat,
+            "proposed_lon": proposed_lon,
         }
         if corrected_lat is not None and corrected_lon is not None:
             properties["corrected"] = {"lat": corrected_lat, "lon": corrected_lon}
@@ -170,6 +195,7 @@ def build_duplicate_candidates(
     decided = {
         key
         for item in review_state.get("mergeDecisions", [])
+        if _normalize_id(item.get("verdict")).lower() in {"same", "different"}
         if (key := _pair_key(resolve(item.get("group_id_a")), resolve(item.get("group_id_b"))))
     }
     candidates: list[dict[str, Any]] = []

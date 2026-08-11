@@ -24,24 +24,21 @@ function jsonResponse(payload, status = 200, headers = {}) {
   });
 }
 
-async function handleGet(env) {
-  const result = await env.CORRECTIONS_DB.prepare(
-    `
-      SELECT
-        group_id_a,
-        group_id_b,
-        verdict,
-        created_at AS received_at
-      FROM current_merge_decisions
-      WHERE verdict IN ('same', 'different')
-    `,
-  ).all();
+function canonicalPair(groupIdA, groupIdB) {
+  return groupIdA < groupIdB
+    ? `${groupIdA}::${groupIdB}`
+    : `${groupIdB}::${groupIdA}`;
+}
 
-  const items = result?.results || [];
+async function handleGet(request, env) {
+  const { payload } = await loadAuthoritativeReviewState(request, env);
+  const items = Array.isArray(payload?.mergeDecisions)
+    ? payload.mergeDecisions
+    : [];
   return jsonResponse({ items, count: items.length });
 }
 
-async function loadAuthoritativeGroups(request, env) {
+async function loadAuthoritativeReviewState(request, env) {
   const url = new URL("/api/review-state?snapshot=1", request.url);
   const response = await reviewStateOnRequest({
     request: new Request(url.toString(), {
@@ -57,7 +54,14 @@ async function loadAuthoritativeGroups(request, env) {
   ) {
     throw new Error("Authoritative community groups are changing");
   }
-  const payload = await response.json();
+  return {
+    payload: await response.json(),
+    revision: Number(response.headers.get("X-Community-Revision")) || 0,
+  };
+}
+
+async function loadAuthoritativeGroups(request, env) {
+  const { payload, revision } = await loadAuthoritativeReviewState(request, env);
   const groupRoots = payload?.groupRoots || {};
   const knownGroupIds = new Set([
     ...Object.keys(groupRoots),
@@ -65,7 +69,14 @@ async function loadAuthoritativeGroups(request, env) {
     ...Object.values(payload?.resolvedGroupByXid || {}),
   ].map((value) => String(value || "").trim()).filter(Boolean));
   if (knownGroupIds.size === 0) return null;
-  return { groupRoots, knownGroupIds };
+  return {
+    revision,
+    groupRoots,
+    knownGroupIds,
+    mergeDecisions: Array.isArray(payload?.mergeDecisions)
+      ? payload.mergeDecisions
+      : [],
+  };
 }
 
 async function handlePost(request, env) {
@@ -102,6 +113,14 @@ async function handlePost(request, env) {
   if (!["same", "different", "undo"].includes(verdict)) {
     return jsonResponse({ detail: "Neplatný typ rozhodnutí" }, 400);
   }
+  const submittedCandidateRevision = body?.candidate_revision;
+  if (
+    verdict !== "undo" &&
+    (!Number.isSafeInteger(submittedCandidateRevision) ||
+      submittedCandidateRevision < 0)
+  ) {
+    return jsonResponse({ detail: "Chybí verze porovnávané dvojice" }, 400);
+  }
 
   let authoritativeGroups;
   try {
@@ -117,6 +136,15 @@ async function handlePost(request, env) {
     return jsonResponse({ detail: "Chybí metadata skupin" }, 500);
   }
   if (
+    verdict !== "undo" &&
+    submittedCandidateRevision !== authoritativeGroups.revision
+  ) {
+    return jsonResponse(
+      { detail: "Dvojice se mezitím změnila. Načtěte ji znovu." },
+      409,
+    );
+  }
+  if (
     !authoritativeGroups.knownGroupIds.has(groupIdA) ||
     !authoritativeGroups.knownGroupIds.has(groupIdB)
   ) {
@@ -130,10 +158,21 @@ async function handlePost(request, env) {
   );
   if (verdict !== "undo") {
     if (resolvedGroupIdA === resolvedGroupIdB) {
-      return jsonResponse({ detail: "Nelze sloučit stejnou skupinu" }, 400);
+      const submittedPair = canonicalPair(groupIdA, groupIdB);
+      const isHistoricalPair = authoritativeGroups.mergeDecisions.some(
+        (item) =>
+          canonicalPair(
+            String(item?.group_id_a || "").trim(),
+            String(item?.group_id_b || "").trim(),
+          ) === submittedPair,
+      );
+      if (verdict !== "different" || !isHistoricalPair) {
+        return jsonResponse({ detail: "Nelze sloučit stejnou skupinu" }, 400);
+      }
+    } else {
+      groupIdA = resolvedGroupIdA;
+      groupIdB = resolvedGroupIdB;
     }
-    groupIdA = resolvedGroupIdA;
-    groupIdB = resolvedGroupIdB;
   }
 
   const hasSession = await hasValidSession(request, env);
@@ -162,39 +201,84 @@ async function handlePost(request, env) {
   const voterIdentity = await ensureVoterIdentity(request, env);
   const userAgent = request.headers.get("User-Agent") || "";
 
+  let insertResult;
   try {
-    await env.CORRECTIONS_DB.prepare(
-      `
-        INSERT INTO merge_decisions (
-          group_id_a,
-          group_id_b,
+    const statement = verdict === "undo"
+      ? env.CORRECTIONS_DB.prepare(
+          `
+            INSERT INTO merge_decisions (
+              group_id_a,
+              group_id_b,
+              verdict,
+              voter_key,
+              user_agent
+            )
+            VALUES (?, ?, ?, ?, ?)
+          `,
+        ).bind(
+          groupIdA,
+          groupIdB,
           verdict,
-          voter_key,
-          user_agent
+          voterIdentity.voterKey,
+          userAgent,
         )
-        VALUES (?, ?, ?, ?, ?)
-      `,
-    )
-      .bind(groupIdA, groupIdB, verdict, voterIdentity.voterKey, userAgent)
-      .run();
+      : env.CORRECTIONS_DB.prepare(
+          `
+            INSERT INTO merge_decisions (
+              group_id_a,
+              group_id_b,
+              verdict,
+              voter_key,
+              user_agent
+            )
+            SELECT ?, ?, ?, ?, ?
+            FROM community_state_projection
+            WHERE id = 1 AND current_revision = ?
+          `,
+        ).bind(
+          groupIdA,
+          groupIdB,
+          verdict,
+          voterIdentity.voterKey,
+          userAgent,
+          submittedCandidateRevision,
+        );
+    insertResult = await statement.run();
   } catch (error) {
     if (!isMissingColumnError(error, ["voter_key", "user_agent"])) {
       logDatabaseError("/api/merges", "insert merge decision", error);
       return jsonResponse({ detail: "Nepodařilo se uložit příspěvek" }, 503);
     }
     try {
-      await env.CORRECTIONS_DB.prepare(
-        `
-          INSERT INTO merge_decisions (
-            group_id_a,
-            group_id_b,
-            verdict
-          )
-          VALUES (?, ?, ?)
-        `,
-      )
-        .bind(groupIdA, groupIdB, verdict)
-        .run();
+      const legacyStatement = verdict === "undo"
+        ? env.CORRECTIONS_DB.prepare(
+            `
+              INSERT INTO merge_decisions (
+                group_id_a,
+                group_id_b,
+                verdict
+              )
+              VALUES (?, ?, ?)
+            `,
+          ).bind(groupIdA, groupIdB, verdict)
+        : env.CORRECTIONS_DB.prepare(
+            `
+              INSERT INTO merge_decisions (
+                group_id_a,
+                group_id_b,
+                verdict
+              )
+              SELECT ?, ?, ?
+              FROM community_state_projection
+              WHERE id = 1 AND current_revision = ?
+            `,
+          ).bind(
+            groupIdA,
+            groupIdB,
+            verdict,
+            submittedCandidateRevision,
+          );
+      insertResult = await legacyStatement.run();
     } catch (fallbackError) {
       logDatabaseError(
         "/api/merges",
@@ -203,6 +287,16 @@ async function handlePost(request, env) {
       );
       return jsonResponse({ detail: "Nepodařilo se uložit příspěvek" }, 503);
     }
+  }
+
+  if (
+    verdict !== "undo" &&
+    Number(insertResult?.meta?.changes || 0) !== 1
+  ) {
+    return jsonResponse(
+      { detail: "Dvojice se mezitím změnila. Načtěte ji znovu." },
+      409,
+    );
   }
 
   const response = jsonResponse({
@@ -224,7 +318,7 @@ export async function onRequest(context) {
 
   if (request.method === "GET") {
     try {
-      return await handleGet(env);
+      return await handleGet(request, env);
     } catch (error) {
       logDatabaseError("/api/merges", "load merge decisions", error);
       return jsonResponse(

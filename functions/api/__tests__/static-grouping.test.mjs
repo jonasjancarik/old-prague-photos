@@ -104,3 +104,34 @@ test("candidate payload restores its explicit source-coordinate baseline", () =>
   assert.deepEqual(coordinatesOf(item), [14.1, 50.1]);
   assert.equal(item.properties.corrected, undefined);
 });
+
+test("pending proposal stays separate from public coordinates", () => {
+  const grouping = loadGrouping();
+  const item = feature("X1", "G1", [14.1, 50.1]);
+
+  grouping.applyReviewState([item], {
+    resolvedGroupByXid: { X1: "G1" },
+    groupCorrections: [
+      {
+        group_id: "G1",
+        lat: null,
+        lon: null,
+        proposed_has_coordinates: true,
+        proposed_id: "proposal-1",
+        proposed_lat: 50.2,
+        proposed_lon: 14.2,
+        anchor_id: "proposal-1",
+        location_revision: '["G1","proposal-1"]',
+        correction_state: "pending",
+        anchor_type: "correction",
+      },
+    ],
+  });
+
+  assert.deepEqual(coordinatesOf(item), [14.1, 50.1]);
+  assert.equal(item.properties.corrected, undefined);
+  assert.equal(item.properties.proposed_id, "proposal-1");
+  assert.equal(item.properties.proposed_lat, 50.2);
+  assert.equal(item.properties.proposed_lon, 14.2);
+  assert.equal(item.properties.location_revision, '["G1","proposal-1"]');
+});

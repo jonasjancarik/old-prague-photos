@@ -41,7 +41,7 @@ test("effective candidates use resolved groups, corrections, and orphan filterin
   assert.deepEqual(groups[0].primary.geometry.coordinates, [14.5, 50.2]);
 });
 
-test("corrections without coordinates preserve the source location", () => {
+test("pending proposed coordinates preserve the public source location", () => {
   const groups = buildEffectiveGroups({
     features: [feature("A1", "G1", 14.4, 50.1)],
     orphanIds: new Set(),
@@ -52,8 +52,14 @@ test("corrections without coordinates preserve the source location", () => {
           group_id: "G1",
           lat: null,
           lon: null,
+          proposed_has_coordinates: true,
+          proposed_id: "17",
+          proposed_lat: 50.2,
+          proposed_lon: 14.5,
+          location_revision: '["G1","17"]',
+          anchor_id: "17",
           correction_state: "pending",
-          anchor_type: "flag",
+          anchor_type: "correction",
         },
       ],
     },
@@ -63,6 +69,43 @@ test("corrections without coordinates preserve the source location", () => {
   assert.equal(groups[0].lat, 50.1);
   assert.equal(groups[0].lon, 14.4);
   assert.equal(groups[0].primary.properties.corrected, undefined);
+  assert.equal(groups[0].primary.properties.proposed_id, "17");
+  assert.equal(groups[0].primary.properties.proposed_lat, 50.2);
+  assert.equal(groups[0].primary.properties.proposed_lon, 14.5);
+  assert.equal(
+    groups[0].primary.properties.location_revision,
+    '["G1","17"]',
+  );
+});
+
+test("a pending same vote keeps the pair available for independent review", () => {
+  const groups = buildEffectiveGroups({
+    features: [feature("A1", "G1"), feature("A2", "G2")],
+    orphanIds: new Set(),
+    reviewState: {
+      resolvedGroupByXid: { A1: "G1", A2: "G2" },
+      groupCorrections: [],
+    },
+  });
+  const candidates = buildDuplicateCandidates({
+    groups,
+    similarityPairs: [],
+    reviewState: {
+      groupRoots: { G1: "G1", G2: "G2" },
+      mergeDecisions: [
+        {
+          group_id_a: "G1",
+          group_id_b: "G2",
+          verdict: "pending",
+          same_votes: 1,
+          required_same_votes: 2,
+        },
+      ],
+    },
+  });
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].key, "G1::G2");
 });
 
 test("duplicate coordinate expansion is bounded for large buckets", () => {
@@ -220,4 +263,66 @@ test("community controllers do not download full-corpus artifacts", () => {
     duplicateSource.includes("state.lastSubmittedPair = result.decision"),
     true,
   );
+});
+
+test("location confirmations stay scoped to the evidence shown in the help flow", () => {
+  const mapSource = readFileSync("viewer/static/app.js", "utf8");
+  assert.equal(mapSource.includes('submitModalVerdict("ok")'), false);
+  assert.equal(mapSource.includes("focusedLocationReviewUrl"), true);
+  assert.equal(mapSource.includes('mode: "location"'), true);
+  assert.equal(mapSource.includes("window.location.assign(reviewUrl)"), true);
+  assert.equal(
+    mapSource.includes('fetchJson("/api/review-state?snapshot=1")'),
+    true,
+  );
+
+  const locationSource = readFileSync("viewer/static/pomoc.js", "utf8");
+  assert.equal(locationSource.includes("locationEvidenceKey"), true);
+  assert.equal(locationSource.includes("resetTransientLocationDecision"), true);
+  assert.equal(locationSource.includes("setCurrentFeature(state.currentFeature)"), true);
+  assert.equal(
+    locationSource.includes("Prohlédněte si aktualizované body a rozhodněte se znovu."),
+    true,
+  );
+});
+
+test("duplicate decisions carry candidate revisions while exact undo remains revision-free", () => {
+  const source = readFileSync("viewer/static/dup-review.js", "utf8");
+  assert.equal(source.includes("candidate_revision: state.candidateRevision"), true);
+  assert.equal(
+    source.includes("Stále ho můžete vrátit tlačítkem Zpět."),
+    true,
+  );
+  assert.equal(
+    /verdict: "undo",\s*\}\);/u.test(source),
+    true,
+  );
+});
+
+test("community templates keep privacy context and keyboard evidence order", () => {
+  const indexTemplate = readFileSync(
+    "viewer/react/src/templates/index-body.html",
+    "utf8",
+  );
+  assert.equal(indexTemplate.includes('aria-describedby="correction-email-privacy"'), true);
+  assert.equal(
+    indexTemplate.includes("použijeme ho jen pro případné upřesnění tohoto hlášení"),
+    true,
+  );
+
+  const duplicateTemplate = readFileSync(
+    "viewer/react/src/templates/dup-review-body.html",
+    "utf8",
+  );
+  const orderedSections = [
+    'data-review-section="preview-a"',
+    'data-review-section="preview-b"',
+    'data-review-section="details-a"',
+    'data-review-section="details-b"',
+  ].map((needle) => duplicateTemplate.indexOf(needle));
+  assert.equal(orderedSections.every((position) => position >= 0), true);
+  assert.deepEqual(orderedSections, orderedSections.slice().sort((a, b) => a - b));
+
+  const styles = readFileSync("viewer/static/styles.css", "utf8");
+  assert.equal(styles.includes(".duplicate-review-grid .review-column {\n    display: contents;"), false);
 });

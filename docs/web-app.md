@@ -159,11 +159,19 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `GET /api/review-state` - backend-resolved group roots + latest corrections + done groups
   - `?fresh=1` bypasses edge cache for immediate post-submit refresh
 - `GET /api/corrections` - latest corrections (per group)
-- `POST /api/corrections` - submit correction / flag
-- `GET /api/merges` - latest merge decisions
+- `POST /api/corrections` - submit correction / flag; every `ok` confirmation
+  must carry the displayed `location_revision` and matching `proposal_id` when
+  a proposal exists, otherwise stale targets return `409`
+- `GET /api/merges` - anonymous aggregate merge decisions and consensus counts
 - `POST /api/merges` - submit merge decision (`same`, `different`, `undo` for last-vote revert)
+  - `same` and `different` must carry the integer `candidate_revision` returned
+    with the displayed candidate page; stale evidence returns `409` before any
+    group IDs are resolved to newer roots.
   - `undo` targets the exact historical pair supplied by the client, even when
-    another merge changed a member's current root.
+    another merge changed a member's current root, and needs no candidate
+    revision.
+  - `different` can also target that exact historical pair after consensus has
+    resolved both members to one root.
 - `GET /api/group-review-votes` - current per-voter series-review aggregation (`ok_votes`, `split_votes`, `done`, `needs_split`)
 - `POST /api/group-review-votes` - submit series-review vote (`ok`, `split`, `undo`)
 - `GET /api/community-candidates?flow=location|group|duplicate` - authoritative,
@@ -171,6 +179,11 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
   pages request 24–40 at a time instead of downloading the full photo corpus.
   Corrected features include `properties.original_coordinates`, allowing the
   client to restore their source position after membership changes or undo.
+  Location candidates also carry the applied point separately from
+  `proposed_id`, `proposed_lat`, `proposed_lon`, and `location_revision`, which
+  binds a confirmation to the proposal the voter actually saw.
+  `group_id` focuses the location flow on one exact current group and the
+  duplicate flow on pairs containing that group; unknown groups return `400`.
   Cursors are bound to both the community-state revision and deployed static
   data version; a stale cursor returns `409`, and the browser restarts from a
   current first page instead of skipping or duplicating work.
@@ -198,6 +211,13 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 - `GET /api/dezoomify?xid=...&scanIndex=0` - FastAPI-only full-resolution JPEG download (tile stitch on server)
 
 Write API hardening:
+- `viewer/static/_headers` applies a deny-by-default CSP plus frame, MIME,
+  referrer, camera, microphone, and browser-geolocation restrictions to Pages
+  responses while allowing the archive imagery and iframe, map tiles, fonts,
+  Turnstile, and common public R2 hostnames the public flows require. Leaflet,
+  MarkerCluster, and OpenSeadragon are bundled into the release instead of
+  loaded from a third-party CDN. A custom `R2_TILES_BASE` hostname must also be
+  added to the CSP before it is enabled.
 - `POST /api/verify`, `POST /api/corrections`, `POST /api/merges`, `POST /api/group-review-votes` require same-origin (`Origin`/`Referer` match).
 - Per-IP rate limits are enforced in D1.
 - Turnstile verification checks `success`, `hostname`, and expected `action`.
@@ -334,7 +354,7 @@ CONFIRM_PRODUCTION_DEPLOY=old-prague-photos \
 npm run deploy:pages
 ```
 
-Do not deploy the Functions separately before migrations `0009` through `0012`.
+Do not deploy the Functions separately before migrations `0009` through `0013`.
 The migration-first sequence is backward compatible with the previous code; the
 reverse sequence is not.
 

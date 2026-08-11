@@ -1,4 +1,6 @@
 const PHOTOS_CACHE_TTL_MS = 60 * 1000;
+const REQUIRED_SAME_MERGE_VOTES = 2;
+export const REVIEW_STATE_SCHEMA_VERSION = 3;
 const SQLITE_DATETIME_PATTERN =
   /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
 
@@ -11,6 +13,13 @@ let photoFeatureCacheAsset = null;
 
 function normalizeId(value) {
   return String(value || "").trim();
+}
+
+export function buildLocationRevision(groupId, anchorId = null) {
+  return JSON.stringify([
+    normalizeId(groupId),
+    normalizeId(anchorId) || null,
+  ]);
 }
 
 function parseEventTime(value) {
@@ -166,11 +175,34 @@ function anchorTypeForRow(row) {
   return "none";
 }
 
-function countOkVotes(events, startIndex, excludedIdentity = "") {
+function okTargetsAnchor(event, groupId, anchor) {
+  const submittedRevision = normalizeId(event.location_revision);
+  const submittedProposalId = normalizeId(event.proposal_id);
+  if (!submittedRevision && !submittedProposalId) {
+    return true;
+  }
+
+  const anchorId = normalizeId(anchor?.id);
+  const expectedProposalId =
+    anchorTypeForRow(anchor) === "correction" ? anchorId : "";
+  return (
+    submittedRevision === buildLocationRevision(groupId, anchorId) &&
+    submittedProposalId === expectedProposalId
+  );
+}
+
+function countOkVotes(
+  events,
+  startIndex,
+  excludedIdentity = "",
+  groupId = "",
+  anchor = null,
+) {
   const unique = new Set();
   for (let i = startIndex; i < events.length; i += 1) {
     const event = events[i];
     if (event.verdict !== "ok") continue;
+    if (!okTargetsAnchor(event, groupId, anchor)) continue;
     const identity = eventVoterIdentity(event);
     if (!identity || (excludedIdentity && identity === excludedIdentity)) {
       continue;
@@ -180,7 +212,7 @@ function countOkVotes(events, startIndex, excludedIdentity = "") {
   return unique.size;
 }
 
-function latestApprovedCorrection(events, anchorIndices) {
+function latestApprovedCorrection(events, anchorIndices, groupId) {
   let approved = null;
   for (let i = 0; i < anchorIndices.length; i += 1) {
     const anchorIndex = anchorIndices[i];
@@ -195,6 +227,8 @@ function latestApprovedCorrection(events, anchorIndices) {
       segment,
       anchorIndex + 1,
       eventVoterIdentity(anchor),
+      groupId,
+      anchor,
     );
     if (okVotes >= 1) {
       approved = anchor;
@@ -203,7 +237,7 @@ function latestApprovedCorrection(events, anchorIndices) {
   return approved;
 }
 
-function analyzeGroupEvents(events) {
+function analyzeGroupEvents(events, groupId) {
   const ordered = (events || []).slice().sort(compareEvents);
   if (!ordered.length) {
     return null;
@@ -217,7 +251,11 @@ function analyzeGroupEvents(events) {
     }
   }
 
-  const approvedCorrection = latestApprovedCorrection(ordered, anchorIndices);
+  const approvedCorrection = latestApprovedCorrection(
+    ordered,
+    anchorIndices,
+    groupId,
+  );
   const latestAnchorIndex =
     anchorIndices.length > 0 ? anchorIndices[anchorIndices.length - 1] : -1;
   const latestAnchor = latestAnchorIndex >= 0 ? ordered[latestAnchorIndex] : null;
@@ -227,6 +265,8 @@ function analyzeGroupEvents(events) {
     ordered,
     latestAnchorIndex + 1,
     anchorType === "correction" ? eventVoterIdentity(latestAnchor) : "",
+    groupId,
+    latestAnchor,
   );
   const done = okVotes >= requiredOkVotes;
 
@@ -238,11 +278,13 @@ function analyzeGroupEvents(events) {
   }
 
   const appliedCoords =
-    anchorType === "correction"
+    approvedCorrection && approvedCorrection.has_coordinates
+      ? approvedCorrection
+      : null;
+  const proposedCoords =
+    anchorType === "correction" && latestAnchor?.has_coordinates
       ? latestAnchor
-      : approvedCorrection && approvedCorrection.has_coordinates
-        ? approvedCorrection
-        : null;
+      : null;
 
   return {
     latestEvent,
@@ -253,11 +295,20 @@ function analyzeGroupEvents(events) {
     okVotes,
     done,
     appliedCoords,
+    proposedCoords,
   };
 }
 
-function buildLatestMerges(mergeRows) {
-  const latestByPair = new Map();
+function mergeVoterIdentity(row) {
+  const voterKey = normalizeId(row.voter_key);
+  // Pre-voter-key events cannot prove independence. Treat all legacy events
+  // for a pair as one voter so a historical undo still clears that state and
+  // repeated legacy rows cannot satisfy consensus by themselves.
+  return voterKey || "legacy";
+}
+
+function buildMergeDecisions(mergeRows) {
+  const latestByPairVoter = new Map();
 
   (mergeRows || []).forEach((row) => {
     let groupA = normalizeId(row.group_id_a);
@@ -281,21 +332,54 @@ function buildLatestMerges(mergeRows) {
       created_at: row.created_at || row.received_at || "",
     };
 
-    const key = canonicalPair(groupA, groupB);
-    const existing = latestByPair.get(key);
+    const pairKey = canonicalPair(groupA, groupB);
+    const voterKey = `${pairKey}\u0000${mergeVoterIdentity(candidate)}`;
+    const existing = latestByPairVoter.get(voterKey);
     if (!existing || isNewerRecord(candidate, existing)) {
-      latestByPair.set(key, candidate);
+      latestByPairVoter.set(voterKey, candidate);
     }
   });
 
-  const activeByPair = new Map();
-  latestByPair.forEach((item, key) => {
-    if (item.verdict === "same" || item.verdict === "different") {
-      activeByPair.set(key, item);
+  const countsByPair = new Map();
+  latestByPairVoter.forEach((item) => {
+    if (item.verdict !== "same" && item.verdict !== "different") return;
+    const pairKey = canonicalPair(item.group_id_a, item.group_id_b);
+    if (!countsByPair.has(pairKey)) {
+      countsByPair.set(pairKey, {
+        group_id_a: item.group_id_a,
+        group_id_b: item.group_id_b,
+        same_votes: 0,
+        different_votes: 0,
+        latest_event: item,
+      });
     }
+    const state = countsByPair.get(pairKey);
+    if (item.verdict === "same") state.same_votes += 1;
+    else state.different_votes += 1;
+    if (isNewerRecord(item, state.latest_event)) state.latest_event = item;
   });
 
-  return activeByPair;
+  const decisions = new Map();
+  countsByPair.forEach((state, pairKey) => {
+    let verdict = "different";
+    if (state.same_votes >= REQUIRED_SAME_MERGE_VOTES) {
+      verdict = "same";
+    } else if (state.same_votes > 0) {
+      verdict = "pending";
+    }
+    decisions.set(pairKey, {
+      group_id_a: state.group_id_a,
+      group_id_b: state.group_id_b,
+      verdict,
+      same_votes: state.same_votes,
+      different_votes: state.different_votes,
+      required_same_votes: REQUIRED_SAME_MERGE_VOTES,
+      received_at:
+        state.latest_event.received_at || state.latest_event.created_at || "",
+    });
+  });
+
+  return decisions;
 }
 
 function normalizedCorrections(correctionRows, xidGroupMap) {
@@ -318,7 +402,7 @@ function normalizedCorrections(correctionRows, xidGroupMap) {
       Number(row.has_coordinates) === 1 && lat !== null && lon !== null;
 
     normalized.push({
-      id: row.id,
+      id: normalizeId(row.id) || `legacy:${index + 1}`,
       xid,
       base_group_id: baseGroup,
       verdict: normalizeVerdict(row.verdict),
@@ -328,6 +412,8 @@ function normalizedCorrections(correctionRows, xidGroupMap) {
       lat,
       lon,
       voter_key: normalizeId(row.voter_key),
+      location_revision: normalizeId(row.location_revision),
+      proposal_id: normalizeId(row.proposal_id),
       _seq: index + 1,
     });
   });
@@ -440,7 +526,7 @@ export async function loadXidGroupMap(request, env) {
 
 export function buildReviewState({ correctionRows, mergeRows, xidGroupMap }) {
   const xidToGroup = xidGroupMap || new Map();
-  const latestMerges = buildLatestMerges(mergeRows);
+  const mergeDecisionsByPair = buildMergeDecisions(mergeRows);
   const normalized = normalizedCorrections(correctionRows, xidToGroup);
 
   const knownGroupIds = new Set();
@@ -450,13 +536,13 @@ export function buildReviewState({ correctionRows, mergeRows, xidGroupMap }) {
   normalized.forEach((row) => {
     if (row.base_group_id) knownGroupIds.add(row.base_group_id);
   });
-  latestMerges.forEach((merge) => {
+  mergeDecisionsByPair.forEach((merge) => {
     knownGroupIds.add(merge.group_id_a);
     knownGroupIds.add(merge.group_id_b);
   });
 
   const unionFind = createUnionFind(Array.from(knownGroupIds));
-  latestMerges.forEach((merge) => {
+  mergeDecisionsByPair.forEach((merge) => {
     if (merge.verdict === "same") {
       unionFind.union(merge.group_id_a, merge.group_id_b);
     }
@@ -487,10 +573,14 @@ export function buildReviewState({ correctionRows, mergeRows, xidGroupMap }) {
 
   const groupCorrections = Array.from(eventsByResolvedGroup.entries())
     .map(([groupId, events]) => {
-      const analysis = analyzeGroupEvents(events);
+      const analysis = analyzeGroupEvents(events, groupId);
       if (!analysis) return null;
       const base = analysis.latestEvent;
       const coords = analysis.appliedCoords;
+      const proposedCoords = analysis.proposedCoords;
+      const anchorId = analysis.latestAnchor
+        ? normalizeId(analysis.latestAnchor.id)
+        : "";
       return {
         xid: base.xid,
         group_id: groupId,
@@ -500,12 +590,18 @@ export function buildReviewState({ correctionRows, mergeRows, xidGroupMap }) {
         has_coordinates: Boolean(coords),
         lat: coords ? coords.lat : null,
         lon: coords ? coords.lon : null,
+        proposed_has_coordinates: Boolean(proposedCoords),
+        proposed_id: proposedCoords ? normalizeId(proposedCoords.id) || null : null,
+        proposed_lat: proposedCoords ? proposedCoords.lat : null,
+        proposed_lon: proposedCoords ? proposedCoords.lon : null,
+        location_revision: buildLocationRevision(groupId, anchorId),
         correction_state: analysis.correctionState,
         ok_votes: analysis.okVotes,
         required_ok_votes: analysis.requiredOkVotes,
         done: analysis.done,
         needs_confirmation: !analysis.done,
         anchor_type: analysis.anchorType,
+        anchor_id: anchorId || null,
         anchor_at: analysis.latestAnchor
           ? analysis.latestAnchor.received_at || analysis.latestAnchor.created_at || null
           : null,
@@ -519,13 +615,8 @@ export function buildReviewState({ correctionRows, mergeRows, xidGroupMap }) {
     .map((item) => item.group_id)
     .sort((a, b) => String(a).localeCompare(String(b)));
 
-  const mergeDecisions = Array.from(latestMerges.values())
-    .map((item) => ({
-      group_id_a: item.group_id_a,
-      group_id_b: item.group_id_b,
-      verdict: item.verdict,
-      received_at: item.received_at || null,
-    }))
+  const mergeDecisions = Array.from(mergeDecisionsByPair.values())
+    .map((item) => ({ ...item, received_at: item.received_at || null }))
     .sort((a, b) => {
       const left = `${a.group_id_a}::${a.group_id_b}`;
       const right = `${b.group_id_a}::${b.group_id_b}`;

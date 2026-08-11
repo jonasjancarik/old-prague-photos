@@ -263,13 +263,24 @@ test("POST /api/corrections accepts same-origin with valid session cookie", asyn
 
 test("POST /api/corrections accepts the resolved root for a merged group", async () => {
   const env = makeEnv({ TURNSTILE_BYPASS: "1" });
-  env.CORRECTIONS_DB.merges.push({
-    id: 1,
-    group_id_a: "group-a",
-    group_id_b: "group-b",
-    verdict: "same",
-    created_at: "2026-01-01 00:00:00",
-  });
+  env.CORRECTIONS_DB.merges.push(
+    {
+      id: 1,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "merge-voter-a",
+      created_at: "2026-01-01 00:00:00",
+    },
+    {
+      id: 2,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "merge-voter-b",
+      created_at: "2026-01-01 00:01:00",
+    },
+  );
   const request = makeRequest("/api/corrections", {
     host: "localhost",
     protocol: "http:",
@@ -277,6 +288,7 @@ test("POST /api/corrections accepts the resolved root for a merged group", async
       xid: "A2",
       group_id: "group-a",
       verdict: "ok",
+      location_revision: '["group-a",null]',
     },
   });
 
@@ -288,10 +300,82 @@ test("POST /api/corrections accepts the resolved root for a merged group", async
   assert.equal(env.CORRECTIONS_DB.corrections[0].group_id, "group-b");
 });
 
+test("POST /api/corrections binds OK to the displayed location proposal", async () => {
+  const env = makeEnv({ TURNSTILE_BYPASS: "1" });
+  env.CORRECTIONS_DB.corrections.push({
+    id: 1,
+    xid: "A1",
+    group_id: "group-a",
+    lat: 50.087,
+    lon: 14.421,
+    has_coordinates: 1,
+    voter_key: "proposal-author",
+    verdict: "wrong",
+    created_at: "2026-01-01 00:00:00",
+  });
+
+  const missingRevision = await correctionsOnRequest({
+    request: makeRequest("/api/corrections", {
+      host: "localhost",
+      protocol: "http:",
+      jsonBody: { xid: "A1", group_id: "group-a", verdict: "ok" },
+    }),
+    env,
+  });
+  assert.equal(missingRevision.status, 400);
+  assert.equal(env.CORRECTIONS_DB.corrections.length, 1);
+
+  const accepted = await correctionsOnRequest({
+    request: makeRequest("/api/corrections", {
+      host: "localhost",
+      protocol: "http:",
+      jsonBody: {
+        xid: "A1",
+        group_id: "group-a",
+        verdict: "ok",
+        location_revision: '["group-a","1"]',
+        proposal_id: "1",
+      },
+    }),
+    env,
+  });
+  assert.equal(accepted.status, 200);
+  assert.equal(env.CORRECTIONS_DB.corrections.length, 2);
+
+  env.CORRECTIONS_DB.corrections.push({
+    id: 3,
+    xid: "A1",
+    group_id: "group-a",
+    lat: 50.09,
+    lon: 14.43,
+    has_coordinates: 1,
+    voter_key: "new-proposal-author",
+    verdict: "wrong",
+    created_at: "2026-01-01 00:02:00",
+  });
+  const stale = await correctionsOnRequest({
+    request: makeRequest("/api/corrections", {
+      host: "localhost",
+      protocol: "http:",
+      jsonBody: {
+        xid: "A1",
+        group_id: "group-a",
+        verdict: "ok",
+        location_revision: '["group-a","1"]',
+        proposal_id: "1",
+      },
+    }),
+    env,
+  });
+  assert.equal(stale.status, 409);
+  assert.match((await stale.json()).detail, /mezitím změnila/u);
+  assert.equal(env.CORRECTIONS_DB.corrections.length, 3);
+});
+
 test("GET /api/review-state fails closed when merge state cannot be read", async () => {
   const env = makeEnv();
   env.CORRECTIONS_DB.failAllMatching(
-    "from current_merge_decisions",
+    "from merge_decisions",
     new Error("D1 unavailable"),
   );
   const request = makeRequest("/api/review-state", { method: "GET" });
@@ -333,6 +417,7 @@ test("GET /api/review-state omits contributor fingerprints", async () => {
 test("GET /api/review-state serves a current materialized projection", async () => {
   const env = makeEnv();
   const projectedPayload = {
+    reviewStateSchemaVersion: 3,
     groupCorrections: [],
     doneGroupIds: ["group-a"],
     resolvedGroupByXid: { A1: "group-a" },
@@ -355,6 +440,31 @@ test("GET /api/review-state serves a current materialized projection", async () 
   const response = await reviewStateOnRequest({ request, env });
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), projectedPayload);
+});
+
+test("GET /api/review-state rebuilds a projection from an older state schema", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 4,
+    computed_revision: 4,
+    data_version: "test-data-v1",
+    payload_json: JSON.stringify({
+      doneGroupIds: ["stale-group"],
+      resolvedGroupByXid: { A1: "stale-group" },
+    }),
+  };
+
+  const response = await reviewStateOnRequest({
+    request: makeRequest("/api/review-state", { method: "GET" }),
+    env,
+    waitUntil() {},
+  });
+
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.reviewStateSchemaVersion, 3);
+  assert.notDeepEqual(payload.doneGroupIds, ["stale-group"]);
+  assert.equal(payload.resolvedGroupByXid.A1, "group-a");
 });
 
 test("GET /api/review-state does not cache a rebuild that lost a revision race", async () => {
@@ -515,6 +625,7 @@ test("GET /api/community-candidates uses a current projection without history sc
     computed_revision: 8,
     data_version: "test-data-v1",
     payload_json: JSON.stringify({
+      reviewStateSchemaVersion: 3,
       resolvedGroupByXid: { A1: "group-a" },
       groupRoots: { "group-a": "group-a" },
       groupCorrections: [],
@@ -589,6 +700,56 @@ test("GET /api/community-candidates rejects unknown duplicate focus groups", asy
   assert.equal(response.status, 400);
 });
 
+test("GET /api/community-candidates focuses a location review on the exact current root", async () => {
+  const env = makeEnv({
+    ASSETS: makeCommunityAssets([
+      candidateFeature("A1", "group-a"),
+      candidateFeature("A2", "group-b"),
+    ]),
+  });
+  env.CORRECTIONS_DB.merges.push(
+    {
+      id: 1,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "focus-voter-a",
+      created_at: "2026-01-01 09:00:00",
+    },
+    {
+      id: 2,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "focus-voter-b",
+      created_at: "2026-01-01 09:01:00",
+    },
+  );
+
+  const response = await communityCandidatesOnRequest({
+    request: makeRequest(
+      "/api/community-candidates?flow=location&group_id=group-b",
+      { method: "GET" },
+    ),
+    env,
+    waitUntil() {},
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.total, 1);
+  assert.equal(payload.items[0].id, "group-a");
+
+  const unknown = await communityCandidatesOnRequest({
+    request: makeRequest(
+      "/api/community-candidates?flow=location&group_id=ghost-group",
+      { method: "GET" },
+    ),
+    env,
+    waitUntil() {},
+  });
+  assert.equal(unknown.status, 400);
+});
+
 test("GET /api/community-candidates retries a transient required asset failure", async () => {
   let photoAttempts = 0;
   const features = [candidateFeature("A1", "group-a")];
@@ -614,6 +775,7 @@ test("GET /api/community-candidates retries a transient required asset failure",
     computed_revision: 0,
     data_version: "test-data-v1",
     payload_json: JSON.stringify({
+      reviewStateSchemaVersion: 3,
       resolvedGroupByXid: { A1: "group-a" },
       groupRoots: { "group-a": "group-a" },
       groupCorrections: [],
@@ -634,6 +796,59 @@ test("GET /api/community-candidates retries a transient required asset failure",
   assert.equal(first.status, 503);
   assert.equal(second.status, 200);
   assert.equal(photoAttempts, 2);
+});
+
+test("GET /api/merges returns the authoritative anonymous consensus projection", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.merges.push(
+    {
+      id: 1,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "private-voter-a",
+      user_agent: "private-agent-a",
+      created_at: "2026-01-01 09:00:00",
+    },
+    {
+      id: 2,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "private-voter-a",
+      user_agent: "private-agent-a",
+      created_at: "2026-01-01 09:01:00",
+    },
+    {
+      id: 3,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "private-voter-b",
+      user_agent: "private-agent-b",
+      created_at: "2026-01-01 09:02:00",
+    },
+  );
+
+  const response = await mergesOnRequest({
+    request: makeRequest("/api/merges", { method: "GET" }),
+    env,
+  });
+
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.count, 1);
+  assert.deepEqual(payload.items[0], {
+    group_id_a: "group-a",
+    group_id_b: "group-b",
+    verdict: "same",
+    same_votes: 2,
+    different_votes: 0,
+    required_same_votes: 2,
+    received_at: "2026-01-01 09:02:00",
+  });
+  assert.equal("voter_key" in payload.items[0], false);
+  assert.equal("user_agent" in payload.items[0], false);
 });
 
 test("POST /api/merges accepts same-origin with valid session cookie", async () => {
@@ -665,6 +880,7 @@ test("POST /api/merges accepts same-origin with valid session cookie", async () 
         group_id_a: "group-a",
         group_id_b: "group-b",
         verdict: "same",
+        candidate_revision: 0,
       },
     });
 
@@ -729,14 +945,24 @@ test("POST /api/merges accepts undo verdict", async () => {
 
 test("POST /api/merges can undo a pair that currently resolves to one root", async () => {
   const env = makeEnv();
-  env.CORRECTIONS_DB.merges.push({
-    id: 1,
-    group_id_a: "group-a",
-    group_id_b: "group-b",
-    verdict: "same",
-    voter_key: "first-voter",
-    created_at: "2026-01-01 09:00:00",
-  });
+  env.CORRECTIONS_DB.merges.push(
+    {
+      id: 1,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "first-voter",
+      created_at: "2026-01-01 09:00:00",
+    },
+    {
+      id: 2,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "second-voter",
+      created_at: "2026-01-01 09:01:00",
+    },
+  );
   const originalFetch = globalThis.fetch;
   try {
     globalThis.fetch = async () => new Response(JSON.stringify({
@@ -763,6 +989,58 @@ test("POST /api/merges can undo a pair that currently resolves to one root", asy
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("POST /api/merges allows a voter to mark the exact consensus pair different", async () => {
+  const env = makeEnv({ TURNSTILE_BYPASS: "1" });
+  const postDecision = (verdict, cookie = "") =>
+    mergesOnRequest({
+      request: makeRequest("/api/merges", {
+        host: "localhost",
+        protocol: "http:",
+        headers: cookie ? { Cookie: cookie } : {},
+        jsonBody: {
+          group_id_a: "group-a",
+          group_id_b: "group-b",
+          verdict,
+          candidate_revision: 0,
+        },
+      }),
+      env,
+      waitUntil() {},
+    });
+
+  const first = await postDecision("same");
+  assert.equal(first.status, 200);
+  const firstCookie = String(first.headers.get("Set-Cookie") || "").split(";")[0];
+  assert.ok(firstCookie);
+
+  const second = await postDecision("same");
+  assert.equal(second.status, 200);
+
+  const contrary = await postDecision("different", firstCookie);
+  assert.equal(contrary.status, 200);
+  assert.deepEqual((await contrary.json()).decision, {
+    group_id_a: "group-a",
+    group_id_b: "group-b",
+    verdict: "different",
+  });
+
+  const stateResponse = await reviewStateOnRequest({
+    request: makeRequest("/api/review-state?fresh=1", {
+      method: "GET",
+      host: "localhost",
+      protocol: "http:",
+    }),
+    env,
+    waitUntil() {},
+  });
+  assert.equal(stateResponse.status, 200);
+  const state = await stateResponse.json();
+  assert.equal(state.groupRoots["group-a"], "group-a");
+  assert.equal(state.groupRoots["group-b"], "group-b");
+  assert.equal(state.mergeDecisions[0].same_votes, 1);
+  assert.equal(state.mergeDecisions[0].different_votes, 1);
 });
 
 test("POST /api/merges keeps an undo on the exact historical pair", async () => {
@@ -819,6 +1097,155 @@ test("POST /api/merges keeps an undo on the exact historical pair", async () => 
   }
 });
 
+test("POST /api/merges rejects missing or stale candidate revisions before remapping roots", async () => {
+  const env = makeEnv({ TURNSTILE_BYPASS: "1" });
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 7,
+    computed_revision: 7,
+    data_version: "test-data-v1",
+    payload_json: JSON.stringify({
+      reviewStateSchemaVersion: 3,
+      resolvedGroupByXid: {
+        A1: "group-a",
+        A2: "group-b",
+        X1: "G1",
+      },
+      groupRoots: {
+        "group-a": "group-a",
+        "group-b": "group-b",
+        G1: "G1",
+      },
+      groupCorrections: [],
+      doneGroupIds: [],
+      mergeDecisions: [],
+    }),
+  };
+
+  for (const verdict of ["same", "different"]) {
+    const missing = await mergesOnRequest({
+      request: makeRequest("/api/merges", {
+        host: "localhost",
+        protocol: "http:",
+        jsonBody: {
+          group_id_a: "group-a",
+          group_id_b: "group-b",
+          verdict,
+        },
+      }),
+      env,
+      waitUntil() {},
+    });
+    assert.equal(missing.status, 400);
+
+    const stale = await mergesOnRequest({
+      request: makeRequest("/api/merges", {
+        host: "localhost",
+        protocol: "http:",
+        jsonBody: {
+          group_id_a: "group-a",
+          group_id_b: "group-b",
+          verdict,
+          candidate_revision: 6,
+        },
+      }),
+      env,
+      waitUntil() {},
+    });
+    assert.equal(stale.status, 409);
+    assert.match((await stale.json()).detail, /mezitím změnila/u);
+  }
+  assert.equal(env.CORRECTIONS_DB.merges.length, 0);
+});
+
+test("POST /api/merges rejects a revision that changes during the guarded insert", async () => {
+  const env = makeEnv({ TURNSTILE_BYPASS: "1" });
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 7,
+    computed_revision: 7,
+    data_version: "test-data-v1",
+    payload_json: JSON.stringify({
+      reviewStateSchemaVersion: 3,
+      resolvedGroupByXid: {
+        A1: "group-a",
+        A2: "group-b",
+      },
+      groupRoots: {
+        "group-a": "group-a",
+        "group-b": "group-b",
+      },
+      groupCorrections: [],
+      doneGroupIds: [],
+      mergeDecisions: [],
+    }),
+  };
+  env.CORRECTIONS_DB.beforeMergeInsert = (db) => {
+    db.communityProjection.current_revision = 8;
+  };
+
+  const response = await mergesOnRequest({
+    request: makeRequest("/api/merges", {
+      host: "localhost",
+      protocol: "http:",
+      jsonBody: {
+        group_id_a: "group-a",
+        group_id_b: "group-b",
+        verdict: "same",
+        candidate_revision: 7,
+      },
+    }),
+    env,
+    waitUntil() {},
+  });
+
+  assert.equal(response.status, 409);
+  assert.match((await response.json()).detail, /mezitím změnila/u);
+  assert.equal(env.CORRECTIONS_DB.merges.length, 0);
+});
+
+test("POST /api/merges keeps the guarded legacy-column fallback", async () => {
+  const env = makeEnv({ TURNSTILE_BYPASS: "1" });
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 7,
+    computed_revision: 7,
+    data_version: "test-data-v1",
+    payload_json: JSON.stringify({
+      reviewStateSchemaVersion: 3,
+      resolvedGroupByXid: {
+        A1: "group-a",
+        A2: "group-b",
+      },
+      groupRoots: {
+        "group-a": "group-a",
+        "group-b": "group-b",
+      },
+      groupCorrections: [],
+      doneGroupIds: [],
+      mergeDecisions: [],
+    }),
+  };
+  env.CORRECTIONS_DB.mergeAuditColumnsMissing = true;
+
+  const response = await mergesOnRequest({
+    request: makeRequest("/api/merges", {
+      host: "localhost",
+      protocol: "http:",
+      jsonBody: {
+        group_id_a: "group-a",
+        group_id_b: "group-b",
+        verdict: "same",
+        candidate_revision: 7,
+      },
+    }),
+    env,
+    waitUntil() {},
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(env.CORRECTIONS_DB.merges.length, 1);
+  assert.equal(env.CORRECTIONS_DB.merges[0].voter_key, "");
+  assert.equal(env.CORRECTIONS_DB.merges[0].user_agent, "");
+});
+
 test("POST /api/merges rejects unknown group ids", async () => {
   const env = makeEnv();
   const originalFetch = globalThis.fetch;
@@ -848,6 +1275,7 @@ test("POST /api/merges rejects unknown group ids", async () => {
         group_id_a: "group-a",
         group_id_b: "ghost-group",
         verdict: "same",
+        candidate_revision: 0,
       },
     });
 
@@ -862,14 +1290,24 @@ test("POST /api/merges rejects unknown group ids", async () => {
 
 test("POST /api/merges accepts an authoritative root after all members move", async () => {
   const env = makeEnv();
-  env.CORRECTIONS_DB.merges.push({
-    id: 1,
-    group_id_a: "group-a",
-    group_id_b: "group-b",
-    verdict: "same",
-    voter_key: "merge-voter",
-    created_at: "2026-01-01 09:00:00",
-  });
+  env.CORRECTIONS_DB.merges.push(
+    {
+      id: 1,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "merge-voter-a",
+      created_at: "2026-01-01 09:00:00",
+    },
+    {
+      id: 2,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "merge-voter-b",
+      created_at: "2026-01-01 09:01:00",
+    },
+  );
   env.CORRECTIONS_DB.groupMembershipOverrides.set("A1", {
     xid: "A1",
     group_id: "G1",
@@ -896,6 +1334,7 @@ test("POST /api/merges accepts an authoritative root after all members move", as
           group_id_a: "group-a",
           group_id_b: "G1",
           verdict: "different",
+          candidate_revision: 0,
           token: "ok",
         },
       }),
@@ -1045,14 +1484,24 @@ test("GET /api/group-review-votes promotes independent split proposals", async (
 
 test("GET /api/group-review-votes keeps constituent votes after groups merge", async () => {
   const env = makeEnv();
-  env.CORRECTIONS_DB.merges.push({
-    id: 1,
-    group_id_a: "group-a",
-    group_id_b: "group-b",
-    verdict: "same",
-    voter_key: "merge-voter",
-    created_at: "2026-01-01 09:00:00",
-  });
+  env.CORRECTIONS_DB.merges.push(
+    {
+      id: 1,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "merge-voter-a",
+      created_at: "2026-01-01 09:00:00",
+    },
+    {
+      id: 2,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "merge-voter-b",
+      created_at: "2026-01-01 09:01:00",
+    },
+  );
   env.CORRECTIONS_DB.groupReviewVotes.push(
     {
       id: 1,
@@ -1084,14 +1533,24 @@ test("GET /api/group-review-votes keeps constituent votes after groups merge", a
 
 test("POST /api/group-review-votes stores the current merged root", async () => {
   const env = makeEnv();
-  env.CORRECTIONS_DB.merges.push({
-    id: 1,
-    group_id_a: "group-a",
-    group_id_b: "group-b",
-    verdict: "same",
-    voter_key: "merge-voter",
-    created_at: "2026-01-01 09:00:00",
-  });
+  env.CORRECTIONS_DB.merges.push(
+    {
+      id: 1,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "merge-voter-a",
+      created_at: "2026-01-01 09:00:00",
+    },
+    {
+      id: 2,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "merge-voter-b",
+      created_at: "2026-01-01 09:01:00",
+    },
+  );
   const originalFetch = globalThis.fetch;
   try {
     globalThis.fetch = async () => new Response(JSON.stringify({
@@ -1531,14 +1990,24 @@ test("curator membership move rejects a target merged into the source root", asy
       { properties: { id: "B1", group_id: "group-b" } },
     ]),
   });
-  env.CORRECTIONS_DB.merges.push({
-    id: 1,
-    group_id_a: "group-a",
-    group_id_b: "group-b",
-    verdict: "same",
-    voter_key: "merge-voter",
-    created_at: "2026-01-01 09:00:00",
-  });
+  env.CORRECTIONS_DB.merges.push(
+    {
+      id: 1,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "merge-voter-a",
+      created_at: "2026-01-01 09:00:00",
+    },
+    {
+      id: 2,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "merge-voter-b",
+      created_at: "2026-01-01 09:01:00",
+    },
+  );
 
   const response = await adminGroupMembershipOnRequest({
     request: makeRequest("/api/admin/group-membership", {
@@ -1643,13 +2112,24 @@ test("curator can split members from a merged review root", async () => {
       { properties: { id: "B1", group_id: "group-b" } },
     ]),
   });
-  env.CORRECTIONS_DB.merges.push({
-    id: 1,
-    group_id_a: "group-a",
-    group_id_b: "group-b",
-    verdict: "same",
-    created_at: "2026-01-01 10:00:00",
-  });
+  env.CORRECTIONS_DB.merges.push(
+    {
+      id: 1,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "merge-voter-a",
+      created_at: "2026-01-01 10:00:00",
+    },
+    {
+      id: 2,
+      group_id_a: "group-a",
+      group_id_b: "group-b",
+      verdict: "same",
+      voter_key: "merge-voter-b",
+      created_at: "2026-01-01 10:00:30",
+    },
+  );
   env.CORRECTIONS_DB.groupReviewVotes.push(
     {
       id: 1,
@@ -1794,6 +2274,28 @@ test("GET /api/admin/export rejects a projection from an older data version", as
     current_revision: 4,
     computed_revision: 4,
     data_version: "old-deploy",
+    payload_json: JSON.stringify({
+      groupCorrections: [{ group_id: "stale-group" }],
+    }),
+  };
+  const response = await adminExportOnRequest({
+    request: makeRequest("/api/admin/export?format=json", {
+      method: "GET",
+      headers: { Authorization: "Bearer admin-test-token" },
+    }),
+    env,
+  });
+  const payload = await response.json();
+  assert.equal(payload.groupStateCurrent, false);
+  assert.deepEqual(payload.groupState, []);
+});
+
+test("GET /api/admin/export rejects a projection from an older state schema", async () => {
+  const env = makeEnv();
+  env.CORRECTIONS_DB.communityProjection = {
+    current_revision: 4,
+    computed_revision: 4,
+    data_version: "test-data-v1",
     payload_json: JSON.stringify({
       groupCorrections: [{ group_id: "stale-group" }],
     }),

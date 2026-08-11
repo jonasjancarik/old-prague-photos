@@ -142,7 +142,7 @@ export async function onRequest(context) {
     const focusGroupId = requestedFocusGroupId
       ? String(reviewState?.groupRoots?.[requestedFocusGroupId] || requestedFocusGroupId)
       : "";
-    if (flow === "duplicate" && focusGroupId) {
+    if (["location", "duplicate"].includes(flow) && focusGroupId) {
       const knownGroupIds = new Set(
         Object.values(reviewState?.resolvedGroupByXid || {}),
       );
@@ -208,12 +208,17 @@ export async function onRequest(context) {
       throw error;
     }
 
-    const pageCandidates = flow === "duplicate" && focusGroupId
-      ? candidates.filter((candidate) => (
+    let pageCandidates = candidates;
+    if (flow === "location" && focusGroupId) {
+      pageCandidates = candidates.filter(
+        (candidate) => candidate?.id === focusGroupId,
+      );
+    } else if (flow === "duplicate" && focusGroupId) {
+      pageCandidates = candidates.filter((candidate) => (
         candidate?.groupA?.id === focusGroupId ||
         candidate?.groupB?.id === focusGroupId
-      ))
-      : candidates;
+      ));
+    }
     return trackedResponse(
       jsonResponse({
         flow,

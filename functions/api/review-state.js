@@ -1,4 +1,8 @@
-import { buildReviewState, loadXidGroupMap } from "./_review_state.js";
+import {
+  buildReviewState,
+  loadXidGroupMap,
+  REVIEW_STATE_SCHEMA_VERSION,
+} from "./_review_state.js";
 import { loadCommunityDataVersion } from "./_data_version.js";
 import {
   isMissingColumnError,
@@ -27,6 +31,10 @@ function cacheKeyFor(request, dataVersion) {
   const url = new URL(request.url);
   url.search = "";
   url.searchParams.set("__community_data_version", dataVersion);
+  url.searchParams.set(
+    "__review_state_schema_version",
+    String(REVIEW_STATE_SCHEMA_VERSION),
+  );
   url.hash = "";
   return new Request(url.toString(), { method: "GET" });
 }
@@ -67,6 +75,8 @@ async function loadReviewRows(env) {
         has_coordinates,
         voter_key,
         verdict,
+        location_revision,
+        proposal_id,
         created_at
       FROM corrections
     `,
@@ -78,30 +88,59 @@ async function loadReviewRows(env) {
       env,
       `
         SELECT
-          source_event_id AS id,
+          id,
           group_id_a,
           group_id_b,
           verdict,
           voter_key,
-          user_agent,
           created_at
-        FROM current_merge_decisions
+        FROM (
+          SELECT
+            id,
+            group_id_a,
+            group_id_b,
+            verdict,
+            voter_key,
+            created_at,
+            ROW_NUMBER() OVER (
+              PARTITION BY
+                group_id_a,
+                group_id_b,
+                COALESCE(NULLIF(voter_key, ''), 'legacy')
+              ORDER BY created_at DESC, id DESC
+            ) AS active_rank
+          FROM merge_decisions
+        )
+        WHERE active_rank = 1
       `,
     );
   } catch (error) {
-    if (!isMissingColumnError(error, ["voter_key", "user_agent"])) {
+    if (!isMissingColumnError(error, ["voter_key"])) {
       throw error;
     }
     mergeRows = await queryRows(
       env,
       `
         SELECT
-          source_event_id AS id,
+          id,
           group_id_a,
           group_id_b,
           verdict,
           created_at
-        FROM current_merge_decisions
+        FROM (
+          SELECT
+            id,
+            group_id_a,
+            group_id_b,
+            verdict,
+            created_at,
+            ROW_NUMBER() OVER (
+              PARTITION BY group_id_a, group_id_b
+              ORDER BY created_at DESC, id DESC
+            ) AS active_rank
+          FROM merge_decisions
+        )
+        WHERE active_rank = 1
       `,
     );
   }
@@ -166,16 +205,21 @@ export async function onRequest(context) {
   ) {
     try {
       const projectedPayload = JSON.parse(projection.payload_json);
-      const response = jsonResponse(projectedPayload, 200, {
-        "Cache-Control": responseCacheControl(stableSnapshot),
-        "X-Community-Revision": String(Number(projection.current_revision) || 0),
-        "X-Community-Revision-Stable": "1",
-        "X-Community-Data-Version": dataVersion,
-      });
-      if (!bypassEdgeCache && edgeCache) {
-        context.waitUntil(edgeCache.put(key, response.clone()));
+      if (
+        Number(projectedPayload?.reviewStateSchemaVersion) ===
+        REVIEW_STATE_SCHEMA_VERSION
+      ) {
+        const response = jsonResponse(projectedPayload, 200, {
+          "Cache-Control": responseCacheControl(stableSnapshot),
+          "X-Community-Revision": String(Number(projection.current_revision) || 0),
+          "X-Community-Revision-Stable": "1",
+          "X-Community-Data-Version": dataVersion,
+        });
+        if (!bypassEdgeCache && edgeCache) {
+          context.waitUntil(edgeCache.put(key, response.clone()));
+        }
+        return response;
       }
-      return response;
     } catch (error) {
       logDatabaseError("/api/review-state", "parse state projection", error);
     }
@@ -213,6 +257,7 @@ export async function onRequest(context) {
 
   const payload = {
     ...reviewState,
+    reviewStateSchemaVersion: REVIEW_STATE_SCHEMA_VERSION,
     counts: {
       corrections: reviewState.groupCorrections.length,
       doneGroups: reviewState.doneGroupIds.length,

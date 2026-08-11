@@ -59,6 +59,7 @@ Important fields:
 - `lat`, `lon`
 - `has_coordinates`
 - `voter_key`
+- `location_revision` and `proposal_id` on new `ok` events
 
 Scope:
 - Corrections apply to `group_id`, not only to one photo version.
@@ -81,10 +82,23 @@ Consensus rules:
 - If there is no anchor event, plain `ok` votes can still mark the location
   workflow done after two independent votes.
 - The correction author's own later `ok` vote does not confirm their correction.
+- Every new `ok` submission names the exact `location_revision` shown to the
+  voter and, for a coordinate proposal, its immutable `proposal_id`. The API
+  rejects a stale or mismatched target with `409`.
+- The target is stored with the append-only event. Projection counts that vote
+  only for the named group/anchor, so a proposal created between validation and
+  insertion cannot inherit the earlier vote. Historical untargeted `ok` rows
+  keep their legacy behavior.
 
 Frontend behavior:
-- `review-state` can include pending corrected coordinates. The UI may show a
-  proposed correction immediately while marking it as pending confirmation.
+- `review-state` exposes only approved coordinates through `has_coordinates`,
+  `lat`, and `lon`. A pending correction never replaces the public/applied
+  location.
+- The latest coordinate proposal remains inspectable through
+  `proposed_has_coordinates`, `proposed_id`, `proposed_lat`, and `proposed_lon`.
+  `anchor_id` and `location_revision` identify the exact state being reviewed.
+  The contribution UI renders the proposal as a separate labeled point and
+  never treats it as the public map pin.
 - When a later state removes a merge or correction from a feature, the frontend
   restores that feature's original GeoJSON coordinates before applying the new
   state. This prevents stale corrected coordinates after merge undo/split flows.
@@ -107,11 +121,12 @@ Question:
 
 Verdicts:
 - `same`
-  The two groups should collapse into one resolved group.
+  This voter believes the two groups should collapse into one resolved group.
+  It does not merge the groups until another independent active voter agrees.
 - `different`
   The two groups should stay separate.
 - `undo`
-  Clears the latest active decision for that pair.
+  Clears this voter's latest active decision for that pair.
 
 Storage:
 - Cloudflare Pages/D1: `merge_decisions`
@@ -122,32 +137,57 @@ API:
 - `GET /api/merges`
 - `GET /api/review-state`
 
+`GET /api/merges` returns the same anonymous aggregate pair projection as
+`review-state`, including consensus counts.
+
 Important fields:
 - `group_id_a`
 - `group_id_b`
 - `verdict`
+- `candidate_revision` for `same` and `different`
 - `voter_key`
+
+The browser submits the integer candidate revision returned with the displayed
+page. The API rejects stale `same` and `different` evidence with `409` before
+resolving either submitted ID to a newer root. Exact-pair `undo` intentionally
+does not require a candidate revision.
 
 Candidate sources:
 - groups with matching coordinates
 - visual similarity pairs from `viewer/static/data/similarity_candidates.json`
 
 Consensus model:
-- This is not a counted voting workflow.
-- The latest event for a canonical pair wins.
-- Active `same` decisions feed a union-find resolver in `review-state`.
-- Active `different` decisions suppress that candidate pair but do not affect map
-  correctness.
-- `undo` clears the active pair decision so the pair can be considered again.
+- The latest event per `(canonical pair, voter identity)` is active. Earlier
+  events remain append-only history but no longer count for that voter.
+- A pair feeds the union-find resolver only after at least two independent
+  active voters agree `same`.
+- One active `same` vote is projected as `pending`; the groups stay separate and
+  the pair remains available so another voter can review it.
+- Repeated `same` events from one voter still count as one vote.
+- A later `different` or `undo` from a voter replaces or removes only that
+  voter's active `same` decision. If this drops the pair below two active `same`
+  voters, the union is removed on the next projection rebuild.
+- A pair with active `different` votes and no active `same` vote remains
+  `different`, suppressing that candidate pair without changing map
+  correctness. A mixed pair below the `same` threshold remains `pending`.
+- Legacy events without `voter_key` share one conservative legacy identity per
+  pair. They cannot establish independent consensus by repetition, and a later
+  legacy `undo` still clears the legacy state.
 - An `undo` remains attached to the exact submitted historical pair even when a
   later merge has changed one member's current resolved root.
+- After consensus has temporarily resolved both members to one root,
+  `different` is still accepted for that exact historical pair. It replaces
+  only the submitting voter's active decision and can therefore remove the
+  union without losing append-only history.
+
+Public pair projections expose `same_votes`, `different_votes`, and
+`required_same_votes` without exposing voter keys or user agents.
 
 Runtime behavior:
-- After a merge decision is saved, the duplicate-review UI fetches
-  `/api/review-state?fresh=1` before rebuilding candidates.
-- If that fresh-state fetch fails, the UI keeps the existing state and shows an
-  error instead of applying an empty state. This avoids reintroducing already
-  decided pairs.
+- After a merge decision is saved, the duplicate-review UI reloads the bounded
+  candidate page against the new revision before showing another pair.
+- If that reload fails, the saved exact pair remains available through the
+  `Zpět` action even though new decisions stay disabled.
 
 Core code:
 - [functions/api/merges.js](../functions/api/merges.js)
@@ -266,7 +306,7 @@ Current UI wording:
 - resolved merge roots
 - location/correction consensus
 - done groups for the location workflow
-- latest active merge decisions
+- aggregate active merge-pair state and consensus counts
 - aggregate counts used by the main map UI
 
 It does not include:
@@ -340,11 +380,12 @@ fingerprints.
 
 ## Deploy / Migration Notes
 
-Migrations `0009` through `0012` add versioned membership overrides, audit
+Migrations `0009` through `0013` add versioned membership overrides, audit
 events, current merge/vote projections, the revisioned review-state snapshot,
 durable group-review resolution boundaries, and bounded hourly operational
-counters. Apply them before deploying Functions. The guarded release command
-enforces this order:
+counters. Migration `0013` persists the proposal target carried by new
+location confirmations. Apply them before deploying Functions. The guarded
+release command enforces this order:
 
 ```bash
 npm run deploy:pages
@@ -355,6 +396,13 @@ into `/data/community-data-version.json`. Review projections and candidate
 caches are accepted only for that deployed version. A missing or empty version
 fails closed; `COMMUNITY_DATA_VERSION` is available only as an explicit
 operator override.
+
+The materialized payload also carries `reviewStateSchemaVersion`. A deployment
+that changes projection semantics rejects an older payload even when its D1
+revision and static-data version still match, then rebuilds it from the
+append-only event tables. Edge-cache keys include both the static-data version
+and this schema version, so the old one-vote merge projection cannot survive a
+code-only deployment.
 
 ## Test Coverage
 

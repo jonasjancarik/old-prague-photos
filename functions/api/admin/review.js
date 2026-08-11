@@ -353,6 +353,8 @@ export async function onRequest({ request, env }) {
             has_coordinates,
             voter_key,
             verdict,
+            location_revision,
+            proposal_id,
             message,
             email,
             user_agent,

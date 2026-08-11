@@ -70,6 +70,8 @@ SESSION_TTL_SECONDS = 6 * 60 * 60
 VOTER_COOKIE_TTL_SECONDS = 365 * 24 * 60 * 60
 ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60
 FULL_RES_MAX_PIXELS_DEFAULT = 80_000_000
+REQUIRED_SAME_MERGE_VOTES = 2
+REVIEW_STATE_SCHEMA_VERSION = 3
 
 app = FastAPI(title="Prohlížeč historických fotografií Prahy")
 
@@ -98,6 +100,8 @@ class CorrectionPayload(BaseModel):
     lat: float | None = None
     lon: float | None = None
     verdict: str | None = None
+    location_revision: str | None = Field(default=None, max_length=512)
+    proposal_id: str | None = Field(default=None, max_length=256)
     message: str | None = Field(default=None, max_length=2000)
     email: str | None = None
     token: str | None = None
@@ -115,6 +119,7 @@ class MergePayload(BaseModel):
     group_id_a: str = Field(min_length=1)
     group_id_b: str = Field(min_length=1)
     verdict: str | None = None
+    candidate_revision: int | None = Field(default=None, ge=0)
     token: str | None = None
 
 
@@ -305,6 +310,36 @@ def _normalize_id(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _location_revision(group_id: Any, anchor_id: Any = None) -> str:
+    return json.dumps(
+        [_normalize_id(group_id), _normalize_id(anchor_id) or None],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def _confirmation_target(
+    review_state: dict[str, Any], group_id: str
+) -> tuple[str, str]:
+    correction = next(
+        (
+            item
+            for item in review_state.get("groupCorrections", [])
+            if _normalize_id(item.get("group_id")) == group_id
+        ),
+        None,
+    )
+    revision = (
+        _normalize_id(correction.get("location_revision")) if correction else ""
+    ) or _location_revision(
+        group_id, correction.get("anchor_id") if correction else None
+    )
+    proposal_id = (
+        _normalize_id(correction.get("proposed_id")) if correction else ""
+    )
+    return revision, proposal_id
+
+
 def _parse_event_time(value: Any) -> float:
     raw = _normalize_id(value)
     if not raw:
@@ -370,12 +405,29 @@ def _anchor_type_for_record(record: dict[str, Any] | None) -> str:
 
 
 def _count_ok_votes(
-    events: list[dict[str, Any]], start_index: int, excluded_identity: str = ""
+    events: list[dict[str, Any]],
+    start_index: int,
+    excluded_identity: str = "",
+    group_id: str = "",
+    anchor: dict[str, Any] | None = None,
 ) -> int:
     voters: set[str] = set()
     for event in events[start_index:]:
         if _normalize_id(event.get("verdict")).lower() != "ok":
             continue
+        submitted_revision = _normalize_id(event.get("location_revision"))
+        submitted_proposal_id = _normalize_id(event.get("proposal_id"))
+        if submitted_revision or submitted_proposal_id:
+            anchor_id = _normalize_id(anchor.get("id")) if anchor else ""
+            expected_revision = _location_revision(group_id, anchor_id)
+            expected_proposal_id = (
+                anchor_id if _anchor_type_for_record(anchor) == "correction" else ""
+            )
+            if (
+                submitted_revision != expected_revision
+                or submitted_proposal_id != expected_proposal_id
+            ):
+                continue
         identity = _event_voter_identity(event)
         if excluded_identity and identity == excluded_identity:
             continue
@@ -384,7 +436,7 @@ def _count_ok_votes(
 
 
 def _latest_approved_correction(
-    events: list[dict[str, Any]], anchor_indexes: list[int]
+    events: list[dict[str, Any]], anchor_indexes: list[int], group_id: str
 ) -> dict[str, Any] | None:
     approved: dict[str, Any] | None = None
     for pos, anchor_index in enumerate(anchor_indexes):
@@ -396,20 +448,28 @@ def _latest_approved_correction(
         )
         segment = events[:next_anchor]
         ok_votes = _count_ok_votes(
-            segment, anchor_index + 1, _event_voter_identity(anchor)
+            segment,
+            anchor_index + 1,
+            _event_voter_identity(anchor),
+            group_id,
+            anchor,
         )
         if ok_votes >= 1:
             approved = anchor
     return approved
 
 
-def _analyze_group_events(events: list[dict[str, Any]]) -> dict[str, Any] | None:
+def _analyze_group_events(
+    events: list[dict[str, Any]], group_id: str
+) -> dict[str, Any] | None:
     ordered = sorted(events, key=_event_order_key)
     if not ordered:
         return None
 
     anchor_indexes = [i for i, event in enumerate(ordered) if _is_anchor_event(event)]
-    approved_correction = _latest_approved_correction(ordered, anchor_indexes)
+    approved_correction = _latest_approved_correction(
+        ordered, anchor_indexes, group_id
+    )
     latest_anchor_index = anchor_indexes[-1] if anchor_indexes else -1
     latest_anchor = ordered[latest_anchor_index] if latest_anchor_index >= 0 else None
     anchor_type = _anchor_type_for_record(latest_anchor)
@@ -417,7 +477,13 @@ def _analyze_group_events(events: list[dict[str, Any]]) -> dict[str, Any] | None
     excluded_identity = (
         _event_voter_identity(latest_anchor) if anchor_type == "correction" else ""
     )
-    ok_votes = _count_ok_votes(ordered, latest_anchor_index + 1, excluded_identity)
+    ok_votes = _count_ok_votes(
+        ordered,
+        latest_anchor_index + 1,
+        excluded_identity,
+        group_id,
+        latest_anchor,
+    )
     done = ok_votes >= required_ok_votes
 
     if anchor_type == "correction":
@@ -427,11 +493,16 @@ def _analyze_group_events(events: list[dict[str, Any]]) -> dict[str, Any] | None
     else:
         correction_state = "none"
 
-    applied_coords = None
-    if anchor_type == "correction":
-        applied_coords = latest_anchor
-    elif approved_correction and approved_correction.get("has_coordinates"):
-        applied_coords = approved_correction
+    applied_coords = (
+        approved_correction
+        if approved_correction and approved_correction.get("has_coordinates")
+        else None
+    )
+    proposed_coords = (
+        latest_anchor
+        if anchor_type == "correction" and latest_anchor.get("has_coordinates")
+        else None
+    )
 
     return {
         "latest_event": ordered[-1],
@@ -442,6 +513,7 @@ def _analyze_group_events(events: list[dict[str, Any]]) -> dict[str, Any] | None
         "ok_votes": ok_votes,
         "done": done,
         "applied_coords": applied_coords,
+        "proposed_coords": proposed_coords,
     }
 
 
@@ -507,6 +579,10 @@ def _load_correction_records() -> list[dict[str, Any]]:
                 {
                     **record,
                     "xid": xid,
+                    "received_at": record.get("received_at")
+                    or record.get("created_at"),
+                    "created_at": record.get("created_at")
+                    or record.get("received_at"),
                     "_seq": seq,
                 }
             )
@@ -546,8 +622,10 @@ def _load_merge_records() -> list[dict[str, Any]]:
                     "verdict": verdict,
                     "voter_key": _normalize_id(record.get("voter_key")),
                     "user_agent": _normalize_id(record.get("user_agent")),
-                    "received_at": record.get("received_at"),
-                    "created_at": record.get("received_at"),
+                    "received_at": record.get("received_at")
+                    or record.get("created_at"),
+                    "created_at": record.get("created_at")
+                    or record.get("received_at"),
                     "_seq": seq,
                 }
             )
@@ -581,32 +659,80 @@ def _load_group_review_vote_records() -> list[dict[str, Any]]:
                     "verdict": verdict,
                     "voter_key": _normalize_id(record.get("voter_key")),
                     "user_agent": _normalize_id(record.get("user_agent")),
-                    "received_at": record.get("received_at"),
-                    "created_at": record.get("received_at"),
+                    "received_at": record.get("received_at")
+                    or record.get("created_at"),
+                    "created_at": record.get("created_at")
+                    or record.get("received_at"),
                     "_seq": seq,
                 }
             )
     return rows
 
 
-def _load_latest_merge_records() -> list[dict[str, Any]]:
-    latest: dict[str, dict[str, Any]] = {}
-    for row in _load_merge_records():
+def _merge_voter_identity(record: dict[str, Any]) -> str:
+    # Historical rows cannot prove voter independence. Keeping them under one
+    # identity also lets a later legacy undo clear the legacy pair state.
+    return _normalize_id(record.get("voter_key")) or "legacy"
+
+
+def _build_merge_decisions(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    latest_by_pair_voter: dict[str, dict[str, Any]] = {}
+    for row in records:
         pair_key = f"{row['group_id_a']}::{row['group_id_b']}"
-        current = latest.get(pair_key)
+        voter_key = f"{pair_key}\0{_merge_voter_identity(row)}"
+        current = latest_by_pair_voter.get(voter_key)
         if current is None or _is_newer_event(row, current):
-            latest[pair_key] = row
-    return [
-        latest[key]
-        for key in sorted(latest)
-        if latest[key].get("verdict") in {"same", "different"}
-    ]
+            latest_by_pair_voter[voter_key] = row
+
+    counts_by_pair: dict[str, dict[str, Any]] = {}
+    for row in latest_by_pair_voter.values():
+        verdict = row.get("verdict")
+        if verdict not in {"same", "different"}:
+            continue
+        pair_key = f"{row['group_id_a']}::{row['group_id_b']}"
+        state = counts_by_pair.setdefault(
+            pair_key,
+            {
+                "group_id_a": row["group_id_a"],
+                "group_id_b": row["group_id_b"],
+                "same_votes": 0,
+                "different_votes": 0,
+                "latest_event": row,
+            },
+        )
+        state[f"{verdict}_votes"] += 1
+        if _is_newer_event(row, state["latest_event"]):
+            state["latest_event"] = row
+
+    decisions: list[dict[str, Any]] = []
+    for pair_key in sorted(counts_by_pair):
+        state = counts_by_pair[pair_key]
+        same_votes = int(state["same_votes"])
+        verdict = "different"
+        if same_votes >= REQUIRED_SAME_MERGE_VOTES:
+            verdict = "same"
+        elif same_votes > 0:
+            verdict = "pending"
+        latest_event = state["latest_event"]
+        decisions.append(
+            {
+                "group_id_a": state["group_id_a"],
+                "group_id_b": state["group_id_b"],
+                "verdict": verdict,
+                "same_votes": same_votes,
+                "different_votes": int(state["different_votes"]),
+                "required_same_votes": REQUIRED_SAME_MERGE_VOTES,
+                "received_at": latest_event.get("received_at")
+                or latest_event.get("created_at"),
+            }
+        )
+    return decisions
 
 
 def build_review_state() -> dict[str, Any]:
     xid_group = build_xid_group_cache()
     correction_rows = _load_correction_records()
-    merge_rows = _load_latest_merge_records()
+    merge_rows = _build_merge_decisions(_load_merge_records())
 
     known_group_ids = set(xid_group.values())
     normalized_corrections: list[dict[str, Any]] = []
@@ -631,12 +757,16 @@ def build_review_state() -> dict[str, Any]:
             "xid": xid,
             "base_group_id": base_group,
             "verdict": _normalize_id(record.get("verdict")).lower(),
-            "received_at": record.get("received_at"),
-            "created_at": record.get("received_at"),
+            "received_at": record.get("received_at")
+            or record.get("created_at"),
+            "created_at": record.get("created_at")
+            or record.get("received_at"),
             "has_coordinates": has_coordinates,
             "lat": lat,
             "lon": lon,
             "voter_key": _normalize_id(record.get("voter_key")),
+            "location_revision": _normalize_id(record.get("location_revision")),
+            "proposal_id": _normalize_id(record.get("proposal_id")),
             "_seq": int(record.get("_seq") or 0),
         }
         normalized_corrections.append(normalized)
@@ -669,12 +799,14 @@ def build_review_state() -> dict[str, Any]:
 
     group_corrections: list[dict[str, Any]] = []
     for group_id in sorted(events_by_group):
-        analysis = _analyze_group_events(events_by_group[group_id])
+        analysis = _analyze_group_events(events_by_group[group_id], group_id)
         if not analysis:
             continue
         latest_any = analysis["latest_event"]
         latest_coords = analysis["applied_coords"]
+        proposed_coords = analysis["proposed_coords"]
         latest_anchor = analysis["latest_anchor"]
+        anchor_id = _normalize_id(latest_anchor.get("id")) if latest_anchor else ""
         group_corrections.append(
             {
                 "xid": latest_any["xid"],
@@ -686,12 +818,26 @@ def build_review_state() -> dict[str, Any]:
                 "has_coordinates": bool(latest_coords),
                 "lat": latest_coords.get("lat") if latest_coords else None,
                 "lon": latest_coords.get("lon") if latest_coords else None,
+                "proposed_has_coordinates": bool(proposed_coords),
+                "proposed_id": (
+                    _normalize_id(proposed_coords.get("id")) or None
+                    if proposed_coords
+                    else None
+                ),
+                "proposed_lat": (
+                    proposed_coords.get("lat") if proposed_coords else None
+                ),
+                "proposed_lon": (
+                    proposed_coords.get("lon") if proposed_coords else None
+                ),
+                "location_revision": _location_revision(group_id, anchor_id),
                 "correction_state": analysis["correction_state"],
                 "ok_votes": analysis["ok_votes"],
                 "required_ok_votes": analysis["required_ok_votes"],
                 "done": analysis["done"],
                 "needs_confirmation": not analysis["done"],
                 "anchor_type": analysis["anchor_type"],
+                "anchor_id": anchor_id or None,
                 "anchor_at": (
                     latest_anchor.get("received_at") or latest_anchor.get("created_at")
                     if latest_anchor
@@ -704,22 +850,12 @@ def build_review_state() -> dict[str, Any]:
         item["group_id"] for item in group_corrections if item.get("done")
     )
 
-    merge_decisions = [
-        {
-            "group_id_a": row["group_id_a"],
-            "group_id_b": row["group_id_b"],
-            "verdict": row["verdict"],
-            "received_at": row.get("received_at"),
-        }
-        for row in merge_rows
-    ]
-
     return {
         "groupCorrections": group_corrections,
         "doneGroupIds": done_group_ids,
         "resolvedGroupByXid": resolved_group_by_xid,
         "groupRoots": group_roots,
-        "mergeDecisions": merge_decisions,
+        "mergeDecisions": merge_rows,
     }
 
 
@@ -1421,6 +1557,7 @@ def get_review_state() -> JSONResponse:
     state = build_review_state()
     payload = {
         **state,
+        "reviewStateSchemaVersion": REVIEW_STATE_SCHEMA_VERSION,
         "counts": {
             "corrections": len(state.get("groupCorrections", [])),
             "doneGroups": len(state.get("doneGroupIds", [])),
@@ -1483,6 +1620,20 @@ def _candidate_data_version() -> str:
     return f"local:{hashlib.sha256(raw.encode('utf-8')).hexdigest()}"
 
 
+def _candidate_revision(review_state: dict[str, Any]) -> int:
+    revision_payload = json.dumps(
+        {
+            "roots": review_state.get("groupRoots", {}),
+            "resolved_membership": review_state.get("resolvedGroupByXid", {}),
+            "corrections": review_state.get("groupCorrections", []),
+            "merges": review_state.get("mergeDecisions", []),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return int(hashlib.sha256(revision_payload.encode("utf-8")).hexdigest()[:12], 16)
+
+
 @app.get("/api/community-candidates")
 def get_community_candidates(
     flow: str,
@@ -1494,9 +1645,13 @@ def get_community_candidates(
         raise HTTPException(status_code=400, detail="Neplatný typ kontroly")
     review_state = build_review_state()
     resolved_focus_group_id = ""
-    if flow == "duplicate" and group_id:
+    requested_focus_group_id = _normalize_id(group_id)
+    if flow in {"location", "duplicate"} and requested_focus_group_id:
         roots = review_state.get("groupRoots", {})
-        resolved_focus_group_id = _normalize_id(roots.get(group_id)) or group_id
+        resolved_focus_group_id = (
+            _normalize_id(roots.get(requested_focus_group_id))
+            or requested_focus_group_id
+        )
         known_group_ids = set(review_state.get("resolvedGroupByXid", {}).values())
         if resolved_focus_group_id not in known_group_ids:
             raise HTTPException(status_code=400, detail="Neznámá skupina")
@@ -1509,6 +1664,12 @@ def get_community_candidates(
     if flow == "location":
         done_groups = set(review_state.get("doneGroupIds", []))
         candidates = [group for group in groups if group["id"] not in done_groups]
+        if resolved_focus_group_id:
+            candidates = [
+                group
+                for group in candidates
+                if group["id"] == resolved_focus_group_id
+            ]
     elif flow == "group":
         clusters_payload: dict[str, Any] = {"clusters": []}
         if SERIES_VERSION_CLUSTERS_PATH.exists():
@@ -1538,17 +1699,7 @@ def get_community_candidates(
             resolved_focus_group_id,
         )
 
-    revision_payload = json.dumps(
-        {
-            "roots": review_state.get("groupRoots", {}),
-            "resolved_membership": review_state.get("resolvedGroupByXid", {}),
-            "corrections": review_state.get("groupCorrections", []),
-            "merges": review_state.get("mergeDecisions", []),
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    revision = int(hashlib.sha256(revision_payload.encode("utf-8")).hexdigest()[:12], 16)
+    revision = _candidate_revision(review_state)
     data_version = _candidate_data_version()
     try:
         page = paginate(candidates, cursor, limit, revision, data_version)
@@ -1617,6 +1768,10 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
         and requested_group_id not in {mapped_group_id, resolved_group_id}
     ):
         raise HTTPException(status_code=400, detail="Neplatná skupina pro xid")
+    submitted_location_revision = _normalize_id(payload.location_revision)
+    submitted_proposal_id = _normalize_id(payload.proposal_id)
+    if verdict == "ok" and not submitted_location_revision:
+        raise HTTPException(status_code=400, detail="Chybí verze potvrzované polohy")
     group_id = mapped_group_id or payload.xid
 
     voter_key, voter_cookie = _ensure_voter_identity(request)
@@ -1628,9 +1783,12 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
         "lon": payload.lon,
         "has_coordinates": has_coordinates,
         "verdict": verdict,
+        "location_revision": (
+            submitted_location_revision if verdict == "ok" else None
+        ),
+        "proposal_id": submitted_proposal_id if verdict == "ok" else None,
         "message": (payload.message or "Nahlášena špatná poloha.").strip(),
         "email": email or None,
-        "newsletter_opt_in": bool(email),
         "voter_key": voter_key,
         "user_agent": request.headers.get("user-agent", ""),
         "received_at": datetime.now(timezone.utc).isoformat(),
@@ -1638,6 +1796,33 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with _feedback_lock:
+        if verdict == "ok":
+            review_state = build_review_state()
+            resolved_group_id = (
+                _normalize_id(
+                    review_state.get("resolvedGroupByXid", {}).get(payload.xid)
+                )
+                or mapped_group_id
+            )
+            if (
+                requested_group_id
+                and requested_group_id not in {mapped_group_id, resolved_group_id}
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Poloha se mezitím změnila. Načtěte ji znovu.",
+                )
+            expected_revision, expected_proposal_id = _confirmation_target(
+                review_state, resolved_group_id
+            )
+            if (
+                submitted_location_revision != expected_revision
+                or submitted_proposal_id != expected_proposal_id
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Poloha se mezitím změnila. Načtěte ji znovu.",
+                )
         with CORRECTIONS_PATH.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, ensure_ascii=False))
             handle.write("\n")
@@ -1648,15 +1833,7 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
 
 
 def normalize_merges() -> list[dict[str, Any]]:
-    return [
-        {
-            "group_id_a": row["group_id_a"],
-            "group_id_b": row["group_id_b"],
-            "verdict": row["verdict"],
-            "received_at": row.get("received_at"),
-        }
-        for row in _load_latest_merge_records()
-    ]
+    return _build_merge_decisions(_load_merge_records())
 
 
 @app.get("/api/merges")
@@ -1684,29 +1861,11 @@ def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
         verdict = "same"
     if verdict not in {"same", "different", "undo"}:
         raise HTTPException(status_code=400, detail="Neplatný typ rozhodnutí")
-
-    review_state = build_review_state()
-    roots = review_state.get("groupRoots", {})
-    known_group_ids = {
-        _normalize_id(item)
-        for item in [
-            *roots.keys(),
-            *roots.values(),
-            *review_state.get("resolvedGroupByXid", {}).values(),
-        ]
-        if _normalize_id(item)
-    }
-    if not known_group_ids:
-        raise HTTPException(status_code=500, detail="Chybí metadata skupin")
-    if group_id_a not in known_group_ids or group_id_b not in known_group_ids:
-        raise HTTPException(status_code=400, detail="Neznámá skupina")
-    resolved_group_id_a = _normalize_id(roots.get(group_id_a)) or group_id_a
-    resolved_group_id_b = _normalize_id(roots.get(group_id_b)) or group_id_b
-    if verdict != "undo":
-        if resolved_group_id_a == resolved_group_id_b:
-            raise HTTPException(status_code=400, detail="Nelze sloučit stejnou skupinu")
-        group_id_a = resolved_group_id_a
-        group_id_b = resolved_group_id_b
+    if verdict != "undo" and payload.candidate_revision is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Chybí verze porovnávané dvojice",
+        )
 
     if not _is_local_bypass_allowed(request):
         if payload.token:
@@ -1714,22 +1873,73 @@ def submit_merge(payload: MergePayload, request: Request) -> JSONResponse:
         elif not _has_valid_session(request):
             raise HTTPException(status_code=400, detail="Turnstile je povinný")
 
-    if group_id_a > group_id_b:
-        group_id_a, group_id_b = group_id_b, group_id_a
-
     voter_key, voter_cookie = _ensure_voter_identity(request)
-    record = {
-        "id": f"merge_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
-        "group_id_a": group_id_a,
-        "group_id_b": group_id_b,
-        "verdict": verdict,
-        "voter_key": voter_key,
-        "user_agent": request.headers.get("user-agent", ""),
-        "received_at": datetime.now(timezone.utc).isoformat(),
-    }
-
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # Keep the evidence check and event append atomic with every local state writer.
     with _feedback_lock:
+        review_state = build_review_state()
+        if (
+            verdict != "undo"
+            and payload.candidate_revision != _candidate_revision(review_state)
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Dvojice se mezitím změnila. Načtěte ji znovu.",
+            )
+        roots = review_state.get("groupRoots", {})
+        known_group_ids = {
+            _normalize_id(item)
+            for item in [
+                *roots.keys(),
+                *roots.values(),
+                *review_state.get("resolvedGroupByXid", {}).values(),
+            ]
+            if _normalize_id(item)
+        }
+        if not known_group_ids:
+            raise HTTPException(status_code=500, detail="Chybí metadata skupin")
+        if group_id_a not in known_group_ids or group_id_b not in known_group_ids:
+            raise HTTPException(status_code=400, detail="Neznámá skupina")
+        resolved_group_id_a = _normalize_id(roots.get(group_id_a)) or group_id_a
+        resolved_group_id_b = _normalize_id(roots.get(group_id_b)) or group_id_b
+        if verdict != "undo":
+            if resolved_group_id_a == resolved_group_id_b:
+                submitted_pair = "::".join(sorted([group_id_a, group_id_b]))
+                historical_pairs = {
+                    "::".join(
+                        sorted(
+                            [
+                                _normalize_id(item.get("group_id_a")),
+                                _normalize_id(item.get("group_id_b")),
+                            ]
+                        )
+                    )
+                    for item in review_state.get("mergeDecisions", [])
+                }
+                if (
+                    verdict != "different"
+                    or submitted_pair not in historical_pairs
+                ):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Nelze sloučit stejnou skupinu",
+                    )
+            else:
+                group_id_a = resolved_group_id_a
+                group_id_b = resolved_group_id_b
+
+        if group_id_a > group_id_b:
+            group_id_a, group_id_b = group_id_b, group_id_a
+
+        record = {
+            "id": f"merge_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
+            "group_id_a": group_id_a,
+            "group_id_b": group_id_b,
+            "verdict": verdict,
+            "voter_key": voter_key,
+            "user_agent": request.headers.get("user-agent", ""),
+            "received_at": datetime.now(timezone.utc).isoformat(),
+        }
         with MERGES_PATH.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, ensure_ascii=False))
             handle.write("\n")

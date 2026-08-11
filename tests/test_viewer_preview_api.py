@@ -110,6 +110,28 @@ class ViewerPreviewApiTests(unittest.TestCase):
             handle.write(json.dumps(payload, ensure_ascii=False))
             handle.write("\n")
 
+    def _append_same_merge_consensus(self, group_id_a: str, group_id_b: str) -> None:
+        for index, voter_key in enumerate(("merge-voter-a", "merge-voter-b"), 1):
+            self._append_jsonl(
+                self.merges_path,
+                {
+                    "id": f"merge_{index}",
+                    "group_id_a": group_id_a,
+                    "group_id_b": group_id_b,
+                    "verdict": "same",
+                    "voter_key": voter_key,
+                    "received_at": f"2026-01-01T00:0{index - 1}:00+00:00",
+                },
+            )
+
+    def _candidate_revision(self) -> int:
+        response = self.client.get(
+            "/api/community-candidates",
+            params={"flow": "location", "limit": 1},
+        )
+        self.assertEqual(response.status_code, 200)
+        return int(response.json()["revision"])
+
     def test_preview_url_prefers_r2(self) -> None:
         with patch.dict(os.environ, {"R2_TILES_BASE": "https://r2.example/tiles"}, clear=False):
             with patch.object(viewer_app, "_url_exists", return_value=True) as exists:
@@ -238,20 +260,15 @@ class ViewerPreviewApiTests(unittest.TestCase):
         self.assertIn("Neznámé xid", response.json().get("detail", ""))
 
     def test_submit_correction_accepts_resolved_merged_group(self) -> None:
-        self._append_jsonl(
-            self.merges_path,
-            {
-                "id": "merge_1",
-                "group_id_a": "group-LOCALONLY",
-                "group_id_b": "group-R2ONLY",
-                "verdict": "same",
-                "received_at": "2026-01-01T00:00:00+00:00",
-            },
+        self._append_same_merge_consensus(
+            "group-LOCALONLY",
+            "group-R2ONLY",
         )
         payload = {
             "xid": "R2ONLY",
             "group_id": "group-LOCALONLY",
             "verdict": "ok",
+            "location_revision": '["group-LOCALONLY",null]',
         }
 
         with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
@@ -261,17 +278,81 @@ class ViewerPreviewApiTests(unittest.TestCase):
         self.assertEqual(response.json()["accepted_group_id"], "group-LOCALONLY")
         record = json.loads(self.corrections_path.read_text(encoding="utf-8"))
         self.assertEqual(record["group_id"], "group-R2ONLY")
+        self.assertEqual(
+            record["location_revision"], '["group-LOCALONLY",null]'
+        )
+
+    def test_submit_ok_binds_to_the_displayed_location_proposal(self) -> None:
+        self._append_jsonl(
+            self.corrections_path,
+            {
+                "id": "correction_1",
+                "xid": "R2ONLY",
+                "group_id": "group-R2ONLY",
+                "lat": 50.1,
+                "lon": 14.1,
+                "has_coordinates": True,
+                "verdict": "wrong",
+                "voter_key": "proposal-author",
+                "received_at": "2026-01-01T10:00:00+00:00",
+            },
+        )
+        payload = {
+            "xid": "R2ONLY",
+            "group_id": "group-R2ONLY",
+            "verdict": "ok",
+            "location_revision": '["group-R2ONLY","correction_1"]',
+            "proposal_id": "correction_1",
+        }
+
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            accepted = self.client.post("/api/corrections", json=payload)
+        self.assertEqual(accepted.status_code, 200)
+
+        self._append_jsonl(
+            self.corrections_path,
+            {
+                "id": "correction_3",
+                "xid": "R2ONLY",
+                "group_id": "group-R2ONLY",
+                "lat": 50.2,
+                "lon": 14.2,
+                "has_coordinates": True,
+                "verdict": "wrong",
+                "voter_key": "new-proposal-author",
+                "received_at": "2026-01-01T10:02:00+00:00",
+            },
+        )
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            stale = self.client.post("/api/corrections", json=payload)
+        self.assertEqual(stale.status_code, 409)
+        self.assertIn("mezitím změnila", stale.json()["detail"])
+
+    def test_local_correction_email_is_not_recorded_as_newsletter_consent(
+        self,
+    ) -> None:
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            response = self.client.post(
+                "/api/corrections",
+                json={
+                    "xid": "R2ONLY",
+                    "group_id": "group-R2ONLY",
+                    "lat": 50.1,
+                    "lon": 14.1,
+                    "verdict": "wrong",
+                    "email": "reviewer@example.com",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        record = json.loads(self.corrections_path.read_text(encoding="utf-8"))
+        self.assertEqual(record["email"], "reviewer@example.com")
+        self.assertNotIn("newsletter_opt_in", record)
 
     def test_merge_undo_accepts_a_pair_that_now_has_one_root(self) -> None:
-        self._append_jsonl(
-            self.merges_path,
-            {
-                "id": "merge_1",
-                "group_id_a": "group-LOCALONLY",
-                "group_id_b": "group-R2ONLY",
-                "verdict": "same",
-                "received_at": "2026-01-01T00:00:00+00:00",
-            },
+        self._append_same_merge_consensus(
+            "group-LOCALONLY",
+            "group-R2ONLY",
         )
 
         with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
@@ -333,6 +414,129 @@ class ViewerPreviewApiTests(unittest.TestCase):
         self.assertEqual(rows[-1]["group_id_a"], "group-FEATUREONLY")
         self.assertEqual(rows[-1]["group_id_b"], "group-R2ONLY")
 
+    def test_merge_voter_can_mark_the_exact_consensus_pair_different(self) -> None:
+        first_client = TestClient(viewer_app.app)
+        second_client = TestClient(viewer_app.app)
+        pair = {
+            "group_id_a": "group-LOCALONLY",
+            "group_id_b": "group-R2ONLY",
+        }
+
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            self.assertEqual(
+                first_client.post(
+                    "/api/merges",
+                    json={
+                        **pair,
+                        "verdict": "same",
+                        "candidate_revision": self._candidate_revision(),
+                    },
+                ).status_code,
+                200,
+            )
+            self.assertEqual(
+                second_client.post(
+                    "/api/merges",
+                    json={
+                        **pair,
+                        "verdict": "same",
+                        "candidate_revision": self._candidate_revision(),
+                    },
+                ).status_code,
+                200,
+            )
+            contrary = first_client.post(
+                "/api/merges",
+                json={
+                    **pair,
+                    "verdict": "different",
+                    "candidate_revision": self._candidate_revision(),
+                },
+            )
+
+        self.assertEqual(contrary.status_code, 200)
+        self.assertEqual(
+            contrary.json()["decision"],
+            {**pair, "verdict": "different"},
+        )
+        state = self.client.get("/api/review-state").json()
+        self.assertEqual(state["groupRoots"]["group-LOCALONLY"], "group-LOCALONLY")
+        self.assertEqual(state["groupRoots"]["group-R2ONLY"], "group-R2ONLY")
+        self.assertEqual(state["mergeDecisions"][0]["same_votes"], 1)
+        self.assertEqual(state["mergeDecisions"][0]["different_votes"], 1)
+
+    def test_merge_votes_require_the_current_candidate_revision(self) -> None:
+        pair = {
+            "group_id_a": "group-LOCALONLY",
+            "group_id_b": "group-R2ONLY",
+        }
+        stale_revision = self._candidate_revision()
+        self._append_jsonl(
+            self.corrections_path,
+            {
+                "id": "correction_revision_change",
+                "xid": "FEATUREONLY",
+                "group_id": "group-FEATUREONLY",
+                "has_coordinates": False,
+                "verdict": "flag",
+                "voter_key": "location-voter-a",
+                "received_at": "2026-01-01T10:00:00+00:00",
+            },
+        )
+
+        with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
+            for verdict in ("same", "different"):
+                with self.subTest(verdict=verdict, revision="missing"):
+                    response = self.client.post(
+                        "/api/merges",
+                        json={**pair, "verdict": verdict},
+                    )
+                    self.assertEqual(response.status_code, 400)
+                with self.subTest(verdict=verdict, revision="stale"):
+                    response = self.client.post(
+                        "/api/merges",
+                        json={
+                            **pair,
+                            "verdict": verdict,
+                            "candidate_revision": stale_revision,
+                        },
+                    )
+                    self.assertEqual(response.status_code, 409)
+
+        self.assertFalse(self.merges_path.exists())
+
+    def test_merge_revision_check_and_append_share_the_feedback_lock(self) -> None:
+        candidate_revision = self._candidate_revision()
+        lock_states: list[bool] = []
+        original_build_review_state = viewer_app.build_review_state
+
+        def tracked_build_review_state() -> dict:
+            lock_states.append(viewer_app._feedback_lock.locked())
+            return original_build_review_state()
+
+        with (
+            patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False),
+            patch.object(
+                viewer_app,
+                "build_review_state",
+                side_effect=tracked_build_review_state,
+            ),
+        ):
+            response = self.client.post(
+                "/api/merges",
+                json={
+                    "group_id_a": "group-LOCALONLY",
+                    "group_id_b": "group-R2ONLY",
+                    "verdict": "same",
+                    "candidate_revision": candidate_revision,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(lock_states)
+        self.assertTrue(all(lock_states))
+        self.assertTrue(self.merges_path.exists())
+
     def test_membership_move_does_not_transfer_historical_correction(self) -> None:
         self._append_jsonl(
             self.corrections_path,
@@ -366,7 +570,12 @@ class ViewerPreviewApiTests(unittest.TestCase):
         self.assertEqual(state["groupCorrections"][0]["group_id"], "group-R2ONLY")
 
     def test_durable_voter_cookie_is_reused_across_corrections(self) -> None:
-        payload = {"xid": "R2ONLY", "group_id": "group-R2ONLY", "verdict": "ok"}
+        payload = {
+            "xid": "R2ONLY",
+            "group_id": "group-R2ONLY",
+            "verdict": "ok",
+            "location_revision": '["group-R2ONLY",null]',
+        }
         with patch.dict(os.environ, {"TURNSTILE_BYPASS": "1"}, clear=False):
             first = self.client.post("/api/corrections", json=payload)
             second = self.client.post("/api/corrections", json=payload)
@@ -552,15 +761,9 @@ class ViewerPreviewApiTests(unittest.TestCase):
         self.assertEqual(stale.status_code, 409)
 
     def test_group_review_votes_follow_current_merged_root(self) -> None:
-        self._append_jsonl(
-            self.merges_path,
-            {
-                "id": "merge_1",
-                "group_id_a": "group-LOCALONLY",
-                "group_id_b": "group-R2ONLY",
-                "verdict": "same",
-                "received_at": "2026-01-01T00:00:00+00:00",
-            },
+        self._append_same_merge_consensus(
+            "group-LOCALONLY",
+            "group-R2ONLY",
         )
         self._append_jsonl(
             self.group_review_votes_path,
@@ -716,7 +919,177 @@ class ViewerPreviewApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("Turnstile", response.json().get("detail", ""))
 
-    def test_review_state_picks_latest_verdict_and_latest_coordinates_per_group(self) -> None:
+    def test_review_state_keeps_pending_coordinates_proposed_only(self) -> None:
+        self._append_jsonl(
+            self.corrections_path,
+            {
+                "id": "correction_1",
+                "xid": "R2ONLY",
+                "group_id": "group-R2ONLY",
+                "lat": 50.10,
+                "lon": 14.10,
+                "has_coordinates": True,
+                "verdict": "wrong",
+                "voter_key": "location-voter-a",
+                "received_at": "2026-01-01T10:00:00+00:00",
+            },
+        )
+
+        response = self.client.get("/api/review-state")
+
+        self.assertEqual(response.status_code, 200)
+        correction = response.json()["groupCorrections"][0]
+        self.assertEqual(correction["correction_state"], "pending")
+        self.assertFalse(correction["has_coordinates"])
+        self.assertIsNone(correction["lat"])
+        self.assertIsNone(correction["lon"])
+        self.assertTrue(correction["proposed_has_coordinates"])
+        self.assertEqual(correction["proposed_lat"], 50.1)
+        self.assertEqual(correction["proposed_lon"], 14.1)
+        self.assertEqual(correction["proposed_id"], "correction_1")
+        self.assertEqual(
+            correction["location_revision"],
+            '["group-R2ONLY","correction_1"]',
+        )
+
+    def test_targeted_ok_for_old_proposal_cannot_approve_new_proposal(self) -> None:
+        for payload in (
+            {
+                "id": "correction_1",
+                "xid": "R2ONLY",
+                "group_id": "group-R2ONLY",
+                "lat": 50.1,
+                "lon": 14.1,
+                "has_coordinates": True,
+                "verdict": "wrong",
+                "voter_key": "location-voter-a",
+                "received_at": "2026-01-01T10:00:00+00:00",
+            },
+            {
+                "id": "correction_2",
+                "xid": "R2ONLY",
+                "group_id": "group-R2ONLY",
+                "lat": 50.2,
+                "lon": 14.2,
+                "has_coordinates": True,
+                "verdict": "wrong",
+                "voter_key": "location-voter-b",
+                "received_at": "2026-01-01T10:01:00+00:00",
+            },
+            {
+                "id": "correction_3",
+                "xid": "R2ONLY",
+                "group_id": "group-R2ONLY",
+                "has_coordinates": False,
+                "verdict": "ok",
+                "voter_key": "location-voter-c",
+                "location_revision": '["group-R2ONLY","correction_1"]',
+                "proposal_id": "correction_1",
+                "received_at": "2026-01-01T10:02:00+00:00",
+            },
+        ):
+            self._append_jsonl(self.corrections_path, payload)
+
+        correction = self.client.get("/api/review-state").json()[
+            "groupCorrections"
+        ][0]
+        self.assertEqual(correction["anchor_id"], "correction_2")
+        self.assertEqual(correction["proposed_id"], "correction_2")
+        self.assertEqual(correction["ok_votes"], 0)
+        self.assertFalse(correction["done"])
+        self.assertFalse(correction["has_coordinates"])
+
+    def test_local_event_loaders_fall_back_to_created_at(self) -> None:
+        created_at = "2026-01-01T10:00:00+00:00"
+        self._append_jsonl(
+            self.corrections_path,
+            {
+                "id": "correction_1",
+                "xid": "R2ONLY",
+                "group_id": "group-R2ONLY",
+                "verdict": "flag",
+                "created_at": created_at,
+            },
+        )
+        self._append_jsonl(
+            self.merges_path,
+            {
+                "id": "merge_1",
+                "group_id_a": "group-LOCALONLY",
+                "group_id_b": "group-R2ONLY",
+                "verdict": "different",
+                "created_at": created_at,
+            },
+        )
+        self._append_jsonl(
+            self.group_review_votes_path,
+            {
+                "id": "vote_1",
+                "group_id": "group-R2ONLY",
+                "verdict": "split",
+                "created_at": created_at,
+            },
+        )
+
+        for row in (
+            viewer_app._load_correction_records()[0],
+            viewer_app._load_merge_records()[0],
+            viewer_app._load_group_review_vote_records()[0],
+        ):
+            self.assertEqual(row["received_at"], created_at)
+            self.assertEqual(row["created_at"], created_at)
+
+    def test_review_state_keeps_approved_coordinates_while_new_proposal_waits(
+        self,
+    ) -> None:
+        for payload in (
+            {
+                "id": "correction_1",
+                "xid": "R2ONLY",
+                "group_id": "group-R2ONLY",
+                "lat": 50.10,
+                "lon": 14.10,
+                "has_coordinates": True,
+                "verdict": "wrong",
+                "voter_key": "location-voter-a",
+                "received_at": "2026-01-01T10:00:00+00:00",
+            },
+            {
+                "id": "correction_2",
+                "xid": "R2ONLY",
+                "group_id": "group-R2ONLY",
+                "has_coordinates": False,
+                "verdict": "ok",
+                "voter_key": "location-voter-b",
+                "received_at": "2026-01-01T10:01:00+00:00",
+            },
+            {
+                "id": "correction_3",
+                "xid": "R2ONLY",
+                "group_id": "group-R2ONLY",
+                "lat": 50.20,
+                "lon": 14.20,
+                "has_coordinates": True,
+                "verdict": "wrong",
+                "voter_key": "location-voter-c",
+                "received_at": "2026-01-01T10:02:00+00:00",
+            },
+        ):
+            self._append_jsonl(self.corrections_path, payload)
+
+        response = self.client.get("/api/review-state")
+
+        self.assertEqual(response.status_code, 200)
+        correction = response.json()["groupCorrections"][0]
+        self.assertEqual(correction["correction_state"], "pending")
+        self.assertTrue(correction["has_coordinates"])
+        self.assertEqual(correction["lat"], 50.1)
+        self.assertEqual(correction["lon"], 14.1)
+        self.assertTrue(correction["proposed_has_coordinates"])
+        self.assertEqual(correction["proposed_lat"], 50.2)
+        self.assertEqual(correction["proposed_lon"], 14.2)
+
+    def test_review_state_requires_two_independent_same_votes_to_merge(self) -> None:
         self._append_jsonl(
             self.merges_path,
             {
@@ -724,8 +1097,89 @@ class ViewerPreviewApiTests(unittest.TestCase):
                 "group_id_a": "group-LOCALONLY",
                 "group_id_b": "group-R2ONLY",
                 "verdict": "same",
-                "received_at": "2026-01-01T00:00:00+00:00",
+                "voter_key": "merge-voter-a",
+                "received_at": "2026-01-01T10:00:00+00:00",
             },
+        )
+
+        first = self.client.get("/api/review-state").json()
+
+        self.assertEqual(first["resolvedGroupByXid"]["LOCALONLY"], "group-LOCALONLY")
+        self.assertEqual(first["resolvedGroupByXid"]["R2ONLY"], "group-R2ONLY")
+        self.assertEqual(first["mergeDecisions"][0]["verdict"], "pending")
+        self.assertEqual(first["mergeDecisions"][0]["same_votes"], 1)
+        self.assertEqual(first["mergeDecisions"][0]["required_same_votes"], 2)
+
+        self._append_jsonl(
+            self.merges_path,
+            {
+                "id": "merge_2",
+                "group_id_a": "group-LOCALONLY",
+                "group_id_b": "group-R2ONLY",
+                "verdict": "same",
+                "voter_key": "merge-voter-b",
+                "received_at": "2026-01-01T10:01:00+00:00",
+            },
+        )
+
+        second = self.client.get("/api/review-state").json()
+
+        self.assertEqual(second["resolvedGroupByXid"]["LOCALONLY"], "group-LOCALONLY")
+        self.assertEqual(second["resolvedGroupByXid"]["R2ONLY"], "group-LOCALONLY")
+        self.assertEqual(second["mergeDecisions"][0]["verdict"], "same")
+        self.assertEqual(second["mergeDecisions"][0]["same_votes"], 2)
+
+        merges = self.client.get("/api/merges").json()
+        self.assertEqual(merges["count"], 1)
+        self.assertEqual(merges["items"], second["mergeDecisions"])
+        self.assertNotIn("voter_key", merges["items"][0])
+
+    def test_merge_voter_can_replace_or_undo_only_their_own_decision(self) -> None:
+        self._append_same_merge_consensus(
+            "group-LOCALONLY",
+            "group-R2ONLY",
+        )
+        self._append_jsonl(
+            self.merges_path,
+            {
+                "id": "merge_3",
+                "group_id_a": "group-LOCALONLY",
+                "group_id_b": "group-R2ONLY",
+                "verdict": "different",
+                "voter_key": "merge-voter-b",
+                "received_at": "2026-01-01T00:02:00+00:00",
+            },
+        )
+
+        contrary = self.client.get("/api/review-state").json()
+
+        self.assertEqual(contrary["resolvedGroupByXid"]["R2ONLY"], "group-R2ONLY")
+        self.assertEqual(contrary["mergeDecisions"][0]["verdict"], "pending")
+        self.assertEqual(contrary["mergeDecisions"][0]["same_votes"], 1)
+        self.assertEqual(contrary["mergeDecisions"][0]["different_votes"], 1)
+
+        self._append_jsonl(
+            self.merges_path,
+            {
+                "id": "merge_4",
+                "group_id_a": "group-LOCALONLY",
+                "group_id_b": "group-R2ONLY",
+                "verdict": "undo",
+                "voter_key": "merge-voter-a",
+                "received_at": "2026-01-01T00:03:00+00:00",
+            },
+        )
+
+        undone = self.client.get("/api/review-state").json()
+
+        self.assertEqual(undone["mergeDecisions"][0]["verdict"], "different")
+        self.assertEqual(undone["mergeDecisions"][0]["same_votes"], 0)
+        self.assertEqual(undone["mergeDecisions"][0]["different_votes"], 1)
+
+    def test_review_state_picks_latest_verdict_and_latest_coordinates_per_group(self) -> None:
+        self._append_same_merge_consensus(
+            "group-LOCALONLY",
+            "group-R2ONLY",
         )
         self._append_jsonl(
             self.corrections_path,
@@ -825,6 +1279,34 @@ class ViewerPreviewApiTests(unittest.TestCase):
             r"^v[A-Za-z0-9_-]+:r\d+:2$",
         )
         self.assertEqual(payload["total"], 5)
+
+    def test_location_candidates_focus_on_the_resolved_exact_group(self) -> None:
+        focused = self.client.get(
+            "/api/community-candidates",
+            params={"flow": "location", "group_id": "group-R2ONLY"},
+        )
+        self.assertEqual(focused.status_code, 200)
+        self.assertEqual(focused.json()["total"], 1)
+        self.assertEqual(focused.json()["items"][0]["id"], "group-R2ONLY")
+
+        self._append_same_merge_consensus(
+            "group-LOCALONLY",
+            "group-R2ONLY",
+        )
+        resolved = self.client.get(
+            "/api/community-candidates",
+            params={"flow": "location", "group_id": "group-R2ONLY"},
+        )
+        self.assertEqual(resolved.status_code, 200)
+        self.assertEqual(resolved.json()["total"], 1)
+        self.assertEqual(resolved.json()["items"][0]["id"], "group-LOCALONLY")
+
+    def test_location_candidates_reject_unknown_focus_group(self) -> None:
+        response = self.client.get(
+            "/api/community-candidates",
+            params={"flow": "location", "group_id": "attacker-value"},
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_duplicate_candidates_reject_unknown_focus_group(self) -> None:
         response = self.client.get(

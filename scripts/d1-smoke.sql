@@ -1,6 +1,8 @@
 INSERT INTO corrections (
-  xid, group_id, has_coordinates, voter_key, verdict
-) VALUES ('SMOKE_X1', 'SMOKE_G1', 0, 'smoke-voter-a', 'ok');
+  xid, group_id, has_coordinates, voter_key, verdict, location_revision
+) VALUES (
+  'SMOKE_X1', 'SMOKE_G1', 0, 'smoke-voter-a', 'ok', '["SMOKE_G1",null]'
+);
 
 INSERT INTO merge_decisions (
   group_id_a, group_id_b, verdict, voter_key
@@ -26,6 +28,24 @@ SELECT CASE WHEN EXISTS (
     AND group_id_b = 'SMOKE_G2'
     AND verdict = 'same'
 ) THEN 1 ELSE 0 END;
+
+INSERT INTO smoke_assertions
+SELECT CASE WHEN (
+  SELECT COUNT(*)
+  FROM (
+    SELECT
+      id,
+      ROW_NUMBER() OVER (
+        PARTITION BY
+          group_id_a,
+          group_id_b,
+          COALESCE(NULLIF(voter_key, ''), 'legacy')
+        ORDER BY created_at DESC, id DESC
+      ) AS active_rank
+    FROM merge_decisions
+  )
+  WHERE active_rank = 1
+) = 1 THEN 1 ELSE 0 END;
 
 INSERT INTO smoke_assertions
 SELECT CASE WHEN EXISTS (

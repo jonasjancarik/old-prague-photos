@@ -1,3 +1,5 @@
+import { buildLocationRevision } from "./_review_state.js";
+
 const DEFAULT_COORDINATE_NEIGHBORS = 8;
 
 function normalizeId(value) {
@@ -65,6 +67,9 @@ export function buildEffectiveGroups({ features, orphanIds, reviewState }) {
     const originalCoordinates = coordinates.slice();
     const correctedLat = finiteCoordinate(correction?.lat);
     const correctedLon = finiteCoordinate(correction?.lon);
+    const proposedLat = finiteCoordinate(correction?.proposed_lat);
+    const proposedLon = finiteCoordinate(correction?.proposed_lon);
+    const proposedId = normalizeId(correction?.proposed_id);
     if (correctedLat !== null && correctedLon !== null) {
       coordinates = [correctedLon, correctedLat];
     }
@@ -75,7 +80,18 @@ export function buildEffectiveGroups({ features, orphanIds, reviewState }) {
       group_root: groupId,
       correction_state: correction?.correction_state || "none",
       anchor_type: correction?.anchor_type || "none",
+      anchor_id: normalizeId(correction?.anchor_id) || null,
       needs_confirmation: Boolean(correction?.needs_confirmation),
+      location_revision:
+        normalizeId(correction?.location_revision) ||
+        buildLocationRevision(groupId, correction?.anchor_id),
+      proposed_id: proposedId || null,
+      proposed_has_coordinates:
+        Boolean(correction?.proposed_has_coordinates) &&
+        proposedLat !== null &&
+        proposedLon !== null,
+      proposed_lat: proposedLat,
+      proposed_lon: proposedLon,
     };
     if (correctedLat !== null && correctedLon !== null) {
       properties.corrected = { lat: correctedLat, lon: correctedLon };
@@ -182,6 +198,8 @@ export function buildDuplicateCandidates({
   (Array.isArray(reviewState?.mergeDecisions)
     ? reviewState.mergeDecisions
     : []).forEach((item) => {
+    const verdict = normalizeId(item?.verdict).toLowerCase();
+    if (verdict !== "same" && verdict !== "different") return;
     const key = canonicalPair(
       resolveGroup(item?.group_id_a),
       resolveGroup(item?.group_id_b),

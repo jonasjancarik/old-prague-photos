@@ -82,6 +82,67 @@ def test_effective_group_preserves_raw_coordinates_with_correction() -> None:
     assert candidate["properties"]["original_coordinates"] == [14.4, 50.1]
 
 
+def test_effective_group_does_not_apply_pending_proposed_coordinates() -> None:
+    source = _feature(1)
+    source["geometry"]["coordinates"] = [14.4, 50.1]
+    groups = build_effective_groups(
+        [source],
+        set(),
+        {
+            "resolvedGroupByXid": {},
+            "groupCorrections": [
+                {
+                    "group_id": "G001",
+                    "correction_state": "pending",
+                    "lat": None,
+                    "lon": None,
+                    "proposed_lat": 51.0,
+                    "proposed_lon": 15.0,
+                    "proposed_has_coordinates": True,
+                    "proposed_id": "proposal-1",
+                    "anchor_id": "proposal-1",
+                    "location_revision": '["G001","proposal-1"]',
+                }
+            ],
+        },
+    )
+
+    candidate = groups[0]["items"][0]
+    assert candidate["geometry"]["coordinates"] == [14.4, 50.1]
+    assert "corrected" not in candidate["properties"]
+    assert candidate["properties"]["proposed_id"] == "proposal-1"
+    assert candidate["properties"]["proposed_lat"] == 51.0
+    assert candidate["properties"]["proposed_lon"] == 15.0
+    assert (
+        candidate["properties"]["location_revision"]
+        == '["G001","proposal-1"]'
+    )
+
+
+def test_pending_merge_pair_remains_available_for_another_reviewer() -> None:
+    left = _feature(1)
+    right = _feature(2)
+    review_state = {
+        "resolvedGroupByXid": {},
+        "groupRoots": {},
+        "groupCorrections": [],
+        "mergeDecisions": [
+            {
+                "group_id_a": "G001",
+                "group_id_b": "G002",
+                "verdict": "pending",
+                "same_votes": 1,
+                "required_same_votes": 2,
+            }
+        ],
+    }
+    groups = build_effective_groups([left, right], set(), review_state)
+
+    candidates = build_duplicate_candidates(groups, [], review_state)
+
+    assert [candidate["key"] for candidate in candidates] == ["G001::G002"]
+
+
 def test_version_clusters_follow_current_membership() -> None:
     source_a = _feature(1)
     source_b = _feature(2)

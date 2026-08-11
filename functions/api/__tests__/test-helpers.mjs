@@ -76,6 +76,8 @@ export class FakeD1 {
     this.operationMetrics = [];
     this.projectionUpdateChanges = 1;
     this.allFailures = [];
+    this.beforeMergeInsert = null;
+    this.mergeAuditColumnsMissing = false;
   }
 
   failAllMatching(fragment, error = new Error("D1 query failed")) {
@@ -148,7 +150,17 @@ export class FakeD1 {
     }
 
     if (query.includes("insert into corrections")) {
-      const [xid, groupId, lat, lon, hasCoordinates, voterKey, verdict] = args;
+      const [
+        xid,
+        groupId,
+        lat,
+        lon,
+        hasCoordinates,
+        voterKey,
+        verdict,
+        locationRevision,
+        proposalId,
+      ] = args;
       this.corrections.push({
         id: this.corrections.length + 1,
         xid,
@@ -158,13 +170,40 @@ export class FakeD1 {
         has_coordinates: hasCoordinates,
         voter_key: voterKey,
         verdict,
+        location_revision: locationRevision || null,
+        proposal_id: proposalId || null,
         created_at: "2026-01-01 00:00:00",
       });
       return;
     }
 
     if (query.includes("insert into merge_decisions")) {
-      const [groupA, groupB, verdict, voterKey, userAgent] = args;
+      const hasAuditColumns = query.includes("voter_key");
+      if (hasAuditColumns && this.mergeAuditColumnsMissing) {
+        throw new Error(
+          "table merge_decisions has no column named voter_key",
+        );
+      }
+      if (typeof this.beforeMergeInsert === "function") {
+        const callback = this.beforeMergeInsert;
+        this.beforeMergeInsert = null;
+        callback(this);
+      }
+      const hasRevisionGuard = query.includes(
+        "from community_state_projection",
+      );
+      const expectedRevision = hasRevisionGuard
+        ? Number(args[hasAuditColumns ? 5 : 3])
+        : null;
+      const currentRevision = Number(
+        this.communityProjection?.current_revision || 0,
+      );
+      if (hasRevisionGuard && expectedRevision !== currentRevision) {
+        return { success: true, meta: { changes: 0 } };
+      }
+      const [groupA, groupB, verdict] = args;
+      const voterKey = hasAuditColumns ? args[3] : "";
+      const userAgent = hasAuditColumns ? args[4] : "";
       this.merges.push({
         id: this.merges.length + 1,
         group_id_a: groupA,
@@ -174,7 +213,10 @@ export class FakeD1 {
         user_agent: userAgent || "",
         created_at: "2026-01-01 00:00:00",
       });
-      return;
+      if (hasRevisionGuard && this.communityProjection) {
+        this.communityProjection.current_revision = currentRevision + 1;
+      }
+      return { success: true, meta: { changes: 1 } };
     }
 
     if (query.includes("insert into group_review_votes")) {

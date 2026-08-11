@@ -83,8 +83,19 @@
   }
 
   function toFiniteCoord(value) {
+    if (
+      value === null ||
+      value === undefined ||
+      (typeof value === "string" && value.trim() === "")
+    ) {
+      return null;
+    }
     const num = Number(value);
     return Number.isFinite(num) ? num : null;
+  }
+
+  function locationRevision(groupId, anchorId = null) {
+    return JSON.stringify([normalizeId(groupId), normalizeId(anchorId) || null]);
   }
 
   function buildMergeResolver(groupIds, decisions) {
@@ -122,9 +133,9 @@
       const groupId = resolveGroupId ? resolveGroupId(baseGroup) : baseGroup;
       if (!groupId || !correctionByGroup.has(groupId)) return;
       const correction = correctionByGroup.get(groupId);
-      const lat = Number(correction.lat);
-      const lon = Number(correction.lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      const lat = toFiniteCoord(correction.lat);
+      const lon = toFiniteCoord(correction.lon);
+      if (lat === null || lon === null) return;
       applyCorrectedCoordinates(feature, lat, lon);
       props.corrected = { lat, lon };
     });
@@ -158,14 +169,34 @@
 
       props.correction_state = "none";
       props.anchor_type = "none";
+      props.anchor_id = null;
       props.needs_confirmation = false;
+      props.location_revision = locationRevision(resolvedGroup);
+      props.proposed_id = null;
+      props.proposed_has_coordinates = false;
+      props.proposed_lat = null;
+      props.proposed_lon = null;
       delete props.corrected;
 
       if (!resolvedGroup || !correctionByGroup.has(resolvedGroup)) return;
       const correction = correctionByGroup.get(resolvedGroup);
       props.correction_state = correction?.correction_state || "none";
       props.anchor_type = correction?.anchor_type || "none";
+      props.anchor_id = normalizeId(correction?.anchor_id) || null;
       props.needs_confirmation = Boolean(correction?.needs_confirmation);
+      props.location_revision =
+        normalizeId(correction?.location_revision) ||
+        locationRevision(resolvedGroup, correction?.anchor_id);
+      props.proposed_id = normalizeId(correction?.proposed_id) || null;
+      const proposedLat = toFiniteCoord(correction?.proposed_lat);
+      const proposedLon = toFiniteCoord(correction?.proposed_lon);
+      props.proposed_has_coordinates = Boolean(
+        correction?.proposed_has_coordinates &&
+          proposedLat !== null &&
+          proposedLon !== null,
+      );
+      props.proposed_lat = proposedLat;
+      props.proposed_lon = proposedLon;
       const lat = toFiniteCoord(correction.lat);
       const lon = toFiniteCoord(correction.lon);
       if (lat === null || lon === null) return;

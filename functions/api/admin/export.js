@@ -1,6 +1,7 @@
 import { authorizeAdmin } from "../_admin_auth.js";
 import { loadCommunityDataVersion } from "../_data_version.js";
 import { isMissingColumnError, logDatabaseError } from "../_db.js";
+import { REVIEW_STATE_SCHEMA_VERSION } from "../_review_state.js";
 
 function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
@@ -74,6 +75,11 @@ async function loadProjectedGroupState(request, env) {
     return { items: [], current: false };
   }
   const payload = JSON.parse(row.payload_json);
+  if (
+    Number(payload?.reviewStateSchemaVersion) !== REVIEW_STATE_SCHEMA_VERSION
+  ) {
+    return { items: [], current: false };
+  }
   return {
     items: Array.isArray(payload?.groupCorrections)
       ? payload.groupCorrections
@@ -135,6 +141,8 @@ export async function onRequest({ request, env }) {
         has_coordinates,
         voter_key,
         verdict,
+        location_revision,
+        proposal_id,
         message,
         email,
         user_agent,
@@ -259,6 +267,8 @@ export async function onRequest({ request, env }) {
       group_id_a: "",
       group_id_b: "",
       verdict: row.verdict || "",
+      location_revision: row.location_revision || "",
+      proposal_id: row.proposal_id || "",
       correction_state: "",
       anchor_type: "",
       ok_votes: "",
@@ -284,6 +294,8 @@ export async function onRequest({ request, env }) {
       group_id_a: row.group_id_a || "",
       group_id_b: row.group_id_b || "",
       verdict: row.verdict || "",
+      location_revision: "",
+      proposal_id: "",
       correction_state: "",
       anchor_type: "",
       ok_votes: "",
@@ -309,6 +321,8 @@ export async function onRequest({ request, env }) {
       group_id_a: "",
       group_id_b: "",
       verdict: row.verdict || "",
+      location_revision: "",
+      proposal_id: "",
       correction_state: "",
       anchor_type: "",
       ok_votes: "",
@@ -334,6 +348,8 @@ export async function onRequest({ request, env }) {
       group_id_a: "",
       group_id_b: "",
       verdict: row.verdict || "",
+      location_revision: row.location_revision || "",
+      proposal_id: row.proposed_id || "",
       correction_state: row.correction_state || "",
       anchor_type: row.anchor_type || "",
       ok_votes: row.ok_votes ?? "",
@@ -358,6 +374,8 @@ export async function onRequest({ request, env }) {
     "group_id_a",
     "group_id_b",
     "verdict",
+    "location_revision",
+    "proposal_id",
     "correction_state",
     "anchor_type",
     "ok_votes",

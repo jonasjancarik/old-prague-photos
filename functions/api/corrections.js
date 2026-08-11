@@ -1,4 +1,8 @@
-import { buildReviewState, loadXidGroupMap } from "./_review_state.js";
+import {
+  buildLocationRevision,
+  buildReviewState,
+  loadXidGroupMap,
+} from "./_review_state.js";
 import {
   isMissingColumnError,
   logDatabaseError,
@@ -26,6 +30,18 @@ function jsonResponse(payload, status = 200, headers = {}) {
   });
 }
 
+function confirmationTarget(reviewState, groupId) {
+  const correction = (reviewState?.groupCorrections || []).find(
+    (item) => String(item?.group_id || "").trim() === groupId,
+  );
+  return {
+    revision:
+      String(correction?.location_revision || "").trim() ||
+      buildLocationRevision(groupId, correction?.anchor_id),
+    proposalId: String(correction?.proposed_id || "").trim(),
+  };
+}
+
 async function loadReviewState(request, env) {
   const correctionsResult = await env.CORRECTIONS_DB.prepare(
     `
@@ -38,6 +54,8 @@ async function loadReviewState(request, env) {
         has_coordinates,
         voter_key,
         verdict,
+        location_revision,
+        proposal_id,
         created_at
       FROM corrections
     `,
@@ -49,30 +67,59 @@ async function loadReviewState(request, env) {
     const mergesResult = await env.CORRECTIONS_DB.prepare(
       `
         SELECT
-          source_event_id AS id,
+          id,
           group_id_a,
           group_id_b,
           verdict,
           voter_key,
-          user_agent,
           created_at
-        FROM current_merge_decisions
+        FROM (
+          SELECT
+            id,
+            group_id_a,
+            group_id_b,
+            verdict,
+            voter_key,
+            created_at,
+            ROW_NUMBER() OVER (
+              PARTITION BY
+                group_id_a,
+                group_id_b,
+                COALESCE(NULLIF(voter_key, ''), 'legacy')
+              ORDER BY created_at DESC, id DESC
+            ) AS active_rank
+          FROM merge_decisions
+        )
+        WHERE active_rank = 1
       `,
     ).all();
     mergeRows = mergesResult?.results || [];
   } catch (error) {
-    if (!isMissingColumnError(error, ["voter_key", "user_agent"])) {
+    if (!isMissingColumnError(error, ["voter_key"])) {
       throw error;
     }
     const mergesResult = await env.CORRECTIONS_DB.prepare(
       `
         SELECT
-          source_event_id AS id,
+          id,
           group_id_a,
           group_id_b,
           verdict,
           created_at
-        FROM current_merge_decisions
+        FROM (
+          SELECT
+            id,
+            group_id_a,
+            group_id_b,
+            verdict,
+            created_at,
+            ROW_NUMBER() OVER (
+              PARTITION BY group_id_a, group_id_b
+              ORDER BY created_at DESC, id DESC
+            ) AS active_rank
+          FROM merge_decisions
+        )
+        WHERE active_rank = 1
       `,
     ).all();
     mergeRows = mergesResult?.results || [];
@@ -206,8 +253,9 @@ async function handlePost(request, env) {
     return jsonResponse({ detail: "Neznámé xid" }, 400);
   }
   let resolvedGroupId = mappedGroupId;
+  let reviewState;
   try {
-    const reviewState = await loadReviewState(request, env);
+    reviewState = await loadReviewState(request, env);
     resolvedGroupId =
       String(reviewState.resolvedGroupByXid?.[xid] || "").trim() ||
       mappedGroupId;
@@ -225,6 +273,23 @@ async function handlePost(request, env) {
   ) {
     return jsonResponse({ detail: "Neplatná skupina pro xid" }, 400);
   }
+  if (verdict === "ok") {
+    const submittedRevision = String(body?.location_revision || "").trim();
+    if (!submittedRevision) {
+      return jsonResponse({ detail: "Chybí verze potvrzované polohy" }, 400);
+    }
+    const submittedProposalId = String(body?.proposal_id || "").trim();
+    const target = confirmationTarget(reviewState, resolvedGroupId);
+    if (
+      submittedRevision !== target.revision ||
+      submittedProposalId !== target.proposalId
+    ) {
+      return jsonResponse(
+        { detail: "Poloha se mezitím změnila. Načtěte ji znovu." },
+        409,
+      );
+    }
+  }
   const canonicalGroupId = mappedGroupId || xid;
 
   const voterIdentity = await ensureVoterIdentity(request, env);
@@ -238,11 +303,13 @@ async function handlePost(request, env) {
         has_coordinates,
         voter_key,
         verdict,
+        location_revision,
+        proposal_id,
         message,
         email,
         user_agent
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
   ).bind(
     xid,
@@ -252,6 +319,8 @@ async function handlePost(request, env) {
     hasCoordinates ? 1 : 0,
     voterIdentity.voterKey,
     verdict,
+    verdict === "ok" ? String(body.location_revision).trim() : null,
+    verdict === "ok" ? String(body.proposal_id || "").trim() || null : null,
     message,
     email || null,
     request.headers.get("User-Agent") || "",
