@@ -16,7 +16,9 @@ const state = {
   submitting: false,
   candidateTotal: 0,
   candidateNextCursor: "0",
+  candidateRevision: null,
   loadingCandidates: false,
+  reviewedPairKeys: new Set(),
 };
 
 const candidateCountEl = document.getElementById("candidate-count");
@@ -39,17 +41,38 @@ const leftIframe = document.getElementById("left-iframe");
 const rightIframe = document.getElementById("right-iframe");
 const leftZoomEl = document.getElementById("left-zoom");
 const rightZoomEl = document.getElementById("right-zoom");
+let statusClearTimer = null;
 
-function setStatus(message, tone = "") {
-  if (!statusEl) return;
-  statusEl.textContent = message;
-  statusEl.dataset.tone = tone;
-}
-
-function clearStatus() {
+function clearStatusElement() {
   if (!statusEl) return;
   statusEl.textContent = "";
   statusEl.dataset.tone = "";
+}
+
+function setStatus(message, tone = "", options = {}) {
+  if (statusClearTimer !== null) {
+    window.clearTimeout(statusClearTimer);
+    statusClearTimer = null;
+  }
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.dataset.tone = tone;
+  const clearAfter = Number(options.clearAfter) || 0;
+  if (clearAfter > 0) {
+    statusClearTimer = window.setTimeout(() => {
+      statusClearTimer = null;
+      clearStatusElement();
+    }, clearAfter);
+  }
+}
+
+function clearStatus(options = {}) {
+  if (statusClearTimer !== null && !options.force) return;
+  if (statusClearTimer !== null) {
+    window.clearTimeout(statusClearTimer);
+    statusClearTimer = null;
+  }
+  clearStatusElement();
 }
 
 function pairKey(a, b) {
@@ -81,7 +104,7 @@ function updateActionState() {
   const canInteract = state.reviewStateReady && !state.submitting;
   const canSubmit = canInteract && !!state.currentPair;
   const canUndo = Boolean(
-    canInteract &&
+    !state.submitting &&
       state.lastSubmittedPair?.group_id_a &&
       state.lastSubmittedPair?.group_id_b,
   );
@@ -130,9 +153,16 @@ async function loadDuplicateCandidatePage({ reset = false } = {}) {
       state.candidates = [];
       state.remaining = [];
     }
+    state.candidateRevision = Number.isSafeInteger(payload?.revision)
+      ? payload.revision
+      : null;
     const knownKeys = new Set(state.candidates.map((item) => item.key));
     (Array.isArray(payload?.items) ? payload.items : []).forEach((pair) => {
-      if (!pair?.key || knownKeys.has(pair.key)) return;
+      if (
+        !pair?.key ||
+        knownKeys.has(pair.key) ||
+        state.reviewedPairKeys.has(pair.key)
+      ) return;
       knownKeys.add(pair.key);
       state.candidates.push(pair);
       state.remaining.push(pair);
@@ -176,6 +206,26 @@ function createZoomState(viewerEl, wrapEl, iframeEl) {
 const leftZoom = createZoomState(leftZoomEl, leftWrap, leftIframe);
 const rightZoom = createZoomState(rightZoomEl, rightWrap, rightIframe);
 
+function clearZoomEvidence(target) {
+  target.lastKey = null;
+  if (target.viewer && typeof target.viewer.close === "function") target.viewer.close();
+  target.iframeEl?.removeAttribute("src");
+  target.wrapEl?.classList.remove("is-fallback", "is-loading", "is-unavailable");
+}
+
+function clearPairEvidence() {
+  state.currentPair = null;
+  state.leftGroup = null;
+  state.rightGroup = null;
+  state.leftFeature = null;
+  state.rightFeature = null;
+  clearZoomEvidence(leftZoom);
+  clearZoomEvidence(rightZoom);
+  leftDetails?.replaceChildren();
+  rightDetails?.replaceChildren();
+  if (pairSourceEl) pairSourceEl.textContent = "Vybráno podle: —";
+}
+
 function buildZoomKey(xid, scanIndex) {
   return `${xid || ""}::${scanIndex ?? 0}`;
 }
@@ -199,7 +249,7 @@ async function loadZoomifyInto(target, xid, scanIndex) {
       target.viewer = window.OpenSeadragon({
         element: target.viewerEl,
         prefixUrl:
-          "https://unpkg.com/openseadragon@4.1.1/build/openseadragon/images/",
+          "/vendor/openseadragon/images/",
         showNavigator: true,
         maxZoomPixelRatio: 2,
       });
@@ -332,13 +382,24 @@ function removeRandomRemaining(source = "") {
 
 async function pickNext() {
   if (!state.remaining.length) {
-    await loadDuplicateCandidatePage();
+    try {
+      await loadDuplicateCandidatePage();
+    } catch (error) {
+      clearPairEvidence();
+      state.reviewStateReady = false;
+      setStatus("Další dvojici se nepodařilo načíst. Zkuste stránku obnovit.", "error");
+      updateActionState();
+      updateCounts();
+      console.error(error);
+      return;
+    }
   }
   if (!state.remaining.length) {
     const suffix = state.focusGroupId ? " pro vybranou skupinu." : ".";
-    setStatus(`Už tu nejsou žádné páry${suffix}`, "success");
-    state.currentPair = null;
-    if (pairSourceEl) pairSourceEl.textContent = "Vybráno podle: —";
+    clearPairEvidence();
+    if (statusClearTimer === null) {
+      setStatus(`Už tu nejsou žádné dvojice${suffix}`, "success");
+    }
     updateActionState();
     updateCounts();
     return;
@@ -392,30 +453,44 @@ async function submitDecision(verdict) {
   state.submitting = true;
   updateCounts();
   updateActionState();
-  clearStatus();
+  clearStatus({ force: true });
 
   const payload = {
     ...submittedPair,
     verdict,
+    candidate_revision: state.candidateRevision,
   };
+  const submittedPairKey = pairKey(
+    submittedPair.group_id_a,
+    submittedPair.group_id_b,
+  );
+  if (submittedPairKey) state.reviewedPairKeys.add(submittedPairKey);
 
   try {
     const result = await submitMergePayload(payload);
     state.lastSubmittedPair = result.decision;
     if (result.refreshError) {
       state.reviewStateReady = false;
+      clearPairEvidence();
       setStatus(
-        "Rozhodnutí je uložené, ale seznam se nepodařilo obnovit. Obnovte stránku.",
+        "Rozhodnutí je uložené, ale další dvojici se nepodařilo načíst. Stále ho můžete vrátit tlačítkem Zpět.",
         "error",
       );
     } else {
-      setStatus("Uloženo.", "success");
+      setStatus(
+        verdict === "same"
+          ? "Rozhodnutí sloučit skupiny je uložené. Načítám další dvojici."
+          : "Rozhodnutí ponechat skupiny zvlášť je uložené. Načítám další dvojici.",
+        "success",
+        { clearAfter: 2600 },
+      );
       state.history = [];
       state.currentPair = null;
       state.lastPickedSource = "";
       await pickNext();
     }
   } catch (error) {
+    if (submittedPairKey) state.reviewedPairKeys.delete(submittedPairKey);
     setStatus(error.message || "Odeslání selhalo", "error");
   } finally {
     state.submitting = false;
@@ -460,15 +535,19 @@ async function undoLastDecision() {
   if (
     !pair?.group_id_a ||
     !pair?.group_id_b ||
-    state.submitting ||
-    !state.reviewStateReady
+    state.submitting
   ) return;
 
   const submittedPair = { ...pair };
+  const submittedPairKey = pairKey(
+    submittedPair.group_id_a,
+    submittedPair.group_id_b,
+  );
+  if (submittedPairKey) state.reviewedPairKeys.delete(submittedPairKey);
   state.submitting = true;
   updateCounts();
   updateActionState();
-  clearStatus();
+  clearStatus({ force: true });
 
   try {
     const result = await submitMergePayload({
@@ -479,18 +558,22 @@ async function undoLastDecision() {
     state.lastSubmittedPair = null;
     if (result.refreshError) {
       state.reviewStateReady = false;
+      clearPairEvidence();
       setStatus(
         "Vrácení je uložené, ale seznam se nepodařilo obnovit. Obnovte stránku.",
         "error",
       );
     } else {
-      setStatus("Poslední hlas vrácen.", "success");
+      setStatus("Poslední rozhodnutí je vrácené. Načítám další dvojici.", "success", {
+        clearAfter: 2600,
+      });
       state.history = [];
       state.currentPair = null;
       state.lastPickedSource = "";
       await pickNext();
     }
   } catch (error) {
+    if (submittedPairKey) state.reviewedPairKeys.add(submittedPairKey);
     setStatus(error.message || "Vrácení hlasu selhalo", "error");
   } finally {
     state.submitting = false;
@@ -523,6 +606,7 @@ if (differentBtn)
 if (undoBtn) undoBtn.addEventListener("click", () => undoLastDecision());
 
 bootstrap().catch((error) => {
+  clearPairEvidence();
   state.reviewStateReady = false;
   updateCounts();
   updateActionState();

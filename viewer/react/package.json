@@ -10,5 +10,10 @@
   },
   "devDependencies": {
     "vite": "^5.4.10"
+  },
+  "dependencies": {
+    "leaflet": "1.9.4",
+    "leaflet.markercluster": "1.5.3",
+    "openseadragon": "4.1.1"
   }
 }

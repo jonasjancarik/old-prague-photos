@@ -1,4 +1,4 @@
-import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const a=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-DWvJq8h1.js";import{i as a}from"./leaflet-MNx99EVa.js";import{i as e}from"./openseadragon-CWtobWd5.js";const o=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Komunitní kontrola</p>
@@ -7,6 +7,7 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const a=`  <div class="page"
           Vyberte, co chcete zkontrolovat.
         </p>
         <div class="topbar-actions">
+          <a class="action-link" href="./pomoc.html" data-mode-back>Vybrat jiný úkol</a>
           <a class="action-link" href="./index.html">Zpět na mapu</a>
         </div>
       </div>
@@ -54,10 +55,10 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const a=`  <div class="page"
             Předchozí
           </button>
           <button class="vote vote-up" type="button" id="vote-up">
-            Sedí
+            Poloha sedí
           </button>
           <button class="vote vote-down" type="button" id="vote-down">
-            Nesedí
+            Poloha nesedí
           </button>
           <button class="secondary" type="button" id="skip-photo">
             Přeskočit
@@ -77,11 +78,11 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const a=`  <div class="page"
           <summary>Co hodnotím?</summary>
           <div class="workflow-help-body">
             <div class="workflow-help-item">
-              <strong>Sedí</strong>
-              <span>Potvrzujete polohu celé série.</span>
+              <strong>Poloha sedí</strong>
+              <span>Potvrzujete zobrazenou polohu celé série. Pokud někdo navrhl opravu, mapa ukáže současný i navržený bod.</span>
             </div>
             <div class="workflow-help-item">
-              <strong>Nesedí</strong>
+              <strong>Poloha nesedí</strong>
               <span>Přesuňte bod, nebo označte nejistotu.</span>
             </div>
             <div class="workflow-help-item">
@@ -103,6 +104,7 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const a=`  <div class="page"
 
           <div class="help-map">
             <div id="help-map" aria-label="Mapa pro opravu polohy"></div>
+            <p class="helper location-review-note" id="location-review-note"></p>
           </div>
         </div>
 
@@ -140,8 +142,13 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const a=`  <div class="page"
             </label>
             <label class="field">
               <span>E-mail (volitelné)</span>
-              <input id="help-email" type="email" autocomplete="email" placeholder="vy@priklad.cz" />
+              <input id="help-email" type="email" autocomplete="email" placeholder="vy@priklad.cz"
+                aria-describedby="help-email-privacy" />
             </label>
+            <p class="helper field-privacy" id="help-email-privacy">
+              E-mail uložíme spolu s hlášením pro případné upřesnění. Veřejně ho nezobrazujeme a tento
+              web si ho neuloží pro příští hlášení.
+            </p>
           </div>
           <p class="helper" id="turnstile-note"></p>
           <div class="help-submit">
@@ -160,4 +167,4 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const a=`  <div class="page"
       </div>
     </div>
   </div>
-`;n(a,["https://unpkg.com/leaflet@1.9.4/dist/leaflet.js","https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./pomoc.js","./mode-picker.js"]).catch(console.error);
+`;a();e();n(o,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./pomoc.js","./mode-picker.js"]).catch(console.error);

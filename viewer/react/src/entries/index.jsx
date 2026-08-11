@@ -1,16 +1,24 @@
 import '../../../static/styles.css';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import template from '../templates/index-body.html?raw';
+import { installLeaflet, installMarkerCluster } from '../lib/leaflet.js';
 import { mountPage } from '../lib/loadLegacyScripts.js';
+import { installOpenSeadragon } from '../lib/openseadragon.js';
 
-mountPage(template, [
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-  'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js',
-  'https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js',
-  './zoomify.js',
-  './photo-meta.js',
-  './grouping.js',
-  './media-filter.js',
-  './session-verify.js',
-  './correction-ui.js',
-  './app.js',
-]).catch(console.error);
+async function bootstrap() {
+  installLeaflet();
+  installOpenSeadragon();
+  await installMarkerCluster();
+  await mountPage(template, [
+    './zoomify.js',
+    './photo-meta.js',
+    './grouping.js',
+    './media-filter.js',
+    './session-verify.js',
+    './correction-ui.js',
+    './app.js',
+  ]);
+}
+
+bootstrap().catch(console.error);

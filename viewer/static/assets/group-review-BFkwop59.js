@@ -1,4 +1,4 @@
-import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const s=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-DWvJq8h1.js";import{i as s}from"./openseadragon-CWtobWd5.js";const a=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Kontrola skupin</p>
@@ -10,7 +10,7 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const s=`  <div class="page"
           <button class="secondary" type="button" id="reset-group-progress">
             Zobrazit znovu prošlé
           </button>
-          <a class="action-link" href="./pomoc.html">Zpět na pomoc</a>
+          <a class="action-link" href="./pomoc.html">Vybrat jiný úkol</a>
           <a class="action-link" href="./index.html">Zpět na mapu</a>
         </div>
       </div>
@@ -103,4 +103,4 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const s=`  <div class="page"
       </section>
     </main>
   </div>
-`;n(s,["https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./group-review.js"]).catch(console.error);
+`;s();n(a,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./group-review.js"]).catch(console.error);

@@ -9,6 +9,12 @@ async function waitForFlow(page, readySelector, buttonSelector) {
   await waitForEnabled(page, buttonSelector);
 }
 
+async function openPage(page, path) {
+  // The UI is ready at DOMContentLoaded. Waiting for the full load event makes
+  // the suite depend on optional third-party font and stylesheet CDNs.
+  await page.goto(path, { waitUntil: "domcontentloaded" });
+}
+
 async function postFromOrigin(request, path, data) {
   return request.post(path, {
     data,
@@ -24,7 +30,7 @@ test.describe.serial("community contribution flows", () => {
       await dialog.dismiss();
     });
 
-    await page.goto("/");
+    await openPage(page, "/");
     await expect(page.locator("#photo-count")).not.toHaveText("—");
     await page.locator(".cluster-toggle-container .toggle-switch").click();
 
@@ -40,7 +46,7 @@ test.describe.serial("community contribution flows", () => {
   });
 
   test("submits a location correction from the map", async ({ page }) => {
-    await page.goto("/pomoc.html?mode=location");
+    await openPage(page, "/pomoc.html?mode=location");
     await waitForFlow(page, "#current-xid", "#vote-down");
     await page.locator("#vote-down").click();
 
@@ -64,6 +70,116 @@ test.describe.serial("community contribution flows", () => {
     expect((await review.json()).counts.pendingCorrections).toBeGreaterThan(0);
   });
 
+  test("opens a pending map proposal in the exact location-review flow without confirming it", async ({
+    page,
+    request,
+  }) => {
+    const candidatesResponse = await request.get(
+      "/api/community-candidates?flow=location&limit=1",
+    );
+    expect(candidatesResponse.ok()).toBeTruthy();
+    const candidate = (await candidatesResponse.json()).items[0];
+    expect(candidate).toBeTruthy();
+    const [lon, lat] = candidate.primary.geometry.coordinates;
+    const proposal = await postFromOrigin(request, "/api/corrections", {
+      xid: candidate.primary.properties.id,
+      group_id: candidate.id,
+      verdict: "wrong",
+      lat: Number(lat) + 0.001,
+      lon: Number(lon) + 0.001,
+      message: "E2E návrh pro přesné předání do kontroly",
+    });
+    expect(proposal.ok()).toBeTruthy();
+
+    let confirmationPosts = 0;
+    page.on("request", (outgoing) => {
+      if (
+        outgoing.method() === "POST" &&
+        new URL(outgoing.url()).pathname === "/api/corrections"
+      ) {
+        confirmationPosts += 1;
+      }
+    });
+    await openPage(
+      page,
+      `/?xid=${encodeURIComponent(candidate.primary.properties.id)}`,
+    );
+    await expect(page.locator("#confirm-cta")).toBeVisible();
+    await expect(page.locator("#confirm-cta")).toHaveText("Zkontrolovat návrh");
+    await page.locator("#confirm-cta").click();
+    await expect(page).toHaveURL(/\/pomoc(?:\.html)?\?/u);
+    const focusedUrl = new URL(page.url());
+    expect(focusedUrl.searchParams.get("mode")).toBe("location");
+    expect(focusedUrl.searchParams.get("group_id")).toBe(candidate.id);
+    await expect(page.locator("#current-xid")).toHaveAttribute("title", candidate.id);
+    expect(confirmationPosts).toBe(0);
+  });
+
+  test("refreshes changed proposal evidence before another location decision", async ({
+    page,
+  }) => {
+    let replaceCurrentProposal = false;
+    let currentGroupId = "";
+    let snapshotResponses = 0;
+    await page.route("**/api/review-state?snapshot=1", async (route) => {
+      const upstream = await route.fetch();
+      if (!replaceCurrentProposal || !currentGroupId) {
+        await route.fulfill({ response: upstream });
+        snapshotResponses += 1;
+        return;
+      }
+      const payload = await upstream.json();
+      payload.groupCorrections = [
+        ...(payload.groupCorrections || []).filter(
+          (item) => item?.group_id !== currentGroupId,
+        ),
+        {
+          group_id: currentGroupId,
+          correction_state: "pending",
+          anchor_type: "correction",
+          anchor_id: "poll-proposal",
+          proposed_id: "poll-proposal",
+          proposed_has_coordinates: true,
+          proposed_lat: 50.091,
+          proposed_lon: 14.431,
+          location_revision: JSON.stringify([currentGroupId, "poll-proposal"]),
+          needs_confirmation: true,
+          done: false,
+        },
+      ];
+      payload.doneGroupIds = (payload.doneGroupIds || []).filter(
+        (groupId) => groupId !== currentGroupId,
+      );
+      await route.fulfill({
+        response: upstream,
+        body: JSON.stringify(payload),
+        headers: {
+          ...upstream.headers(),
+          "content-type": "application/json",
+        },
+      });
+      snapshotResponses += 1;
+    });
+
+    await openPage(page, "/pomoc.html?mode=location");
+    await waitForFlow(page, "#current-xid", "#vote-down");
+    await expect.poll(() => snapshotResponses).toBeGreaterThanOrEqual(2);
+    currentGroupId = await page.locator("#current-xid").getAttribute("title");
+    await page.locator("#vote-down").click();
+    await expect(page.locator("#help-wrong-actions")).toBeVisible();
+
+    replaceCurrentProposal = true;
+    await page.evaluate(async () => {
+      await window.refreshRemainingCloud({ force: true });
+    });
+    await expect(page.locator("#form-status")).toContainText(
+      "Prohlédněte si aktualizované body a rozhodněte se znovu",
+    );
+    await expect(page.locator("#help-wrong-actions")).toBeHidden();
+    await expect(page.locator("#vote-down")).not.toHaveClass(/is-voted/u);
+    await expect(page.locator("#vote-up")).toHaveText("Potvrdit návrh");
+  });
+
   test("two contributors propose a split and a curator reassigns a photo", async ({
     browser,
   }) => {
@@ -72,7 +188,7 @@ test.describe.serial("community contribution flows", () => {
     const firstPage = await firstContext.newPage();
     const secondPage = await secondContext.newPage();
 
-    await firstPage.goto("/group-review.html");
+    await openPage(firstPage, "/group-review.html");
     await waitForFlow(firstPage, "#current-group", "#group-mark-split");
     const firstGroup = await firstPage.locator("#current-group").innerText();
     const firstVote = firstPage.waitForResponse(
@@ -81,7 +197,7 @@ test.describe.serial("community contribution flows", () => {
     await firstPage.locator("#group-mark-split").click();
     expect((await firstVote).ok()).toBeTruthy();
 
-    await secondPage.goto("/group-review.html");
+    await openPage(secondPage, "/group-review.html");
     await waitForFlow(secondPage, "#current-group", "#group-mark-split");
     expect(await secondPage.locator("#current-group").innerText()).toBe(firstGroup);
     const secondVote = secondPage.waitForResponse(
@@ -91,7 +207,7 @@ test.describe.serial("community contribution flows", () => {
     expect((await secondVote).ok()).toBeTruthy();
 
     const adminPage = await firstContext.newPage();
-    await adminPage.goto("/admin.html");
+    await openPage(adminPage, "/admin.html");
     await expect(adminPage.locator("#admin-operations")).toContainText(
       "Změny na veřejném webu",
     );
@@ -115,14 +231,20 @@ test.describe.serial("community contribution flows", () => {
   });
 
   test("records and undoes a duplicate decision", async ({ page }) => {
-    await page.goto("/dup-review.html?mode=dedupe");
+    await openPage(page, "/dup-review.html?mode=dedupe");
     await expect(page.locator("#pair-source")).not.toHaveText("Vybráno podle: —");
     await waitForEnabled(page, "#mark-same");
     const decision = page.waitForResponse(
       (response) => response.url().endsWith("/api/merges") && response.request().method() === "POST",
     );
     await page.locator("#mark-same").click();
-    expect((await decision).ok()).toBeTruthy();
+    const decisionResponse = await decision;
+    expect(decisionResponse.ok()).toBeTruthy();
+    expect(
+      Number.isSafeInteger(
+        decisionResponse.request().postDataJSON().candidate_revision,
+      ),
+    ).toBeTruthy();
     await expect(page.locator("#undo-last")).toBeEnabled();
     const undo = page.waitForResponse(
       (response) => response.url().endsWith("/api/merges") && response.request().method() === "POST",
@@ -142,7 +264,7 @@ test.describe.serial("community contribution flows", () => {
         body: JSON.stringify({ detail: "Dočasná testovací chyba" }),
       });
     });
-    await page.goto("/pomoc.html?mode=location");
+    await openPage(page, "/pomoc.html?mode=location");
     await waitForFlow(page, "#current-xid", "#vote-up");
     await page.locator("#vote-up").click();
     await expect(page.locator("#vote-up")).toBeDisabled();
@@ -163,6 +285,8 @@ test.describe.serial("community contribution flows", () => {
       xid: candidate.primary.properties.id,
       group_id: candidate.id,
       verdict: "ok",
+      location_revision: candidate.primary.properties.location_revision,
+      proposal_id: candidate.primary.properties.proposed_id || null,
     });
     expect(write.ok()).toBeTruthy();
 
@@ -175,7 +299,7 @@ test.describe.serial("community contribution flows", () => {
   test("keeps the correction dialog keyboard-contained and closes with Escape", async ({
     page,
   }) => {
-    await page.goto("/pomoc.html?mode=location");
+    await openPage(page, "/pomoc.html?mode=location");
     await waitForFlow(page, "#current-xid", "#vote-down");
     await page.locator("#vote-down").focus();
     await page.keyboard.press("Enter");
@@ -193,5 +317,235 @@ test.describe.serial("community contribution flows", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator("#help-correction-modal")).not.toHaveClass(/is-open/);
     await expect(page.locator("#vote-down")).toBeFocused();
+  });
+
+  test("keeps the task chooser in browser history and names each decision", async ({
+    page,
+  }) => {
+    await openPage(page, "/pomoc.html");
+    await expect(page.locator("[data-mode-picker]")).toBeVisible();
+    await expect(page.locator("[data-mode-back]")).toBeHidden();
+
+    await page.locator('[data-mode-select="location"]').click();
+    await expect(page.locator('[data-mode-flow="location"]')).toBeVisible();
+    await expect(page.locator("[data-mode-back]")).toBeVisible();
+    await expect(page.locator("#vote-up")).toHaveText("Poloha sedí");
+    await expect(page.locator("#vote-down")).toHaveText("Poloha nesedí");
+
+    await page.locator("[data-mode-back]").click();
+    await expect(page.locator("[data-mode-picker]")).toBeVisible();
+    await page.goBack();
+    await expect(page.locator('[data-mode-flow="location"]')).toBeVisible();
+
+    await openPage(page, "/dup-review.html?mode=dedupe");
+    await expect(page.locator("#mark-same")).toHaveText("Sloučit skupiny");
+    await expect(page.locator("#mark-different")).toHaveText(
+      "Ponechat skupiny zvlášť",
+    );
+  });
+
+  test("does not retain an optional email in the browser", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("old-prague-help-email", "legacy@example.test");
+    });
+    await openPage(page, "/pomoc.html?mode=location");
+    await waitForFlow(page, "#current-xid", "#vote-down");
+
+    await expect(page.locator("#help-email")).toHaveValue("");
+    expect(
+      await page.evaluate(() =>
+        window.localStorage.getItem("old-prague-help-email")
+      ),
+    ).toBeNull();
+    await expect(page.locator("#help-email-privacy")).toContainText(
+      "web si ho neuloží pro příští hlášení",
+    );
+
+    await openPage(page, "/");
+    await expect(page.locator('input[name="email"]')).toHaveAttribute(
+      "aria-describedby",
+      "correction-email-privacy",
+    );
+    await expect(page.locator("#correction-email-privacy")).toContainText(
+      "použijeme ho jen pro případné upřesnění tohoto hlášení",
+    );
+  });
+
+  test("keeps the chooser and duplicate comparison inside narrow viewports", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 900 });
+    await openPage(page, "/pomoc.html");
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBeTruthy();
+
+    await openPage(page, "/dup-review.html?mode=dedupe");
+    await expect(page.locator("#pair-source")).not.toHaveText("Vybráno podle: —");
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBeTruthy();
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    const leftFrame = await page.locator("#left-zoom").locator("..").boundingBox();
+    const rightFrame = await page.locator("#right-zoom").locator("..").boundingBox();
+    expect(leftFrame).not.toBeNull();
+    expect(rightFrame).not.toBeNull();
+    expect(Math.abs(leftFrame.y - rightFrame.y)).toBeLessThan(2);
+    expect(leftFrame.x).toBeLessThan(rightFrame.x);
+    await expect(page.getByText("Skupina A", { exact: true })).toBeVisible();
+    await expect(page.getByText("Skupina B", { exact: true })).toBeVisible();
+    await expect(page.getByText("Údaje skupiny A", { exact: true })).toBeVisible();
+    await expect(page.getByText("Údaje skupiny B", { exact: true })).toBeVisible();
+    const focusSectionOrder = await page.locator(".duplicate-review-grid").evaluate(
+      (grid) => {
+        const focusable = Array.from(
+          grid.querySelectorAll(
+            'a[href], button:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])',
+          ),
+        );
+        return focusable
+          .map((element) => element.closest("[data-review-section]")?.dataset.reviewSection)
+          .filter((section, index, sections) => section && section !== sections[index - 1]);
+      },
+    );
+    expect(focusSectionOrder.slice(0, 4)).toEqual([
+      "preview-a",
+      "preview-b",
+      "details-a",
+      "details-b",
+    ]);
+  });
+
+  test("keeps saved feedback visible and clears an exhausted comparison", async ({
+    page,
+  }) => {
+    await page.route("https://unpkg.com/**", (route) => route.abort());
+    let candidateRequests = 0;
+    await page.route("**/api/community-candidates?*", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.get("flow") !== "duplicate") {
+        await route.continue();
+        return;
+      }
+      candidateRequests += 1;
+      if (candidateRequests === 1) {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [], total: 0, nextCursor: null }),
+      });
+    });
+    await page.route("**/api/merges", async (route) => {
+      const decision = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, decision }),
+      });
+    });
+
+    await page.goto("/dup-review.html?mode=dedupe", {
+      waitUntil: "domcontentloaded",
+    });
+    await waitForEnabled(page, "#mark-same");
+    await expect(page.locator("#left-details")).not.toBeEmpty();
+    await page.locator("#mark-same").click();
+
+    await expect(page.locator("#review-status")).toContainText(
+      "Rozhodnutí sloučit skupiny je uložené",
+    );
+    await page.waitForTimeout(700);
+    await expect(page.locator("#review-status")).toContainText(
+      "Rozhodnutí sloučit skupiny je uložené",
+    );
+    await expect(page.locator("#pair-source")).toHaveText("Vybráno podle: —");
+    await expect(page.locator("#left-details")).toBeEmpty();
+    await expect(page.locator("#right-details")).toBeEmpty();
+    await expect(page.locator("#left-iframe")).not.toHaveAttribute("src");
+    await expect(page.locator("#right-iframe")).not.toHaveAttribute("src");
+  });
+
+  test("keeps exact-pair undo available when refreshing after a saved vote fails", async ({
+    page,
+  }) => {
+    let candidateRequests = 0;
+    await page.route("**/api/community-candidates?*", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.get("flow") !== "duplicate") {
+        await route.continue();
+        return;
+      }
+      candidateRequests += 1;
+      if (candidateRequests === 1) {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Dočasná chyba seznamu" }),
+      });
+    });
+    await page.route("**/api/merges", async (route) => {
+      const decision = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, decision }),
+      });
+    });
+
+    await openPage(page, "/dup-review.html?mode=dedupe");
+    await waitForEnabled(page, "#mark-same");
+    await page.locator("#mark-same").click();
+    await expect(page.locator("#review-status")).toContainText(
+      "Stále ho můžete vrátit tlačítkem Zpět",
+    );
+    await expect(page.locator("#undo-last")).toBeEnabled();
+  });
+
+  test("continues group review when local progress storage is unavailable", async ({
+    page,
+  }) => {
+    await page.route("https://unpkg.com/**", (route) => route.abort());
+    await page.addInitScript(() => {
+      const originalSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function setItem(key, value) {
+        if (key === "old-prague-group-review-reviewed") {
+          throw new DOMException("Storage disabled", "QuotaExceededError");
+        }
+        return originalSetItem.call(this, key, value);
+      };
+    });
+    await page.route("**/api/group-review-votes", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+
+    await page.goto("/group-review.html", { waitUntil: "domcontentloaded" });
+    await waitForFlow(page, "#current-group", "#group-mark-ok");
+    const firstGroup = await page.locator("#current-group").innerText();
+    await page.locator("#group-mark-ok").click();
+    await expect(page.locator("#group-status")).toContainText(
+      "Potvrzení skupiny je uložené",
+    );
+    await expect.poll(() => page.locator("#current-group").innerText()).not.toBe(
+      firstGroup,
+    );
   });
 });

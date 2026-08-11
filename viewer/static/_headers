@@ -1,0 +1,6 @@
+/*
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://images.ahmp.cz https://api.mapy.cz https://tile.openstreetmap.org https://*.r2.dev https://*.r2.cloudflarestorage.com; connect-src 'self' https://images.ahmp.cz https://api.mapy.cz https://tile.openstreetmap.org https://nominatim.openstreetmap.org https://challenges.cloudflare.com https://*.r2.dev https://*.r2.cloudflarestorage.com; frame-src https://challenges.cloudflare.com https://katalog.ahmp.cz; worker-src 'self' blob:; upgrade-insecure-requests
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY

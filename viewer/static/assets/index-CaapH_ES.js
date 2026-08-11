@@ -1,4 +1,4 @@
-import{m as a}from"./loadLegacyScripts-B1cEvvfH.js";const n=`  <div class="page">
+import{m as a}from"./loadLegacyScripts-DWvJq8h1.js";import{i as n,a as e}from"./leaflet-MNx99EVa.js";import{i}from"./openseadragon-CWtobWd5.js";const o=`  <div class="page">
     <header class="topbar">
       <div>
         <h1>Staré fotografie Prahy</h1>
@@ -219,8 +219,13 @@ import{m as a}from"./loadLegacyScripts-B1cEvvfH.js";const n=`  <div class="page"
 
                   <label class="field">
                     <span>E-mail (volitelné)</span>
-                    <input name="email" type="email" autocomplete="email" placeholder="vy@priklad.cz" />
+                    <input name="email" type="email" autocomplete="email" placeholder="vy@priklad.cz"
+                      aria-describedby="correction-email-privacy" />
                   </label>
+                  <p class="helper field-privacy" id="correction-email-privacy">
+                    E-mail uložíme spolu s hlášením a použijeme ho jen pro případné upřesnění tohoto hlášení.
+                    Veřejně ho nezobrazujeme a tento web si ho neuloží pro příští hlášení.
+                  </p>
 
                   <div class="turnstile-wrap">
                     <p class="helper" id="turnstile-note"></p>
@@ -254,7 +259,7 @@ import{m as a}from"./loadLegacyScripts-B1cEvvfH.js";const n=`  <div class="page"
                 <p class="helper consensus-text" id="consensus-text"></p>
                 <div class="consensus-actions">
                   <button class="secondary" type="button" id="confirm-cta">
-                    Sedí, potvrdit
+                    Zkontrolovat návrh
                   </button>
                 </div>
               </div>
@@ -290,4 +295,4 @@ import{m as a}from"./loadLegacyScripts-B1cEvvfH.js";const n=`  <div class="page"
       </div>
     </div>
   </div>
-`;a(n,["https://unpkg.com/leaflet@1.9.4/dist/leaflet.js","https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js","https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./app.js"]).catch(console.error);
+`;async function s(){n(),i(),await e(),await a(o,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./app.js"])}s().catch(console.error);

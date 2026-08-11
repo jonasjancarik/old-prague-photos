@@ -114,8 +114,8 @@ Do poznámky můžete napsat krátké vysvětlení, například:
 - "Popis odpovídá Vodičkově ulici."
 - "Současná poloha je jen přibližná, přesný dům si nejsem jistý."
 
-E-mail je volitelný. Slouží jen pro případ, že chcete být kontaktováni nebo se
-přihlásit k dalším informacím.
+E-mail je volitelný. Uloží se spolu s hlášením pro případné upřesnění, veřejně
+se nezobrazuje a web si ho neukládá pro další hlášení.
 
 ### Kdy použít "Další fotka"
 

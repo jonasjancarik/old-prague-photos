@@ -15,12 +15,15 @@
       node.classList.toggle("is-hidden", node.dataset.modeFlow !== mode);
     });
     if (picker) picker.classList.toggle("is-hidden", Boolean(mode));
+    document.querySelectorAll("[data-mode-back]").forEach((link) => {
+      link.classList.toggle("is-hidden", !mode);
+    });
 
     if (updateUrl) {
       const url = new URL(window.location.href);
       if (mode) url.searchParams.set("mode", mode);
       else url.searchParams.delete("mode");
-      history.replaceState({}, "", url);
+      history.pushState({ mode }, "", url);
     }
 
     window.dispatchEvent(
@@ -28,13 +31,12 @@
     );
   }
 
-  const params = new URLSearchParams(window.location.search);
-  const initialMode = params.get("mode");
-  if (initialMode && flowByMode.has(initialMode)) {
-    setMode(initialMode, false);
-  } else {
-    flowNodes.forEach((node) => node.classList.add("is-hidden"));
+  function modeFromUrl() {
+    const mode = new URLSearchParams(window.location.search).get("mode") || "";
+    return flowByMode.has(mode) ? mode : "";
   }
+
+  setMode(modeFromUrl(), false);
 
   document.querySelectorAll("[data-mode-select]").forEach((button) => {
     button.addEventListener("click", (event) => {
@@ -50,5 +52,21 @@
       event.preventDefault();
       setMode(mode);
     });
+  });
+
+  document.querySelectorAll("[data-mode-back]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      const href = link.getAttribute("href");
+      if (!href) return;
+      const url = new URL(href, window.location.href);
+      if (url.pathname !== window.location.pathname) return;
+
+      event.preventDefault();
+      if (modeFromUrl()) setMode("");
+    });
+  });
+
+  window.addEventListener("popstate", () => {
+    setMode(modeFromUrl(), false);
   });
 })();

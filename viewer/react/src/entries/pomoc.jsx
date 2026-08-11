@@ -1,10 +1,12 @@
 import '../../../static/styles.css';
 import template from '../templates/pomoc-body.html?raw';
+import { installLeaflet } from '../lib/leaflet.js';
 import { mountPage } from '../lib/loadLegacyScripts.js';
+import { installOpenSeadragon } from '../lib/openseadragon.js';
 
+installLeaflet();
+installOpenSeadragon();
 mountPage(template, [
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-  'https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js',
   './zoomify.js',
   './photo-meta.js',
   './grouping.js',

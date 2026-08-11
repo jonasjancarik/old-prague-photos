@@ -219,8 +219,13 @@
 
                   <label class="field">
                     <span>E-mail (volitelné)</span>
-                    <input name="email" type="email" autocomplete="email" placeholder="vy@priklad.cz" />
+                    <input name="email" type="email" autocomplete="email" placeholder="vy@priklad.cz"
+                      aria-describedby="correction-email-privacy" />
                   </label>
+                  <p class="helper field-privacy" id="correction-email-privacy">
+                    E-mail uložíme spolu s hlášením a použijeme ho jen pro případné upřesnění tohoto hlášení.
+                    Veřejně ho nezobrazujeme a tento web si ho neuloží pro příští hlášení.
+                  </p>
 
                   <div class="turnstile-wrap">
                     <p class="helper" id="turnstile-note"></p>
@@ -254,7 +259,7 @@
                 <p class="helper consensus-text" id="consensus-text"></p>
                 <div class="consensus-actions">
                   <button class="secondary" type="button" id="confirm-cta">
-                    Sedí, potvrdit
+                    Zkontrolovat návrh
                   </button>
                 </div>
               </div>

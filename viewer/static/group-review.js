@@ -38,6 +38,7 @@ const detailsEl = document.getElementById("group-details");
 const zoomWrap = document.getElementById("group-zoom")?.closest(".zoom-wrap");
 const zoomViewerEl = document.getElementById("group-zoom");
 const previewImgEl = document.getElementById("group-preview");
+let statusClearTimer = null;
 
 const zoomState = {
   viewer: null,
@@ -47,20 +48,62 @@ const zoomState = {
   previewImgEl,
 };
 
+function clearGroupEvidence() {
+  state.currentGroup = null;
+  state.currentFeature = null;
+  zoomState.lastKey = null;
+  if (zoomState.viewer && typeof zoomState.viewer.close === "function") {
+    zoomState.viewer.close();
+  }
+  zoomState.wrapEl?.classList.remove("is-fallback", "is-loading", "is-unavailable");
+  if (previewImgEl) previewImgEl.removeAttribute("src");
+  detailsEl?.replaceChildren();
+  if (groupSummaryEl) {
+    groupSummaryEl.textContent = "Skupina: —";
+    groupSummaryEl.title = "";
+  }
+  if (actionTextEl) actionTextEl.textContent = "Není vybraná žádná skupina.";
+  if (archiveLinkEl) {
+    archiveLinkEl.href = "#";
+    archiveLinkEl.classList.add("is-disabled");
+  }
+  updateCounts();
+}
+
 function normalizeGroupValue(value) {
   return String(value || "").trim();
 }
 
-function setStatus(message, tone = "") {
-  if (!statusEl) return;
-  statusEl.textContent = message;
-  statusEl.dataset.tone = tone;
-}
-
-function clearStatus() {
+function clearStatusElement() {
   if (!statusEl) return;
   statusEl.textContent = "";
   statusEl.dataset.tone = "";
+}
+
+function setStatus(message, tone = "", options = {}) {
+  if (statusClearTimer !== null) {
+    window.clearTimeout(statusClearTimer);
+    statusClearTimer = null;
+  }
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.dataset.tone = tone;
+  const clearAfter = Number(options.clearAfter) || 0;
+  if (clearAfter > 0) {
+    statusClearTimer = window.setTimeout(() => {
+      statusClearTimer = null;
+      clearStatusElement();
+    }, clearAfter);
+  }
+}
+
+function clearStatus(options = {}) {
+  if (statusClearTimer !== null && !options.force) return;
+  if (statusClearTimer !== null) {
+    window.clearTimeout(statusClearTimer);
+    statusClearTimer = null;
+  }
+  clearStatusElement();
 }
 
 function shortId(value) {
@@ -260,7 +303,7 @@ async function loadZoomifyInto(target, xid, scanIndex) {
       target.viewer = window.OpenSeadragon({
         element: target.viewerEl,
         prefixUrl:
-          "https://unpkg.com/openseadragon@4.1.1/build/openseadragon/images/",
+          "/vendor/openseadragon/images/",
         showNavigator: true,
         maxZoomPixelRatio: 2,
       });
@@ -301,10 +344,16 @@ function loadReviewedGroupIds() {
 }
 
 function saveReviewedGroupIds() {
-  window.localStorage.setItem(
-    REVIEWED_GROUPS_STORAGE_KEY,
-    JSON.stringify(Array.from(state.reviewedGroupIds)),
-  );
+  try {
+    window.localStorage.setItem(
+      REVIEWED_GROUPS_STORAGE_KEY,
+      JSON.stringify(Array.from(state.reviewedGroupIds)),
+    );
+    return true;
+  } catch (error) {
+    console.warn("Lokální průběh kontroly se nepodařilo uložit", error);
+    return false;
+  }
 }
 
 function getVoteState(groupId) {
@@ -491,28 +540,17 @@ function setFeature(group, feature) {
 
 function showGroup(index) {
   if (!state.groups.length) {
-    state.currentGroup = null;
-    state.currentFeature = null;
-    if (groupSummaryEl) {
-      groupSummaryEl.textContent = "Skupina: —";
-      groupSummaryEl.title = "";
+    clearGroupEvidence();
+    if (statusClearTimer === null) {
+      setStatus(
+        !state.allGroups.length
+          ? "Žádné skupiny s více fotografiemi."
+          : countCommunityPendingGroups() === 0
+            ? "Pro tuto chvíli už jsou všechny skupiny odhlasované."
+            : "V tomto prohlížeči už nic nezbývá. Tlačítko nahoře znovu ukáže dříve prošlé skupiny.",
+        "success",
+      );
     }
-    if (archiveLinkEl) {
-      archiveLinkEl.href = "#";
-      archiveLinkEl.classList.add("is-disabled");
-    }
-    if (previewImgEl) {
-      previewImgEl.src = "";
-    }
-    updateCounts();
-    setStatus(
-      !state.allGroups.length
-        ? "Žádné skupiny s více fotografiemi."
-        : countCommunityPendingGroups() === 0
-          ? "Pro tuto chvíli už jsou všechny skupiny odhlasované."
-          : "V tomto prohlížeči už nic nezbývá. Tlačítko nahoře znovu ukáže dříve prošlé skupiny.",
-      "success",
-    );
     return;
   }
   const safeIndex = Math.max(0, Math.min(index, state.groups.length - 1));
@@ -533,7 +571,7 @@ async function submitCurrentGroupVote(verdict) {
   const submittedIndex = state.currentIndex;
   state.submittingVote = true;
   updateCounts();
-  clearStatus();
+  clearStatus({ force: true });
 
   try {
     await submitGroupReviewVoteRequest({
@@ -558,13 +596,20 @@ async function submitCurrentGroupVote(verdict) {
     }
     if (!state.groups.length) {
       showGroup(0);
+      setStatus(
+        verdict === "split"
+          ? "Návrh rozdělit skupinu je uložený. Pro tuto chvíli už nic dalšího nezbývá."
+          : "Potvrzení skupiny je uložené. Pro tuto chvíli už nic dalšího nezbývá.",
+        "success",
+      );
       return;
     }
     setStatus(
       verdict === "split"
-        ? "Návrh na rozdělení je uložený. Přecházím na další skupinu."
-        : "Hlas je uložený. Přecházím na další skupinu.",
+        ? "Návrh rozdělit skupinu je uložený. Načítám další skupinu."
+        : "Potvrzení skupiny je uložené. Načítám další skupinu.",
       "success",
+      { clearAfter: 2600 },
     );
     setTimeout(
       () => showGroup(Math.min(submittedIndex, state.groups.length - 1)),
@@ -637,6 +682,7 @@ if (openDedupeBtn) openDedupeBtn.addEventListener("click", openCurrentGroupInDed
 if (resetProgressBtn) resetProgressBtn.addEventListener("click", resetLocalProgress);
 
 bootstrap().catch((error) => {
+  clearGroupEvidence();
   state.voteStateReady = false;
   updateCounts();
   setStatus("Nepodařilo se načíst data.", "error");

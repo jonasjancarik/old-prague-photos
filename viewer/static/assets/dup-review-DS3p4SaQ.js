@@ -1,4 +1,4 @@
-import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const e=`  <div class="page">
+import{m as e}from"./loadLegacyScripts-DWvJq8h1.js";import{i as n}from"./openseadragon-CWtobWd5.js";const a=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Kontrola podobných záběrů</p>
@@ -7,7 +7,7 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const e=`  <div class="page"
           Porovnejte dvě skupiny. Jsou to stejné fotografie, nebo různé záběry?
         </p>
         <div class="topbar-actions">
-          <a class="action-link" href="./pomoc.html">Zpět na pomoc</a>
+          <a class="action-link" href="./pomoc.html">Vybrat jiný úkol</a>
           <a class="action-link" href="./index.html">Zpět na mapu</a>
         </div>
       </div>
@@ -58,10 +58,10 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const e=`  <div class="page"
             Zpět
           </button>
           <button class="vote vote-up" type="button" id="mark-same" disabled>
-            Stejný záběr
+            Sloučit skupiny
           </button>
           <button class="vote vote-down" type="button" id="mark-different" disabled>
-            Různé záběry
+            Ponechat skupiny zvlášť
           </button>
           <button class="secondary" type="button" id="skip-pair" disabled>
             Další pár
@@ -74,12 +74,12 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const e=`  <div class="page"
           <summary>Co hodnotím?</summary>
           <div class="workflow-help-body">
             <div class="workflow-help-item">
-              <strong>Stejný záběr</strong>
-              <span>Skupiny ukazují tutéž fotografii, sken, ořez nebo sérii.</span>
+              <strong>Sloučit skupiny</strong>
+              <span>Obě skupiny ukazují tutéž fotografii, její sken, ořez nebo sérii.</span>
             </div>
             <div class="workflow-help-item">
-              <strong>Různé záběry</strong>
-              <span>Jde o jiné místo, jiný úhel, jinou událost nebo jiný snímek.</span>
+              <strong>Ponechat skupiny zvlášť</strong>
+              <span>Jde o jiné místo, jiný úhel, jinou událost nebo jinou fotografii.</span>
             </div>
             <div class="workflow-help-item">
               <strong>Další pár</strong>
@@ -88,29 +88,35 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const e=`  <div class="page"
           </div>
         </details>
 
-        <div class="review-grid">
-          <div class="review-column">
+        <div class="review-grid duplicate-review-grid">
+          <div class="review-column" data-review-section="preview-a">
+            <p class="review-evidence-label">Skupina A</p>
             <div class="preview-frame">
               <div class="zoom-wrap">
                 <div id="left-zoom" class="zoom-viewer" aria-label="Náhled fotografie"></div>
                 <iframe id="left-iframe" title="Archivní záznam" loading="lazy" referrerpolicy="no-referrer"></iframe>
               </div>
             </div>
-            <div class="review-meta">
-              <div id="left-details" class="detail-list full-width"></div>
-            </div>
           </div>
 
-          <div class="review-column">
+          <div class="review-column" data-review-section="preview-b">
+            <p class="review-evidence-label">Skupina B</p>
             <div class="preview-frame">
               <div class="zoom-wrap">
                 <div id="right-zoom" class="zoom-viewer" aria-label="Náhled fotografie"></div>
                 <iframe id="right-iframe" title="Archivní záznam" loading="lazy" referrerpolicy="no-referrer"></iframe>
               </div>
             </div>
-            <div class="review-meta">
-              <div id="right-details" class="detail-list full-width"></div>
-            </div>
+          </div>
+
+          <div class="review-meta duplicate-review-meta" data-review-section="details-a">
+            <p class="review-meta-heading">Údaje skupiny A</p>
+            <div id="left-details" class="detail-list full-width"></div>
+          </div>
+
+          <div class="review-meta duplicate-review-meta" data-review-section="details-b">
+            <p class="review-meta-heading">Údaje skupiny B</p>
+            <div id="right-details" class="detail-list full-width"></div>
           </div>
         </div>
 
@@ -124,4 +130,4 @@ import{m as n}from"./loadLegacyScripts-B1cEvvfH.js";const e=`  <div class="page"
       </section>
     </main>
   </div>
-`;n(e,["https://unpkg.com/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js","./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./dup-review.js","./mode-picker.js"]).catch(console.error);
+`;n();e(a,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./dup-review.js","./mode-picker.js"]).catch(console.error);
