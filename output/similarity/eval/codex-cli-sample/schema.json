@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {"type":"string", "enum":["same_shot","same_scene_variant","different","uncertain"]},
+    "confidence": {"type":"number", "minimum":0, "maximum":1},
+    "reason": {"type":"string"}
+  },
+  "required": ["verdict", "confidence", "reason"]
+}

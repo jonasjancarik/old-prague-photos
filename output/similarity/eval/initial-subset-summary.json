@@ -1,0 +1,12 @@
+{
+  "sample_primary_scans": 395,
+  "old_dhash_threshold": 8,
+  "new_dhash_edge_threshold": 14,
+  "old_candidate_count": 0,
+  "new_candidate_count": 0,
+  "kept_from_old": 0,
+  "removed_from_old": 0,
+  "new_not_in_old": 0,
+  "old_distance_counts": [],
+  "new_distance_counts": []
+}

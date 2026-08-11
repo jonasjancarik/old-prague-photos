@@ -1,0 +1,34 @@
+{"idx": 1, "total": 162, "xid": "A0C5078CB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 3.109, "reason": ""}
+{"idx": 2, "total": 162, "xid": "A0C507BAB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.199, "reason": ""}
+{"idx": 3, "total": 162, "xid": "A0C507D2B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 5.794, "reason": ""}
+{"idx": 4, "total": 162, "xid": "A0C5083CB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.28, "reason": ""}
+{"idx": 5, "total": 162, "xid": "A0C50848B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 5.499, "reason": ""}
+{"idx": 6, "total": 162, "xid": "A0C5085FB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.463, "reason": ""}
+{"idx": 7, "total": 162, "xid": "A0C5090AB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 6.643, "reason": ""}
+{"idx": 8, "total": 162, "xid": "A0C5091BB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 5.526, "reason": ""}
+{"idx": 9, "total": 162, "xid": "A0C50A0AB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.335, "reason": ""}
+{"idx": 10, "total": 162, "xid": "A0C50A2AB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.284, "reason": ""}
+{"idx": 11, "total": 162, "xid": "A0C50B92B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.356, "reason": ""}
+{"idx": 12, "total": 162, "xid": "A0C50C5CB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.413, "reason": ""}
+{"idx": 13, "total": 162, "xid": "A0C50FFCB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.341, "reason": ""}
+{"idx": 14, "total": 162, "xid": "A0C5128AB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 5.815, "reason": ""}
+{"idx": 15, "total": 162, "xid": "A0C5128DB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.332, "reason": ""}
+{"idx": 16, "total": 162, "xid": "A0C512A5B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.357, "reason": ""}
+{"idx": 17, "total": 162, "xid": "A0C512F5B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 6.215, "reason": ""}
+{"idx": 18, "total": 162, "xid": "A0C512F7B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 6.663, "reason": ""}
+{"idx": 19, "total": 162, "xid": "A0C51312B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 5.86, "reason": ""}
+{"idx": 20, "total": 162, "xid": "A0C51315B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.331, "reason": ""}
+{"idx": 21, "total": 162, "xid": "A0C5132AB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.368, "reason": ""}
+{"idx": 22, "total": 162, "xid": "A0C5146CB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 7.305, "reason": ""}
+{"idx": 23, "total": 162, "xid": "A0C51488B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.337, "reason": ""}
+{"idx": 24, "total": 162, "xid": "A0C514A4B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.327, "reason": ""}
+{"idx": 25, "total": 162, "xid": "A0C514D0B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 5.519, "reason": ""}
+{"idx": 26, "total": 162, "xid": "A0C514DDB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.67, "reason": ""}
+{"idx": 27, "total": 162, "xid": "A0C514FBB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 5.786, "reason": ""}
+{"idx": 28, "total": 162, "xid": "A0C514FCB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.336, "reason": ""}
+{"idx": 29, "total": 162, "xid": "A0C51510B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.312, "reason": ""}
+{"idx": 30, "total": 162, "xid": "A0C5151DB67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.35, "reason": ""}
+{"idx": 31, "total": 162, "xid": "A0C51522B67611DF820F00166F1163D4", "status": "saved", "elapsed_s": 4.288, "reason": ""}
+{"idx": 32, "total": 162, "xid": "A0C5156FB67611DF820F00166F1163D4", "status": "failed", "elapsed_s": 19.112, "reason": "request_failed: 429 for https://katalog.ahmp.cz/pragapublica/permalink?xid=A0C5156FB67611DF820F00166F1163D4&scan=2#scan2"}
+{"idx": 33, "total": 162, "xid": "A0C51571B67611DF820F00166F1163D4", "status": "failed", "elapsed_s": 15.242, "reason": "request_failed: 429 for https://katalog.ahmp.cz/pragapublica/permalink?xid=A0C51571B67611DF820F00166F1163D4"}
+{"idx": 34, "total": 162, "xid": "A0C51585B67611DF820F00166F1163D4", "status": "failed", "elapsed_s": 15.514, "reason": "request_failed: 429 for https://katalog.ahmp.cz/pragapublica/permalink?xid=A0C51585B67611DF820F00166F1163D4"}

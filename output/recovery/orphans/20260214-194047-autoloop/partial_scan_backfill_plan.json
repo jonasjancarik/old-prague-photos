@@ -1,0 +1,246 @@
+{
+  "r2_base": "https://pub-731655103ce74d0c930d7de993295739.r2.dev/tiles",
+  "recovered_total": 361,
+  "partial_count": 17,
+  "missing_all_count": 0,
+  "partials": [
+    {
+      "xid": "D00491B904FA11E3A4F66C626D41E503",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "F7ADCC38161611E390486C626D41E503",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "FC947BE6EF6211E5A520000C76270B94",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "b2413100a0484bc08ed0292239ffed00",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "b556a2e4a6f6443ab8578476678f5b32",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "c39793064ae7423d9b0875c3dd6c6491",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "cc2bfd1dc1e241d5962ae2bc24698778",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "cf8492847da54ce4b55423e60a1b7428",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "d1345f35148b49479c8ee7c4a6ac2520",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "d5753ddd188a46e88d46651f01af9f10",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "dfff7ac616094de884663d9a93b456b1",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "e3571e482bb547febe3826eb7087c227",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "f19e739b48d54b5aa34cb7812b473ac9",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "f37a644dbe8b41dcaf7a9b872df47a69",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "f40f26d11ef746b7a8228c5981c74fae",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "fbe17b568c9b4d8ba3f6217a9da22138",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    },
+    {
+      "xid": "fd5b2943830045ffa3abc7f0de181ec4",
+      "scans": [
+        0,
+        1
+      ],
+      "missing_on_r2": [
+        1
+      ],
+      "local_present_for_missing": [],
+      "local_missing_for_missing": [
+        1
+      ]
+    }
+  ]
+}

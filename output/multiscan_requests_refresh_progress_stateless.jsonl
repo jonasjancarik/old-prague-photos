@@ -1,0 +1,2 @@
+{"idx": 1, "total": 162, "xid": "A0C5078CB67611DF820F00166F1163D4", "status": "failed", "elapsed_s": 18.081, "reason": "request_failed: 429 for https://katalog.ahmp.cz/pragapublica/permalink?xid=A0C5078CB67611DF820F00166F1163D4"}
+{"idx": 2, "total": 162, "xid": "A0C507BAB67611DF820F00166F1163D4", "status": "failed", "elapsed_s": 18.28, "reason": "request_failed: 429 for https://katalog.ahmp.cz/pragapublica/permalink?xid=A0C507BAB67611DF820F00166F1163D4"}

@@ -1,0 +1,6 @@
+{"timestamp":"2026-02-14T21:38:13Z","cycle":1,"run_dir":"output/recovery/orphans/20260214-194047-autoloop/20260214-194047-c1","status":"ok","active":0,"not_found":0,"transient":377,"orphans":377}
+{"timestamp":"2026-02-15T00:39:31Z","cycle":2,"run_dir":"output/recovery/orphans/20260214-194047-autoloop/20260214-224013-c2","status":"ok","active":89,"not_found":11,"transient":277,"orphans":288}
+{"timestamp":"2026-02-15T02:56:04Z","cycle":3,"run_dir":"output/recovery/orphans/20260214-194047-autoloop/20260215-014131-c3","status":"ok","active":88,"not_found":12,"transient":188,"orphans":200}
+{"timestamp":"2026-02-15T04:28:34Z","cycle":4,"run_dir":"output/recovery/orphans/20260214-194047-autoloop/20260215-035804-c4","status":"ok","active":86,"not_found":14,"transient":100,"orphans":114}
+{"timestamp":"2026-02-15T05:23:02Z","cycle":5,"run_dir":"output/recovery/orphans/20260214-194047-autoloop/20260215-053034-c5","status":"ok","active":84,"not_found":16,"transient":14,"orphans":30}
+{"timestamp":"2026-02-15T05:35:20Z","cycle":6,"run_dir":"output/recovery/orphans/20260214-194047-autoloop/20260215-062502-c6","status":"ok","active":14,"not_found":16,"transient":0,"orphans":16}

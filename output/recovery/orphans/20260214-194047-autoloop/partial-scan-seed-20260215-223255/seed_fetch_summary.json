@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-02-15T21:34:54.481020+00:00",
+  "items_total": 17,
+  "ok": 17,
+  "failed": 0,
+  "skipped_exists": 0,
+  "results_path": "output/recovery/orphans/20260214-194047-autoloop/partial-scan-seed-20260215-223255/seed_fetch_results.jsonl",
+  "interval_seconds": 5.0,
+  "retries": 2
+}

@@ -1,0 +1,2843 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.42349,
+          50.08599
+        ]
+      },
+      "properties": {
+        "id": "E570EEC8B0E411E29177406186009F3A",
+        "group_id": "0c432fd5b876d8428ee53e1475d055fc1121447a",
+        "kind": "pozitiv",
+        "description": "Pohled na západní průčelí Stavovského divadla (dům čp. 540 na Starém Městě).",
+        "date_label": "kol.1925",
+        "start_date": "1925-01-01",
+        "end_date": "1925-12-31",
+        "author": "Vojta, Tomáš (1885-1934)",
+        "signature": "I 9724",
+        "note": "",
+        "views": "33x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year_approx",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/8e7698006b6ed0a79709fd79ed62dbf4.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/8e7698006b6ed0a79709fd79ed62dbf4.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.38474,
+          50.06917
+        ]
+      },
+      "properties": {
+        "id": "E5D2FEFA9DFF11E7AF7C406186009F3A",
+        "group_id": "a071686d749924424ba768e074262537e79734a0",
+        "kind": "pozitiv",
+        "description": "Pohled do židovské modlitebny domu čp. 160 (dům pro židovské studenty, v současnosti dům čp. 770) v ulici Na Popelce na Smíchově.",
+        "date_label": "",
+        "start_date": "",
+        "end_date": "",
+        "author": "Lederer, Arnold",
+        "signature": "I 12228",
+        "note": "",
+        "views": "65x",
+        "geolocation_type": "regional.address",
+        "date_precision": "unknown",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0245/4d5538868ed9eec036a8035db7dae708.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0245/4d5538868ed9eec036a8035db7dae708.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40739,
+          50.08615
+        ]
+      },
+      "properties": {
+        "id": "E6C82E8505B611E389696C626D41E503",
+        "group_id": "f2f77c758ae986c1cf0cab69620c4c0a0afc1edf",
+        "kind": "pozitiv",
+        "description": "Pohled na renesanční portál domu čp. 490 (palác Metychů z Čečova - Hrzánský) na Velkopřevorském náměstí na Malé Straně.",
+        "date_label": "1925",
+        "start_date": "1925-01-01",
+        "end_date": "1925-12-31",
+        "author": "Vojta, Tomáš (1885-1934)",
+        "signature": "I 9757",
+        "note": "",
+        "views": "27x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0022/4d3181dce17f94bda303a31494f8b754.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0022/4d3181dce17f94bda303a31494f8b754.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.42346,
+          50.08434
+        ]
+      },
+      "properties": {
+        "id": "E131526D2BB911E5A58874D435EEBE90",
+        "group_id": "302fcfbe12575ea04ea9bfd39cc746b114c3064c",
+        "kind": "pozitiv",
+        "description": "Sovětští vojáci v ulici Na Příkopě před křižovatkou s Václavským náměstím v srpnu 1968 - pohled z okna.",
+        "date_label": "srpen 1968",
+        "start_date": "1968-08-01",
+        "end_date": "1968-08-31",
+        "author": "Šubrtová, M. (?)",
+        "signature": "I 11236",
+        "note": "",
+        "views": "73x",
+        "geolocation_type": "regional.address",
+        "date_precision": "month",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/d123cfc34ef3fd108c7a00a9c058d49e.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/d123cfc34ef3fd108c7a00a9c058d49e.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43872,
+          50.09489
+        ]
+      },
+      "properties": {
+        "id": "E112F627639211E6A553000C76270B94",
+        "group_id": "22ef8636eb6820933713f2f1bb4019ebefb033f9",
+        "kind": "pozitiv",
+        "description": "Pohled na bagr při práci v prostoru stavby plavebních komor u ostrova Štvanice.",
+        "date_label": "11.7.1910",
+        "start_date": "1910-07-11",
+        "end_date": "1910-07-11",
+        "author": "",
+        "signature": "I 11834",
+        "note": "",
+        "views": "31x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/b7f40e4877bb53551f31f3ea1ddf6c1d.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/b7f40e4877bb53551f31f3ea1ddf6c1d.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.42051,
+          50.08777
+        ]
+      },
+      "properties": {
+        "id": "E7CFC128124411E8A338406186009F3A",
+        "group_id": "9c388946bbb721a0dba9b98c26fc5553ea02823d",
+        "kind": "pozitiv",
+        "description": "Pohled na osvětlený pomník M. Jana Husa na Staroměstském náměstí při příležitosti 10. výročí samostatnosti Československé republiky.",
+        "date_label": "28.10.1928",
+        "start_date": "1928-10-28",
+        "end_date": "1928-10-28",
+        "author": "Vopravil, Josef (1902-1972)",
+        "signature": "I 12049",
+        "note": "",
+        "views": "36x",
+        "geolocation_type": "regional.street",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0024/006623a215ec617492c996a6b595ba9b.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0024/006623a215ec617492c996a6b595ba9b.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43076,
+          50.09537
+        ]
+      },
+      "properties": {
+        "id": "E1714433638311E6A553000C76270B94",
+        "group_id": "3be3519ef99e0a459e9f4bd347f3556d53dacd19",
+        "kind": "pozitiv",
+        "description": "Pohled na rybí přechody vedle vorové propusti nového Helmovského jezu. V pozadí most císaře Františka Josefa I.",
+        "date_label": "9.4.1910",
+        "start_date": "1910-04-09",
+        "end_date": "1910-04-09",
+        "author": "",
+        "signature": "I 11825",
+        "note": "",
+        "views": "61x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/47b27147df06677b86208ca485055eb5.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/47b27147df06677b86208ca485055eb5.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.42012,
+          50.06984
+        ]
+      },
+      "properties": {
+        "id": "EA564B87CA5911E59CC8406186009F3A",
+        "group_id": "69a3e2e71eb98bd49b9f8b6c06f0612bb72dab5c",
+        "kind": "pozitiv",
+        "description": "Celkový pohled na dům čp. 434 na Novém Městě (lázně). Vpravo kostel P. Marie u Alžbětinek.",
+        "date_label": "kol.1930",
+        "start_date": "1930-01-01",
+        "end_date": "1930-12-31",
+        "author": "",
+        "signature": "I 11493",
+        "note": "",
+        "views": "54x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year_approx",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/83bd8d2c4383ae61959d74113fbfd8e6.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/83bd8d2c4383ae61959d74113fbfd8e6.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.4369,
+          50.09567
+        ]
+      },
+      "properties": {
+        "id": "E196E90E651811E6A555000C76270B94",
+        "group_id": "d76565804fef3ff9efdfbab8af864e342b72e2f0",
+        "kind": "pozitiv",
+        "description": "Pohled na osazování klapačkových trámců sloužících pro regulaci průtoku vody vorovou propustí v levém rameni Vltavy u ostrova Štvanice u Holešovických břehů. V pozadí provizorní dřevěný most (Hlávkův).",
+        "date_label": "27.10.1909",
+        "start_date": "1909-10-27",
+        "end_date": "1909-10-27",
+        "author": "",
+        "signature": "I 11873",
+        "note": "",
+        "views": "50x",
+        "geolocation_type": "regional.street",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/1f2f2d2fe1729d1ac8dba9d9cc706e66.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/1f2f2d2fe1729d1ac8dba9d9cc706e66.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.39178,
+          50.02443
+        ]
+      },
+      "properties": {
+        "id": "DCB163B5AEB111E3B51C406186009F3A",
+        "group_id": "9f15a5a931afbd45bc7238c25e7c5b73c4048c58",
+        "kind": "pozitiv",
+        "description": "Pohled ze stráně nad Malou Chuchlí na kopec mezi Chuchlí a Slivencem. Součást panoramatu.",
+        "date_label": "17.6.1927",
+        "start_date": "1927-06-17",
+        "end_date": "1927-06-17",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 9910",
+        "note": "",
+        "views": "36x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/0777d43e417be455024b36618737f3a6.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/0777d43e417be455024b36618737f3a6.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.39148,
+          50.07167
+        ]
+      },
+      "properties": {
+        "id": "D98D17792FC011E5A57D74D435EEBE90",
+        "group_id": "faec235f2b45e7b05a80beb7e73326d5971086d3",
+        "kind": "pozitiv",
+        "description": "Pohled na hroby na Malostranském hřbitově na Smíchově - původní stav. Rodina Bělských.",
+        "date_label": "23.3.1927",
+        "start_date": "1927-03-23",
+        "end_date": "1927-03-23",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11275",
+        "note": "",
+        "views": "61x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/54fbe58696c80c64cf6e892e5e72aba7.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/54fbe58696c80c64cf6e892e5e72aba7.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43614,
+          50.05042
+        ]
+      },
+      "properties": {
+        "id": "D91F7418D3B111E4BF0774D435EEBE90",
+        "group_id": "d307ae6ecf146f82099dd8eb3160ff7ddab20878",
+        "kind": "pozitiv",
+        "description": "Pohled na budovu Motokovu (City Empiria) - dům čp. 1716/2b ve Hvězdově ulici v Nuslích.",
+        "date_label": "1978",
+        "start_date": "1978-01-01",
+        "end_date": "1978-12-31",
+        "author": "Jelínková, Jana (1951-)",
+        "signature": "I 11173",
+        "note": "",
+        "views": "71x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/e119cee94742e77a75efbd6c24cdacc9.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/e119cee94742e77a75efbd6c24cdacc9.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.45142,
+          50.09511
+        ]
+      },
+      "properties": {
+        "id": "EBC5A01CF1B811E5A522000C76270B94",
+        "group_id": "18a5408b26b024d25c433de8f49f49af7533eae6",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu nábřežní zdi na Rohanském ostrově. V pozadí Negrelliho viadukt.",
+        "date_label": "18.6.1909",
+        "start_date": "1909-06-18",
+        "end_date": "1909-06-18",
+        "author": "",
+        "signature": "I 11620",
+        "note": "",
+        "views": "98x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/dd7ee31a727340b663c4adef17b4c801.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/dd7ee31a727340b663c4adef17b4c801.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.36088,
+          50.08704
+        ]
+      },
+      "properties": {
+        "id": "E3A799CDB85111E5AA08D4BED94BB14D",
+        "group_id": "b4565bb40269805b1a6bffe7f1efb94bb6887807",
+        "kind": "pozitiv",
+        "description": "Pohled na dům čp. 41 mezi Veleslavínskou ulicí (dnes Radimova) vlevo a spojovací uličkou k návsi v Břevnově - západní strana.",
+        "date_label": "4.9.1943",
+        "start_date": "1943-09-04",
+        "end_date": "1943-09-04",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11412",
+        "note": "",
+        "views": "48x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/3952840340bf08e97ab3f7a746710bfd.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/3952840340bf08e97ab3f7a746710bfd.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.4341,
+          50.09865
+        ]
+      },
+      "properties": {
+        "id": "EA037858669011E481D7D4BED94BB14D",
+        "group_id": "bf0363f4f83e8ff76d78b8e7fbe59636b97ee396",
+        "kind": "pozitiv",
+        "description": "Pohled na Strossmayerovo náměstí s domy čp. 967, čp. 966 a čp. 965 a s kostelem sv. Antonína z Padovy v Holešovicích.",
+        "date_label": "před 1926",
+        "start_date": "1800-01-01",
+        "end_date": "1925-12-31",
+        "author": "Vojta, Tomáš (1885-1934)",
+        "signature": "I 11044",
+        "note": "",
+        "views": "84x",
+        "geolocation_type": "regional.address",
+        "date_precision": "before_year",
+        "date_imprecise": true,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/9fa9ada3b59450f3e1b26f45954ffc26.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/9fa9ada3b59450f3e1b26f45954ffc26.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40473,
+          50.02294
+        ]
+      },
+      "properties": {
+        "id": "E62858A776F111E38AA26C626D41E503",
+        "group_id": "e26456ac99e979c4716cebeb8486964d4760fd4d",
+        "kind": "pozitiv",
+        "description": "Pohled na tovární objekty Chirany a Orionu v Modřanské ulici v Modřanech.",
+        "date_label": "1982",
+        "start_date": "1982-01-01",
+        "end_date": "1982-12-31",
+        "author": "Rameš, František",
+        "signature": "I 9827",
+        "note": "",
+        "views": "62x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0022/12d4c94713c8bbb8a42b9ca0f195e998.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0022/12d4c94713c8bbb8a42b9ca0f195e998.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.42009,
+          50.087
+        ]
+      },
+      "properties": {
+        "id": "E651052ED64211E5A67174D435EEBE90",
+        "group_id": "4856b40e3b11208b13b0d5488bfa089744891b1c",
+        "kind": "pozitiv",
+        "description": "Pohled na orloj a portál jižního průčelí Staroměstské radnice (dům čp. 1 na Starém Městě) na Staroměstském náměstí - před osazením nové kalendářní desky.",
+        "date_label": "1864-1865",
+        "start_date": "1864-01-01",
+        "end_date": "1865-12-31",
+        "author": "Fridrich, František (1829-1892)",
+        "signature": "I 11515",
+        "note": "",
+        "views": "80x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year_range",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0024/e241badc90517c3ac70f82e66058f3e3.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0024/e241badc90517c3ac70f82e66058f3e3.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40131,
+          50.08733
+        ]
+      },
+      "properties": {
+        "id": "DC61BDAE7D2311E3BE26406186009F3A",
+        "group_id": "e79a83a7b327bd92950fddf2f1a91f557c014d4a",
+        "kind": "pozitiv",
+        "description": "Západní strana první zahradní terasy v Schönbornském paláci - domě čp. 365 na Malé Straně. Hermový pilastr původní barokní oranžerie.",
+        "date_label": "červen 1931",
+        "start_date": "1931-06-01",
+        "end_date": "1931-06-30",
+        "author": "Vojta, Tomáš (1885-1934)",
+        "signature": "I 9879",
+        "note": "",
+        "views": "25x",
+        "geolocation_type": "regional.address",
+        "date_precision": "month",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/fb03d6d69ca9275546510def264036f0.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/fb03d6d69ca9275546510def264036f0.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.4369,
+          50.09567
+        ]
+      },
+      "properties": {
+        "id": "E39312AC54B111E6A54E000C76270B94",
+        "group_id": "74e785f6408c543cf1364843b876308f5b719816",
+        "kind": "pozitiv",
+        "description": "Pohled stavbu vorové propusti nového Helmovského mlýnu s eletkrickou pumpou na odčerpávání vody. V pozadí provizorní dřěvěný most (Hlávkův).",
+        "date_label": "24.6.1908",
+        "start_date": "1908-06-24",
+        "end_date": "1908-06-24",
+        "author": "",
+        "signature": "I 11763",
+        "note": "",
+        "views": "53x",
+        "geolocation_type": "regional.street",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/34f8cde8c61f9afc7f3f28ee8ba2241d.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/34f8cde8c61f9afc7f3f28ee8ba2241d.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40677,
+          50.08106
+        ]
+      },
+      "properties": {
+        "id": "DD73DDBEED5111E3B9F6406186009F3A",
+        "group_id": "695d23aaf73f9de17aa0f56cd1eea815f71583b8",
+        "kind": "pozitiv",
+        "description": "Pohled na dům čp. 619 ve Zborovské ulici na Malé Straně.",
+        "date_label": "1984",
+        "start_date": "1984-01-01",
+        "end_date": "1984-12-31",
+        "author": "Jelínková, Jana (1951-)",
+        "signature": "I 11009",
+        "note": "",
+        "views": "34x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/639b0548abf75b91975ea9990cebe5e4.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/639b0548abf75b91975ea9990cebe5e4.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40473,
+          50.02294
+        ]
+      },
+      "properties": {
+        "id": "EBDED70976F211E38AA26C626D41E503",
+        "group_id": "8a5902115bb3502930f20af902bd3a1bff9d2cb5",
+        "kind": "pozitiv",
+        "description": "Pohled na tovární objekty Orionu od Modřanské ulice v Modřanech.",
+        "date_label": "1982",
+        "start_date": "1982-01-01",
+        "end_date": "1982-12-31",
+        "author": "Rameš, František",
+        "signature": "I 9830",
+        "note": "",
+        "views": "51x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0022/c0196237a18bce1a3ba6f68426819f55.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0022/c0196237a18bce1a3ba6f68426819f55.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.32961,
+          50.08663
+        ]
+      },
+      "properties": {
+        "id": "E0FBCE8BB99511E3A934406186009F3A",
+        "group_id": "59468243fbf3804126c7efb3fcdfa6b9bb818889",
+        "kind": "pozitiv",
+        "description": "Pohled z Barrandovské skály k severu. V popředí Barrandovská skála a poslední hlubočepské domy Prokopského údolí. Nad nimi kostel sv. Filipa a Jakuba na skále na Zlíchově a vpravo vltavské údolí s Braníkem a s Podolím. Součást panoramatu.",
+        "date_label": "4.4.1926",
+        "start_date": "1926-04-04",
+        "end_date": "1926-04-04",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 9919",
+        "note": "",
+        "views": "181x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/c68bd40c96ec595a66124ca7d221fd3c.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/c68bd40c96ec595a66124ca7d221fd3c.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43474,
+          50.09841
+        ]
+      },
+      "properties": {
+        "id": "E61CDE49669211E481D7D4BED94BB14D",
+        "group_id": "0f8618123c4288e2003d42affd84d74798b4f6a0",
+        "kind": "pozitiv",
+        "description": "Pohled na hlavní portál kostela sv. Antonína z Padovy v Holešovicích na Strossmayerovo náměstí.",
+        "date_label": "31.8.1937",
+        "start_date": "1937-08-31",
+        "end_date": "1937-08-31",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11050",
+        "note": "",
+        "views": "63x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/64edcb705fd7b32acf1e67410708ad2a.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/64edcb705fd7b32acf1e67410708ad2a.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41536,
+          50.07303
+        ]
+      },
+      "properties": {
+        "id": "DE66B49417E011E891E8406186009F3A",
+        "group_id": "7d57c0e65d1ac2a4f2ed1ddcad5b88209b0f4887",
+        "kind": "pozitiv",
+        "description": "Pohled na osvětlený památník Františka Palackého na Novém Městě při příležitosti 10. výročí samostatnosti Československé republiky.",
+        "date_label": "28.10.1928",
+        "start_date": "1928-10-28",
+        "end_date": "1928-10-28",
+        "author": "Vopravil, Josef (1902-1972)",
+        "signature": "I 12070",
+        "note": "",
+        "views": "49x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0024/27e14813542adaf4d678f9e6c4d1e8d3.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0024/27e14813542adaf4d678f9e6c4d1e8d3.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43436,
+          50.09335
+        ]
+      },
+      "properties": {
+        "id": "ED5B6FFA638711E6A553000C76270B94",
+        "group_id": "f7cbd02ed201bef59cbc59fa1e58625f8f56a903",
+        "kind": "pozitiv",
+        "description": "Pohled na výtok levého turbínového potrubí (trumpety) hydroelektrárny Těšnov (dům čp. 1224 na Novém Městě).",
+        "date_label": "12.4.1910",
+        "start_date": "1910-04-12",
+        "end_date": "1910-04-12",
+        "author": "",
+        "signature": "I 11828",
+        "note": "",
+        "views": "46x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/4f42510e7d36462a7c7e98d7b064a916.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/4f42510e7d36462a7c7e98d7b064a916.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41347,
+          50.08126
+        ]
+      },
+      "properties": {
+        "id": "E1B166A717D711E891E8406186009F3A",
+        "group_id": "4c4ced14891df9feba07cb999ccce5f18eadf562",
+        "kind": "pozitiv",
+        "description": "Pohled na osvětlené pražské památky při příležitosti 10. výročí samostatnosti Československé republiky. Vpravo Národní divadlo (dům čp. 223 na Novém Městě), vlevo Pražský hrad.",
+        "date_label": "28.10.1928",
+        "start_date": "1928-10-28",
+        "end_date": "1928-10-28",
+        "author": "Vopravil, Josef (1902-1972)",
+        "signature": "I 12054",
+        "note": "",
+        "views": "43x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0024/532796538baa8dcf6f191266c285aa3b.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0024/532796538baa8dcf6f191266c285aa3b.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.35747,
+          50.08511
+        ]
+      },
+      "properties": {
+        "id": "EDE09844B61311E58B3BD4BED94BB14D",
+        "group_id": "66711d16e77f95a937638d3823dc727f1565b148",
+        "kind": "pozitiv",
+        "description": "Pohled na břevnovský klášter (dům čp. 1 v Břevnově) s přilehlými budovami od jihozápadu.",
+        "date_label": "28.7.1943",
+        "start_date": "1943-07-28",
+        "end_date": "1943-07-28",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11445",
+        "note": "",
+        "views": "44x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/1e95f571734499b028658ad543c604fe.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/1e95f571734499b028658ad543c604fe.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.36315,
+          50.06537
+        ]
+      },
+      "properties": {
+        "id": "DDE3B443878E11E5A334406186009F3A",
+        "group_id": "0fb18808cf8a09d2236ba9f754eb93c959cc84f2",
+        "kind": "pozitiv",
+        "description": "Panoramatický pohled na stráň vedoucí od konce Košíř k Cibulce v pohledovém kruhu od jihu přes západ k severozápadu. Terén je upravován pro vilovou zástavbu, z nichž některé mají hotové už přízemí. První díl třídílného panoramatu.",
+        "date_label": "16.10.1924",
+        "start_date": "1924-10-16",
+        "end_date": "1924-10-16",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11365",
+        "note": "",
+        "views": "96x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/28cb0e8b88c37c276c4dec96f2558d2d.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/28cb0e8b88c37c276c4dec96f2558d2d.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41742,
+          50.09096
+        ]
+      },
+      "properties": {
+        "id": "E4323392064611E38C646C626D41E503",
+        "group_id": "81c1d69414d91801c3b1749c278fe1e056c84226",
+        "kind": "pozitiv",
+        "description": "Pohled na dům čp. 208 v Josefově na nároží ulice Břehové (vpravo) a Sanytrové (dnes ulice 17. listopadu).",
+        "date_label": "13.11.1944",
+        "start_date": "1944-11-13",
+        "end_date": "1944-11-13",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 9769",
+        "note": "",
+        "views": "75x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0022/5f4e2fa0708d3770e6964d1cfc799d48.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0022/5f4e2fa0708d3770e6964d1cfc799d48.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.419,
+          50.07337
+        ]
+      },
+      "properties": {
+        "id": "EA080A9AE43E11E4BE0074D435EEBE90",
+        "group_id": "0600dfe41b0db26fcd472e42dea8092ac680c105",
+        "kind": "pozitiv",
+        "description": "Celkový pohled tzv. Faustův dům na Karlově náměstí (dům čp. 502 na Novém Městě). Vpravo portál do zahrady kostela sv. Jana Nepomuckého Na Skalce.",
+        "date_label": "kol.1925",
+        "start_date": "1925-01-01",
+        "end_date": "1925-12-31",
+        "author": "Fink, František (1854-1935)",
+        "signature": "I 11184",
+        "note": "",
+        "views": "87x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year_approx",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/d386b97c796560eddf55edc6ccad4928.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/d386b97c796560eddf55edc6ccad4928.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41397,
+          50.0855
+        ]
+      },
+      "properties": {
+        "id": "DB93869E81DB11E3B4B96C626D41E503",
+        "group_id": "201f59e603cead9f2252841428452ce0f820f6da",
+        "kind": "pozitiv",
+        "description": "Pohled ze Smetanova nábřeží (v popředí) na část ulice Novotného lávka s věží staroměstské vodárny a domem čp. 198 (Karlovy lázně) na Starém Městě.",
+        "date_label": "kol.1960 (?)",
+        "start_date": "1960-01-01",
+        "end_date": "1960-12-31",
+        "author": "",
+        "signature": "I 9899",
+        "note": "",
+        "views": "69x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year_approx",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0022/c287ca225225c33b12c4796f4c5b403f.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0022/c287ca225225c33b12c4796f4c5b403f.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.39148,
+          50.07167
+        ]
+      },
+      "properties": {
+        "id": "DE0BA3EC303F11E5A53574D435EEBE90",
+        "group_id": "601bc7c8cf5edc04e63dc9d9aa64b4d73a40d3be",
+        "kind": "pozitiv",
+        "description": "Pohled na náhrobní desku na Malostranském hřbitově na Smíchově - rodina Pflegerova (Gustav Pfleger Moravský).",
+        "date_label": "kol.1950",
+        "start_date": "1950-01-01",
+        "end_date": "1950-12-31",
+        "author": "Pacovský, Jaroslav",
+        "signature": "I 11295",
+        "note": "",
+        "views": "58x",
+        "geolocation_type": "poi",
+        "date_precision": "year_approx",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/828f1efeaa68d5e7b85ed8d554c1a21b.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/828f1efeaa68d5e7b85ed8d554c1a21b.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43414,
+          50.08355
+        ]
+      },
+      "properties": {
+        "id": "E34C6C49787511E3BA46406186009F3A",
+        "group_id": "f0ebcdd5bd66bb2fa49c1e08bc1c7f8f9bfc9a14",
+        "kind": "pozitiv",
+        "description": "Pohled do dvora domu čp. 31 (budova statku) v Holešovicích.",
+        "date_label": "1958",
+        "start_date": "1958-01-01",
+        "end_date": "1958-12-31",
+        "author": "Hnilička, Eduard (1887-1967)",
+        "signature": "I 9835",
+        "note": "",
+        "views": "47x",
+        "geolocation_type": "regional.municipality",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/2034d4467b982f1ea1e5e3467e2112a5.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/2034d4467b982f1ea1e5e3467e2112a5.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43076,
+          50.09537
+        ]
+      },
+      "properties": {
+        "id": "E27E0DCF62D411E6A552000C76270B94",
+        "group_id": "059eec9a53b3121710b31fd9753faa5c60ec8805",
+        "kind": "pozitiv",
+        "description": "Pohled stavbu nového Helmovského jezu. V pozadí most císaře Františka Josefa I. První část dvoudílného panoramatu.",
+        "date_label": "18.1.1910",
+        "start_date": "1910-01-18",
+        "end_date": "1910-01-18",
+        "author": "",
+        "signature": "I 11810",
+        "note": "",
+        "views": "53x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/71837e8bfce495e36ac64830bc7174b6.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/71837e8bfce495e36ac64830bc7174b6.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43076,
+          50.09537
+        ]
+      },
+      "properties": {
+        "id": "DED301CA648911E6A554000C76270B94",
+        "group_id": "eda027b4e6ba16f93ade1e9bcb33ea9f470f2d1b",
+        "kind": "pozitiv",
+        "description": "Pohled na původní vorovou propust během stavby nového Helmovského jezu. V pozadí provizorní pěší lávka pro dělníky.",
+        "date_label": "27.10.1909",
+        "start_date": "1909-10-27",
+        "end_date": "1909-10-27",
+        "author": "",
+        "signature": "I 11870 a",
+        "note": "",
+        "views": "28x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0025/d5b01767af78b5cbd6c03f62a1fcd541.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0025/d5b01767af78b5cbd6c03f62a1fcd541.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.42709,
+          50.08119
+        ]
+      },
+      "properties": {
+        "id": "E52DB764156F11E39CC26C626D41E503",
+        "group_id": "9f8bb1cbf8a2119114153fce83dcc655e0f84654",
+        "kind": "pozitiv",
+        "description": "Pohled na část Václavského náměstí. Uprostřed dům čp. 796 na nároží Štěpánské ulice. Nad ním domy čp. 797, 798, 799... na Novém Městě.",
+        "date_label": "30.5.1926",
+        "start_date": "1926-05-30",
+        "end_date": "1926-05-30",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 9775",
+        "note": "",
+        "views": "107x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/3e485fbaa3ee57ceae15b329ceeb99b4.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/3e485fbaa3ee57ceae15b329ceeb99b4.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40328,
+          50.09504
+        ]
+      },
+      "properties": {
+        "id": "EA93B5D2580C11E7A695406186009F3A",
+        "group_id": "38fe678570ec4cfc0a3ba3d57c3baad863144904",
+        "kind": "negativ",
+        "description": "Celkový pohled na jižní průčelí domu čp. 221 (kadetní škola) na Mariánské baště na Hradčanech.",
+        "date_label": "",
+        "start_date": "",
+        "end_date": "",
+        "author": "Vojta, Tomáš (1885-1934)",
+        "signature": "X 4813",
+        "note": "",
+        "views": "33x",
+        "geolocation_type": "regional.address",
+        "date_precision": "unknown",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0024/7ecc2460663d0ad70c4a6dd6195d4b78.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0024/7ecc2460663d0ad70c4a6dd6195d4b78.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43681,
+          50.09865
+        ]
+      },
+      "properties": {
+        "id": "DE66595BE69B11E89E7C74D435EEBE90",
+        "group_id": "3e20a929f29e6b62e8275d1f2d8853e1c9d0b1c4",
+        "kind": "pozitiv",
+        "description": "Pohled na přestavbu severního předmostí Hlávkova mostu v Holešovicích při stavbě Severojižní magistrály. V pozadí dům čp. 1477 (budova Elektrických podniků hl. m. Prahy) v Holešovicích.",
+        "date_label": "září 1981",
+        "start_date": "1981-09-01",
+        "end_date": "1981-09-30",
+        "author": "Jelínková, Jana (1951-)",
+        "signature": "I 12417",
+        "note": "",
+        "views": "67x",
+        "geolocation_type": "regional.address",
+        "date_precision": "month",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0025/da0afe547f02ea25a2e9c888d31f8ecd.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0025/da0afe547f02ea25a2e9c888d31f8ecd.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43349,
+          50.0874
+        ]
+      },
+      "properties": {
+        "id": "E16EFB55644011EABE1874D435EEBE90",
+        "group_id": "42cb9d2ea1f1f2e3686f7ae27d0384dd6e12da8c",
+        "kind": "pozitiv",
+        "description": "Pohled od novoměstských hradeb na vnější část nádraží Rakouské společnosti státní dráhy (dnes Masarykovo nádraží - dům čp. 1014 na Novém Městě). V pozadí vrch Žižkov. Vlevo v pozadí věž kostela sv. Cyrila a Metoděje v Karlíně.",
+        "date_label": "1863-1864",
+        "start_date": "1863-01-01",
+        "end_date": "1864-12-31",
+        "author": "anonym",
+        "signature": "I 12701",
+        "note": "",
+        "views": "147x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year_range",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0025/53448790dc31bcddc0c8eb686d4082d1.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0025/53448790dc31bcddc0c8eb686d4082d1.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40535,
+          50.09003
+        ]
+      },
+      "properties": {
+        "id": "DE091EC25A6311E7A69B406186009F3A",
+        "group_id": "24a2a205f888c722cc63243f9190966d4dd247f9",
+        "kind": "pohlednice",
+        "description": "Pohled na voliéru v zahradě Valdštejnského paláce (dům čp. 17) na Malé Straně.",
+        "date_label": "1986",
+        "start_date": "1986-01-01",
+        "end_date": "1986-12-31",
+        "author": "Jelínková, Jana (1951-)",
+        "signature": "I 12119",
+        "note": "",
+        "views": "31x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0024/a5eb6584f5896bede7462583faa4aaec.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0024/a5eb6584f5896bede7462583faa4aaec.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.36417,
+          50.08485
+        ]
+      },
+      "properties": {
+        "id": "DDA6AA33B5FC11E58B3BD4BED94BB14D",
+        "group_id": "fb39dfbf9cc89c43fb4597c64aa4122143436d5d",
+        "kind": "pozitiv",
+        "description": "Pohled na Malé náměstí (dnes Břevnovská ulice) s domem čp. 16 v Břevnově.",
+        "date_label": "1925",
+        "start_date": "1925-01-01",
+        "end_date": "1925-12-31",
+        "author": "Vojta, Tomáš (1885-1934)",
+        "signature": "I 11391",
+        "note": "",
+        "views": "42x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/eac95af0221f4a08e3f961249553161a.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/eac95af0221f4a08e3f961249553161a.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.39198,
+          50.13217
+        ]
+      },
+      "properties": {
+        "id": "E3726CC8510911E38E526C626D41E503",
+        "group_id": "1bb7bccdc546158bb375e721604df071da9792db",
+        "kind": "pozitiv",
+        "description": "Pohled na kapli Nejsvětější Trojice v Sedlci.",
+        "date_label": "30.10.1958",
+        "start_date": "1958-10-30",
+        "end_date": "1958-10-30",
+        "author": "Hnilička, Eduard (1887-1967)",
+        "signature": "I 9821",
+        "note": "",
+        "views": "42x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0022/01cbbe09e144d6118d6d6c5070b90e8d.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0022/01cbbe09e144d6118d6d6c5070b90e8d.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.44449,
+          50.14974
+        ]
+      },
+      "properties": {
+        "id": "EBD8E2DEDD1411E480FB74D435EEBE90",
+        "group_id": "8466f28ad59f663a5b2bfde2128bd440671a69d3",
+        "kind": "pozitiv",
+        "description": "Pohled na statek čp. 11 (nyní čp. 253) v Dolních Chabrech.",
+        "date_label": "1968",
+        "start_date": "1968-01-01",
+        "end_date": "1968-12-31",
+        "author": "Vopravil, Josef (1902-1972)",
+        "signature": "I 11177",
+        "note": "",
+        "views": "49x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/331d9f0f840d6c7ed5dd8b12de618f0b.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/331d9f0f840d6c7ed5dd8b12de618f0b.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.39148,
+          50.07167
+        ]
+      },
+      "properties": {
+        "id": "DE580DCF2FC111E5A57D74D435EEBE90",
+        "group_id": "3d806e822ec67d32288b621923c0904b883cbdd7",
+        "kind": "pozitiv",
+        "description": "Pohled na hrob na Malostranském hřbitově na Smíchově - původní stav. Emilie Malliczky.",
+        "date_label": "25.3.1927",
+        "start_date": "1927-03-25",
+        "end_date": "1927-03-25",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11282",
+        "note": "",
+        "views": "55x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/49b702a95cce890628e1b8f75db4ba08.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/49b702a95cce890628e1b8f75db4ba08.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.37941,
+          50.11309
+        ]
+      },
+      "properties": {
+        "id": "DEE58E53A63811E499AF406186009F3A",
+        "group_id": "68584bad705d6eaf74e745bda1d0a9fa707b9478",
+        "kind": "pozitiv",
+        "description": "Pohled do Hendlova dvora (dům čp. 23) v Dejvicích.",
+        "date_label": "7.10.1943",
+        "start_date": "1943-10-07",
+        "end_date": "1943-10-07",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11116",
+        "note": "",
+        "views": "55x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/5117cd8fe4c2b3aa4faf9f36f92a7cdd.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/5117cd8fe4c2b3aa4faf9f36f92a7cdd.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40684,
+          50.08724
+        ]
+      },
+      "properties": {
+        "id": "DEBD291DA2A511E293F36C626D41E503",
+        "group_id": "19d1420e046005fe09c2327bc244089f9711d258",
+        "kind": "negativ",
+        "description": "Pohled na závěr Karlova mostu s Malostranskými mostními věžemi - reprodukce.",
+        "date_label": "kol.1890",
+        "start_date": "1890-01-01",
+        "end_date": "1890-12-31",
+        "author": "",
+        "signature": "X 715",
+        "note": "",
+        "views": "37x",
+        "geolocation_type": "poi",
+        "date_precision": "year_approx",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0022/0a27597c71fa6a2cfe8381ce5793673c.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0022/0a27597c71fa6a2cfe8381ce5793673c.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43681,
+          50.09865
+        ]
+      },
+      "properties": {
+        "id": "EC1F3BF3669111E481D7D4BED94BB14D",
+        "group_id": "e6bcbb510039f6aaf1f140442418d050d295a868",
+        "kind": "pozitiv",
+        "description": "Celkový pohled na novostavbu Elektrických podniků hl. m. Prahy v Holešovicích (dům čp. 1477). Vlevo kostel sv. Antonína na Strossmayerově náměstí.",
+        "date_label": "31.8.1937",
+        "start_date": "1937-08-31",
+        "end_date": "1937-08-31",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11046",
+        "note": "",
+        "views": "91x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/c0f54a48e51c55ad7635f5404b0fa96b.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/c0f54a48e51c55ad7635f5404b0fa96b.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40131,
+          50.08733
+        ]
+      },
+      "properties": {
+        "id": "DEB5CB9D7D3911E3BE26406186009F3A",
+        "group_id": "cf9d9cb9a0905246be560498a7091c591b5d781c",
+        "kind": "pozitiv",
+        "description": "Horní zahradní terasa se střechou zahradního domku Schönbornského paláce - domu čp. 365 na Malé Straně.",
+        "date_label": "",
+        "start_date": "",
+        "end_date": "",
+        "author": "",
+        "signature": "I 9887",
+        "note": "",
+        "views": "22x",
+        "geolocation_type": "regional.address",
+        "date_precision": "unknown",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/1769a0d5c4a2f058b44144d79f20124b.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/1769a0d5c4a2f058b44144d79f20124b.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40739,
+          50.08615
+        ]
+      },
+      "properties": {
+        "id": "EBCC9B7605B511E389696C626D41E503",
+        "group_id": "e9898d5405bd95fd2407693b46488ec89744edbb",
+        "kind": "pozitiv",
+        "description": "Pohled na dům čp. 490 (palác Metychů z Čečova - Hrzánský) na Malé Straně - jižní a východní průčelí nad Čertovkou (v popředí).",
+        "date_label": "14.3.1931",
+        "start_date": "1931-03-14",
+        "end_date": "1931-03-14",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 9755",
+        "note": "",
+        "views": "37x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0022/feda072ec2a69c35ed6f89b5717ae1ff.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0022/feda072ec2a69c35ed6f89b5717ae1ff.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.4369,
+          50.09567
+        ]
+      },
+      "properties": {
+        "id": "DB294D65644A11E6A554000C76270B94",
+        "group_id": "5b6ed8d5a09418e7a462e821b8c6f9d9a015f3b2",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu plavebních komor u ostrova Štvanice. V pozadí novostavba železné části Hlávkova mostu.",
+        "date_label": "19.7.1910",
+        "start_date": "1910-07-19",
+        "end_date": "1910-07-19",
+        "author": "",
+        "signature": "I 11836",
+        "note": "",
+        "views": "37x",
+        "geolocation_type": "regional.street",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/2a3df3fc570d67c6c1a30bbb1c04a2e7.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/2a3df3fc570d67c6c1a30bbb1c04a2e7.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43076,
+          50.09537
+        ]
+      },
+      "properties": {
+        "id": "DE42A16C645911E6A554000C76270B94",
+        "group_id": "1aa149ba43921f9b185e9f088c564351aa2a1522",
+        "kind": "pozitiv",
+        "description": "Pohled na poškozenou špičku vorové propusti nového Helmovského jezu po jarní velké vodě.",
+        "date_label": "2.4.1909",
+        "start_date": "1909-04-02",
+        "end_date": "1909-04-02",
+        "author": "",
+        "signature": "I 11848",
+        "note": "",
+        "views": "30x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/2940d3cc54bc4f4b566d7c787a1a39bd.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/2940d3cc54bc4f4b566d7c787a1a39bd.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43076,
+          50.09537
+        ]
+      },
+      "properties": {
+        "id": "E0C418F9525911E6A54B000C76270B94",
+        "group_id": "0b654406c1435d4cf52a7251afa62d9d47e8e72c",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu vorové propusti a rybího přechodu nového Helmovského jezu. V pozadí most císaře Františka Josefa I.",
+        "date_label": "30.7.1908",
+        "start_date": "1908-07-30",
+        "end_date": "1908-07-30",
+        "author": "",
+        "signature": "I 11742",
+        "note": "",
+        "views": "56x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/393dccdbcbe15520a00f2f5d3ef99e28.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/393dccdbcbe15520a00f2f5d3ef99e28.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40739,
+          50.08615
+        ]
+      },
+      "properties": {
+        "id": "E73244ED05B711E389696C626D41E503",
+        "group_id": "a4421a9703424d2dbb6d4b530c33e137ae88b8ce",
+        "kind": "pozitiv",
+        "description": "Pohled do interiéru domu čp. 490 (palác Metychů z Čečova - Hrzánský) na Velkopřevorském náměstí na Malé Straně - schodiště.",
+        "date_label": "1925",
+        "start_date": "1925-01-01",
+        "end_date": "1925-12-31",
+        "author": "Vojta, Tomáš (1885-1934)",
+        "signature": "I 9761",
+        "note": "",
+        "views": "28x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0022/bd6a07357662793303683e0519fa94c3.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0022/bd6a07357662793303683e0519fa94c3.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.4369,
+          50.09567
+        ]
+      },
+      "properties": {
+        "id": "E4364F02FA6611E5B79C406186009F3A",
+        "group_id": "06433091eb163cfd36ca767b387c14197382ef8a",
+        "kind": "pozitiv",
+        "description": "Pohled na nový Hlávkův most - železná část.",
+        "date_label": "po 1910",
+        "start_date": "1911-01-01",
+        "end_date": "2000-12-31",
+        "author": "",
+        "signature": "I 11647",
+        "note": "",
+        "views": "82x",
+        "geolocation_type": "regional.street",
+        "date_precision": "after_year",
+        "date_imprecise": true,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/fbae0b74306704c46d7e9d3dabea9877.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/fbae0b74306704c46d7e9d3dabea9877.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43436,
+          50.09335
+        ]
+      },
+      "properties": {
+        "id": "E6FC3CEF62DB11E6A552000C76270B94",
+        "group_id": "ff8839b24b2394c00f00d5e1d2225e1aba6302bf",
+        "kind": "pozitiv",
+        "description": "Pohled na loď dopravenou nad nový Helmovský jez. V pozadí zeď Petrského nábřeží na Novém Městě.",
+        "date_label": "26.3.1910",
+        "start_date": "1910-03-26",
+        "end_date": "1910-03-26",
+        "author": "",
+        "signature": "I 11818",
+        "note": "",
+        "views": "44x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/afef559bc1ed7a2a82ddd61a10d742ea.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/afef559bc1ed7a2a82ddd61a10d742ea.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40739,
+          50.08615
+        ]
+      },
+      "properties": {
+        "id": "DBF81B0B04FC11E3A4F66C626D41E503",
+        "group_id": "bfc51d35e50687c6490ab81b51be4adec1cfc209",
+        "kind": "pozitiv",
+        "description": "Pohled na dům čp. 490 (palác Metychů z Čečova - Hrzánský) na Velkopřevorském náměstí na Malé Straně v zimě.\r\n                    \r\n                \r\n                    \r\n                  Detail portálu.",
+        "date_label": "kol.1920",
+        "start_date": "1920-01-01",
+        "end_date": "1920-12-31",
+        "author": "Rázek, Antonín",
+        "signature": "I 9750",
+        "note": "",
+        "views": "25x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year_approx",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0022/98d382a10395c582b658a64255c525dc.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0022/98d382a10395c582b658a64255c525dc.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.39375,
+          50.08878
+        ]
+      },
+      "properties": {
+        "id": "E8C6CE7A748811E4A81F406186009F3A",
+        "group_id": "9d838fab59cf256c6e694b487f04d77e08cb41f9",
+        "kind": "pozitiv",
+        "description": "Pohled do zahrady domu čp. 180 na Hradčanech (bývalý Trautmannsdorfský palác) - \"práce na výkopu válečného vodního bazénu\". Vchod do velké zahrady, altán a v pozadí část západního průčelí domu čp. 180.",
+        "date_label": "5.6.1944",
+        "start_date": "1944-06-05",
+        "end_date": "1944-06-05",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11078",
+        "note": "",
+        "views": "23x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/af6416a3974ae8a3138f74de39c3ea6b.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/af6416a3974ae8a3138f74de39c3ea6b.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.47141,
+          50.1253
+        ]
+      },
+      "properties": {
+        "id": "E72EA086366711E7B9CE406186009F3A",
+        "group_id": "018de961838872c0d99bee13b5af5a0bed85bf01",
+        "kind": "pozitiv",
+        "description": "Pohled na výstavbu sídliště v oblasti dnešní Davídkovy ulice v Kobylisích.",
+        "date_label": "1975",
+        "start_date": "1975-01-01",
+        "end_date": "1975-12-31",
+        "author": "Jelínková, Jana (1951-)",
+        "signature": "I 11958",
+        "note": "",
+        "views": "169x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0024/5f64fb0b7f1f323acefef03e980a37c4.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0024/5f64fb0b7f1f323acefef03e980a37c4.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.42032,
+          50.09595
+        ]
+      },
+      "properties": {
+        "id": "E04BD49887D611E79100406186009F3A",
+        "group_id": "8e96d1952f9cef501aaa6aef7d5dca77cc0ad680",
+        "kind": "pohlednice",
+        "description": "Cvičení žen během VII. všesokolského sletu na Letné v Holešovicích.",
+        "date_label": "27.-30.6.1920",
+        "start_date": "",
+        "end_date": "",
+        "author": "Vojta, Tomáš (1885-1934)",
+        "signature": "I 12187",
+        "note": "",
+        "views": "44x",
+        "geolocation_type": "regional.address",
+        "date_precision": "unknown",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0024/07847ebe96974bbe5a05c71fb2bc8692.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0024/07847ebe96974bbe5a05c71fb2bc8692.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.39148,
+          50.07167
+        ]
+      },
+      "properties": {
+        "id": "EAA5AC602FBA11E5A57D74D435EEBE90",
+        "group_id": "a6153c80565fc9da6a33ff5ad29f3129fd0676ca",
+        "kind": "pozitiv",
+        "description": "Pohled na náhrobní desky na Malostranském hřbitově na Smíchově při zdi do Plzeňské ulice - původní stav. Deska Františka Martina Pelzla.",
+        "date_label": "4.3.1927",
+        "start_date": "1927-03-04",
+        "end_date": "1927-03-04",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11252",
+        "note": "",
+        "views": "75x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/78242c58e3c76ad4917e31bc9fe3fb8e.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/78242c58e3c76ad4917e31bc9fe3fb8e.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.66436,
+          49.99476
+        ]
+      },
+      "properties": {
+        "id": "E8611B64F00F11E5A521000C76270B94",
+        "group_id": "4d0a7ef82b55f0baae19de34fbb25df6f30c87eb",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu špičky ostrova Štvanice a přípravné práce pro stavbu nového Helmovského jezu. V pozadí novovstavba zdi Petrského nábřeží a domy na původním novoměstském břehu.",
+        "date_label": "6.5.1909",
+        "start_date": "1909-05-06",
+        "end_date": "1909-05-06",
+        "author": "",
+        "signature": "I 11606",
+        "note": "",
+        "views": "100x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/6f7109d0d08eca9acc625b6596c11e31.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/6f7109d0d08eca9acc625b6596c11e31.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.49278,
+          50.073
+        ]
+      },
+      "properties": {
+        "id": "D9DAA6113F3211E4B4E9406186009F3A",
+        "group_id": "5a725c1ccfd087a593ed730e600b2e6580a23e5b",
+        "kind": "pozitiv",
+        "description": "Pohled na jižní a východní průčelí školy čp. 200 ve Strašnicích (dnes ulice V Olšinách a Saratovská).",
+        "date_label": "14.9.1942",
+        "start_date": "1942-09-14",
+        "end_date": "1942-09-14",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11028",
+        "note": "",
+        "views": "82x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/557756f0f8922389b69ec33138a0abf9.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/557756f0f8922389b69ec33138a0abf9.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43076,
+          50.09537
+        ]
+      },
+      "properties": {
+        "id": "E0195147638011E6A553000C76270B94",
+        "group_id": "abf81d8d9c8e7abad02a9671fa0bc28aaae122e4",
+        "kind": "pozitiv",
+        "description": "Pohled na proplouvající vory vorovou propustí nového Helmovského jezu. V pozadí most císaře Františka Josefa I.",
+        "date_label": "9.4.1910",
+        "start_date": "1910-04-09",
+        "end_date": "1910-04-09",
+        "author": "",
+        "signature": "I 11823",
+        "note": "",
+        "views": "53x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/f5df67fd4020f7f81095bb69d8ac4719.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/f5df67fd4020f7f81095bb69d8ac4719.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.49575,
+          50.05134
+        ]
+      },
+      "properties": {
+        "id": "E9F52DE8590211E89D7C74D435EEBE90",
+        "group_id": "7496bf5d77e5c96e06ae332abd80f8165fa0ef61",
+        "kind": "pozitiv",
+        "description": "Pohled na část záběhlického zámku (dnes dům čp. 46) v Záběhlicích.",
+        "date_label": "srpen 1985",
+        "start_date": "1985-08-01",
+        "end_date": "1985-08-31",
+        "author": "Javorský, Jiří",
+        "signature": "I 12312",
+        "note": "",
+        "views": "65x",
+        "geolocation_type": "regional.address",
+        "date_precision": "month",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0024/875996683660ec9f7dae344e7a54df19.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0024/875996683660ec9f7dae344e7a54df19.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43076,
+          50.09537
+        ]
+      },
+      "properties": {
+        "id": "DBA502564F3A11E6A549000C76270B94",
+        "group_id": "0a570c7552e330a055726d86b31761cda4c8fc99",
+        "kind": "pozitiv",
+        "description": "Pohled na starý Helmovský jez. V pozadí most císaře Františka Josefa I.",
+        "date_label": "10.11.1909",
+        "start_date": "1909-11-10",
+        "end_date": "1909-11-10",
+        "author": "",
+        "signature": "I 11724",
+        "note": "",
+        "views": "39x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/b549cb2e5fa0d27e6d4714932f4a4974.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/b549cb2e5fa0d27e6d4714932f4a4974.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43069,
+          50.045
+        ]
+      },
+      "properties": {
+        "id": "D90D20AA61AD11E9931174D435EEBE90",
+        "group_id": "476adb203895a2c9c8007bc4e0741e0b5f624f08",
+        "kind": "negativ",
+        "description": "Pohled z bastionu 36 vyšehradských hradeb k jihu na Podolí a vltavské údolí. V popředí vlevo podolské sanatorium (dům čp. 157). Uprostřed Podolské nábřeží, přístav a přístavní hráz. V pozadí vlevo na kopci dům čp. 131 (Slepičárna).",
+        "date_label": "10.9.1923",
+        "start_date": "1923-09-10",
+        "end_date": "1923-09-10",
+        "author": "Vojta, Tomáš (1885-1934)",
+        "signature": "X 5121",
+        "note": "",
+        "views": "80x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0025/905fe234b62b2adeb9dc90ec87a20319.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0025/905fe234b62b2adeb9dc90ec87a20319.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.39148,
+          50.07167
+        ]
+      },
+      "properties": {
+        "id": "E4D061542FBD11E5A57D74D435EEBE90",
+        "group_id": "83b35fc31aa471af4a5a92f6246b8aa3d104abca",
+        "kind": "pozitiv",
+        "description": "Pohled na hroby na Malostranském hřbitově na Smíchově poblíž zdi do Plzeňské ulice - původní stav. Rodina Ebertova a Natali.",
+        "date_label": "21.3.1927",
+        "start_date": "1927-03-21",
+        "end_date": "1927-03-21",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11260",
+        "note": "",
+        "views": "62x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/0f8550ae63b2bb0c148e56c2ec19b140.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/0f8550ae63b2bb0c148e56c2ec19b140.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.39148,
+          50.07167
+        ]
+      },
+      "properties": {
+        "id": "DA1CF761304911E5A53574D435EEBE90",
+        "group_id": "c91031130907e173133588d71ab2d2f43d11a03b",
+        "kind": "pozitiv",
+        "description": "Pohled na hroby poblíž nově vystavené (oproti původní posunuté) zdi Malostranského hřbitova na Smíchově - při Plzeňské ulici.",
+        "date_label": "kol.1950",
+        "start_date": "1950-01-01",
+        "end_date": "1950-12-31",
+        "author": "Pacovský, Jaroslav",
+        "signature": "I 11302",
+        "note": "",
+        "views": "49x",
+        "geolocation_type": "poi",
+        "date_precision": "year_approx",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/42db5f4094c8dee4a7bc891b1d3cf395.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/42db5f4094c8dee4a7bc891b1d3cf395.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.39408,
+          50.08858
+        ]
+      },
+      "properties": {
+        "id": "DFDE801F2BED11E69C9A406186009F3A",
+        "group_id": "eb2ed43f8c0584d73f186e03e87605bbf8108163",
+        "kind": "pozitiv",
+        "description": "Pohled na část průčelí Hrzánského paláce (dům čp. 177) v Loretánské ulici na Hradčanech s portálem a bustou Ferdinanda Engelmüllera.",
+        "date_label": "7.4.1949",
+        "start_date": "1949-04-07",
+        "end_date": "1949-04-07",
+        "author": "Vopravil, Josef (1902-1972)",
+        "signature": "X 3878",
+        "note": "",
+        "views": "32x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/4bd2dc7a9c21db47242828be40065f15.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/4bd2dc7a9c21db47242828be40065f15.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.4327,
+          50.09455
+        ]
+      },
+      "properties": {
+        "id": "E79F4C22647711E6A554000C76270B94",
+        "group_id": "7c32c18aa2733a2782f329e9421c3e9a73ab44ee",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu potrubí vedoucí k turbínám ve špičce ostrova Štvanice.",
+        "date_label": "8.10.1909",
+        "start_date": "1909-10-08",
+        "end_date": "1909-10-08",
+        "author": "",
+        "signature": "I 11862",
+        "note": "",
+        "views": "29x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/218bf4d50dc55d70e6321f55d30d6bf6.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/218bf4d50dc55d70e6321f55d30d6bf6.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.433,
+          50.09182
+        ]
+      },
+      "properties": {
+        "id": "DC2C511BF72211E5A524000C76270B94",
+        "group_id": "8a62b7d5b5272cfe7c525d6dd3dee6c8e3cf0f7b",
+        "kind": "pozitiv",
+        "description": "Pohled na jez u Dolních Lodeckých mlýnů na Novém Městě.",
+        "date_label": "7.10.1908",
+        "start_date": "1908-10-07",
+        "end_date": "1908-10-07",
+        "author": "",
+        "signature": "I 11635",
+        "note": "",
+        "views": "51x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/d6c1d0408978b05124af666708fde9fd.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/d6c1d0408978b05124af666708fde9fd.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41536,
+          50.07303
+        ]
+      },
+      "properties": {
+        "id": "EA2272965B0811E7A808406186009F3A",
+        "group_id": "76adfb6026dd598c9c0ff93b819f38af9e3812e9",
+        "kind": "negativ",
+        "description": "Celkový pohled na náměstí Pod Emauzy s pomníkem \"Praha svým vítězným synům\" a domy čp. 375 (Ministerstvo sociální péče) a čp. 376 (Zemský úřad) na Novém Městě. V pozadí kostel P. Marie Na Slovanech (v Emauzích) a kaple sv. Kosmy a Damiána.",
+        "date_label": "15.4.1936",
+        "start_date": "1936-04-15",
+        "end_date": "1936-04-15",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "X 3489",
+        "note": "",
+        "views": "73x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0024/b5b5c9c03bb9fc49a66e7433e98c75b4.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0024/b5b5c9c03bb9fc49a66e7433e98c75b4.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.419,
+          50.07337
+        ]
+      },
+      "properties": {
+        "id": "EC45C027E44011E4BE0074D435EEBE90",
+        "group_id": "dcb17c4002e0b25ddbc0d8438b13f80f0ef5d794",
+        "kind": "pozitiv",
+        "description": "Pohled na část průčelí \"Faustova domu\" (dům čp. 502 na Novém Městě) do Vyšehradské ulice. V popředí zahradní zeď kostela sv. Jana Na Skalce.",
+        "date_label": "31.5.1931",
+        "start_date": "1931-05-31",
+        "end_date": "1931-05-31",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11186",
+        "note": "",
+        "views": "70x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/b0a734bc1e55d5035e5638094c25da16.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/b0a734bc1e55d5035e5638094c25da16.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.419,
+          50.07337
+        ]
+      },
+      "properties": {
+        "id": "DF7550C7E44211E4BE0074D435EEBE90",
+        "group_id": "5de88427dd38f38de9da8de24b8fdd3620b8c649",
+        "kind": "pozitiv",
+        "description": "Interiér \"Faustova domu\" (dům čp. 502 na Novém Městě) - poškozeném po náletu spojenců v únoru 1945.",
+        "date_label": "únor 1945",
+        "start_date": "1945-02-01",
+        "end_date": "1945-02-28",
+        "author": "",
+        "signature": "I 11191",
+        "note": "",
+        "views": "34x",
+        "geolocation_type": "regional.address",
+        "date_precision": "month",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/05ae9dce01b7c74c1b6c880504605429.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/05ae9dce01b7c74c1b6c880504605429.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.43668,
+          50.09941
+        ]
+      },
+      "properties": {
+        "id": "E0F8B300E69211E89E7C74D435EEBE90",
+        "group_id": "bb26275b9707b5a4f2f9b61d17ad782be89863d2",
+        "kind": "pozitiv",
+        "description": "Pohled do Vltavské ulice (dnešní nábřeží Kpt. Jaroše). Zprava domy čp. 423, čp. 422, čp. 436 v Holešovicích.",
+        "date_label": "kol.1930",
+        "start_date": "1930-01-01",
+        "end_date": "1930-12-31",
+        "author": "",
+        "signature": "I 12402",
+        "note": "",
+        "views": "49x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year_approx",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0025/02c9b99fe662f68b0090c603070505b8.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0025/02c9b99fe662f68b0090c603070505b8.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41798,
+          50.086
+        ]
+      },
+      "properties": {
+        "id": "E93A4CB204D811E3A4F66C626D41E503",
+        "group_id": "1044917353f5e507285ffa7160a7ca7653664552",
+        "kind": "pozitiv",
+        "description": "Pohled do Husovy ulice směrem k severu. Zleva domy čp. 227, 228, 229 a 156. V pozadí Clam Gallasův palác čp. 158 na Starém Městě.",
+        "date_label": "9.2.1945",
+        "start_date": "1945-02-09",
+        "end_date": "1945-02-09",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 9742",
+        "note": "",
+        "views": "51x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/42d25fe5741b4c6540c9e0818a0e2e0b.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/42d25fe5741b4c6540c9e0818a0e2e0b.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.4369,
+          50.09567
+        ]
+      },
+      "properties": {
+        "id": "DA5DE1E9F1A511E5A522000C76270B94",
+        "group_id": "0df10013a1764388e2a2a1ba021ab0dce8e986b9",
+        "kind": "pozitiv",
+        "description": "Pohled na jeden z pilířů provizorního dřevěného mostu (Hlávkova).",
+        "date_label": "29.5.1909",
+        "start_date": "1909-05-29",
+        "end_date": "1909-05-29",
+        "author": "",
+        "signature": "I 11616 a",
+        "note": "",
+        "views": "65x",
+        "geolocation_type": "regional.street",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0025/0371797289648bcfe82177558bb02f57.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0025/0371797289648bcfe82177558bb02f57.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.33909,
+          50.06787
+        ]
+      },
+      "properties": {
+        "id": "ED2651DDDCC311E6B80F406186009F3A",
+        "group_id": "c81038e29025d1259c2d3c0455db836903c2f5e5",
+        "kind": "negativ",
+        "description": "Pohled do interiéru kaple sv. Rocha na Malostranském hřbitově na Smíchově - severní a západní stěna.",
+        "date_label": "9.5.1950",
+        "start_date": "1950-05-09",
+        "end_date": "1950-05-09",
+        "author": "Vopravil, Josef (1902-1972)",
+        "signature": "X 4141",
+        "note": "",
+        "views": "54x",
+        "geolocation_type": "regional.street",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/53e5d29db0c8b6cedd91023ff35a89c1.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/53e5d29db0c8b6cedd91023ff35a89c1.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.4369,
+          50.09567
+        ]
+      },
+      "properties": {
+        "id": "DFE81A2BEAA111E5A51F000C76270B94",
+        "group_id": "d2491bfc351559d7eff98ea40d6a60c57082d9b2",
+        "kind": "pozitiv",
+        "description": "Pohled na poškozenou vorovou propust nového Helmovského jezu po velké vodě.",
+        "date_label": "2.4.1909",
+        "start_date": "1909-04-02",
+        "end_date": "1909-04-02",
+        "author": "",
+        "signature": "I 11600",
+        "note": "",
+        "views": "79x",
+        "geolocation_type": "regional.street",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/7ab1e71afa69c58d2f86f47fc1e4a5be.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/7ab1e71afa69c58d2f86f47fc1e4a5be.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.42009,
+          50.087
+        ]
+      },
+      "properties": {
+        "id": "E90483E10FED11E38E586C626D41E503",
+        "group_id": "b53da760a16617a5e979dfa45fbbc837ae129d6c",
+        "kind": "pozitiv",
+        "description": "Pohled na část jižního průčelí Staroměstské radnice (domu čp. 1) - detail okna s nápisem PRAGA CAPUT REGNI.",
+        "date_label": "1948",
+        "start_date": "1948-01-01",
+        "end_date": "1948-12-31",
+        "author": "",
+        "signature": "I 9772",
+        "note": "",
+        "views": "36x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0022/40206b4c7b96a9cf3f8a14fd301c7932.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0022/40206b4c7b96a9cf3f8a14fd301c7932.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.51723,
+          50.0348
+        ]
+      },
+      "properties": {
+        "id": "E084892654A211E6B6CF406186009F3A",
+        "group_id": "5620df717dd544a073771bdc562d330007d36248",
+        "kind": "pozitiv",
+        "description": "Pohled na základní a mateřskou školu v ulici Květnového vítězství (domy čp. 1554 a 1555 na Chodově).",
+        "date_label": "1982",
+        "start_date": "1982-01-01",
+        "end_date": "1982-12-31",
+        "author": "Jelínková, Jana (1951-)",
+        "signature": "I 11714",
+        "note": "",
+        "views": "50x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/2c67c70629065eb6e1354920c8f4b98f.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/2c67c70629065eb6e1354920c8f4b98f.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.42788,
+          50.08949
+        ]
+      },
+      "properties": {
+        "id": "E031B085160E11E390486C626D41E503",
+        "group_id": "d1fb7b07590f4f05ea23cdb7160fd25d37666e7b",
+        "kind": "pozitiv",
+        "description": "Pohled na prostranství po zbořeném domě čp. 655 na Starém Městě (Ústav šlechtičen) směrem od Revoluční třídy (Eliščiny) k západu. Vpravo tři štíty domu čp. 684, uprostřed domy čp. 680 a 673, nad ním v pozadí věž kostela sv. Jakuba.",
+        "date_label": "15.3.1928",
+        "start_date": "1928-03-15",
+        "end_date": "1928-03-15",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 9797",
+        "note": "",
+        "views": "95x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/54324c679705c75fee17647556eeaa1c.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/54324c679705c75fee17647556eeaa1c.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41138,
+          50.09203
+        ]
+      },
+      "properties": {
+        "id": "E96DC2FA189F11E4B6C9406186009F3A",
+        "group_id": "a8fb61882791eb6dfb7c0e4f49b0461bf3b3718c",
+        "kind": "pozitiv",
+        "description": "Pohled na nábřeží Pod Letnou (dnešní nábřeží Edvarda Beneše) v Holešovicích. V popředí střecha kaple Maří Magdaleny a přilehlého domu ředitele Občanské plovárny. V pozadí most císaře Františka Josefa I. (Štefánikův).",
+        "date_label": "",
+        "start_date": "",
+        "end_date": "",
+        "author": "",
+        "signature": "I 11015",
+        "note": "",
+        "views": "131x",
+        "geolocation_type": "regional.address",
+        "date_precision": "unknown",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/eb0f1ec70c7b9242ae7e138df3d452a2.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/eb0f1ec70c7b9242ae7e138df3d452a2.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41347,
+          50.08126
+        ]
+      },
+      "properties": {
+        "id": "E55F404F206111E88E87406186009F3A",
+        "group_id": "25605389083d2c2049fcd0a529e84a34614cfa04",
+        "kind": "pozitiv",
+        "description": "Pohled na osvětlený kostel sv. Mikuláše na Malé Straně při příležitosti 10. výročí samostatnosti Československé republiky. V pozadí Národní divadlo (dům čp. 223 na Novém Městě).",
+        "date_label": "28.10.1928",
+        "start_date": "1928-10-28",
+        "end_date": "1928-10-28",
+        "author": "Vopravil, Josef (1902-1972)",
+        "signature": "I 12058",
+        "note": "",
+        "views": "33x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0024/bdc7a2cb7d25b8280437767ee26036ed.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0024/bdc7a2cb7d25b8280437767ee26036ed.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.39148,
+          50.07167
+        ]
+      },
+      "properties": {
+        "id": "DE02D5E52FBF11E5A57D74D435EEBE90",
+        "group_id": "5374929dfdb37e567c8ec0f0ee272742500f1f66",
+        "kind": "pozitiv",
+        "description": "Pohled na náhrobek na Malostranském hřbitově na Smíchově - původní stav. Rodina Tandlerova.",
+        "date_label": "23.3.1927",
+        "start_date": "1927-03-23",
+        "end_date": "1927-03-23",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 11269",
+        "note": "",
+        "views": "55x",
+        "geolocation_type": "poi",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0023/69f8860756a55dcb1e02ad96e61e80c0.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0023/69f8860756a55dcb1e02ad96e61e80c0.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.42788,
+          50.08949
+        ]
+      },
+      "properties": {
+        "id": "E84018AC160F11E390486C626D41E503",
+        "group_id": "1bddcf3e16eb3475567b889b30ced2ace14a2e1c",
+        "kind": "pozitiv",
+        "description": "Pohled na prostranství po zbořeném domě čp. 655 na Starém Městě (Ústav šlechtičen) směrem od Revoluční třídy (Eliščiny) k severozápadu k Benediktské ulici s domem čp. 692 s věží.",
+        "date_label": "15.3.1928",
+        "start_date": "1928-03-15",
+        "end_date": "1928-03-15",
+        "author": "Alexander, Antonín (1892-působnost do 1948)",
+        "signature": "I 9798",
+        "note": "",
+        "views": "80x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/NAD-157/dao/images/0016/4e94927b1605d4f510ff91fa20f9ae19.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/NAD-157/dao/images/0016/4e94927b1605d4f510ff91fa20f9ae19.jpg"
+        ]
+      }
+    }
+  ]
+}

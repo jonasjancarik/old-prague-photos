@@ -1,0 +1,4 @@
+{"timestamp":"2026-02-14T04:05:32Z","cycle":1,"run_dir":"output/recovery/orphans/20260213-225537-autoloop/20260213-225538-c1","status":"ok","active":98,"not_found":2,"transient":661,"orphans":663}
+{"timestamp":"2026-02-14T09:29:41Z","cycle":2,"run_dir":"output/recovery/orphans/20260213-225537-autoloop/20260214-050732-c2","status":"ok","active":98,"not_found":2,"transient":563,"orphans":565}
+{"timestamp":"2026-02-14T14:02:28Z","cycle":3,"run_dir":"output/recovery/orphans/20260213-225537-autoloop/20260214-103141-c3","status":"ok","active":98,"not_found":2,"transient":465,"orphans":467}
+{"timestamp":"2026-02-14T17:53:29Z","cycle":4,"run_dir":"output/recovery/orphans/20260213-225537-autoloop/20260214-150428-c4","status":"ok","active":90,"not_found":10,"transient":367,"orphans":377}

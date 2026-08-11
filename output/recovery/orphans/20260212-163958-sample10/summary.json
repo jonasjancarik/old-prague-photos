@@ -1,0 +1,13 @@
+{
+  "probe": {
+    "timestamp": "2026-02-12T15:42:24.836497+00:00",
+    "input_count": 10,
+    "resume_skipped": 0,
+    "processed_count": 10,
+    "active_count": 10,
+    "not_found_count": 0,
+    "transient_count": 0,
+    "attempts_path": "output/recovery/orphans/20260212-163958-sample10/probe_attempts.jsonl",
+    "results_path": "output/recovery/orphans/20260212-163958-sample10/probe_results.jsonl"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "probe": {
+    "timestamp": "2026-02-15T05:32:18.527427+00:00",
+    "input_count": 30,
+    "resume_skipped": 0,
+    "processed_count": 30,
+    "active_count": 14,
+    "not_found_count": 16,
+    "transient_count": 0,
+    "attempts_path": "output/recovery/orphans/20260214-194047-autoloop/20260215-062502-c6/probe_attempts.jsonl",
+    "results_path": "output/recovery/orphans/20260214-194047-autoloop/20260215-062502-c6/probe_results.jsonl"
+  },
+  "seed_retry": {
+    "timestamp": "2026-02-15T05:32:18.722023+00:00",
+    "active_count": 14,
+    "transient_count": 0,
+    "seeded_count": 14,
+    "failed_file": "output/failed_xids.jsonl",
+    "backup_path": "output/recovery/orphans/20260214-194047-autoloop/20260215-062502-c6/failed_xids.backup.20260215-053218.jsonl"
+  },
+  "build_subset": {
+    "timestamp": "2026-02-15T05:35:19.814434+00:00",
+    "active_count": 14,
+    "subset_feature_count": 14,
+    "photos_feature_count": 12534,
+    "output": "output/recovery/orphans/20260214-194047-autoloop/20260215-062502-c6/active_subset.geojson"
+  },
+  "finalize": {
+    "timestamp": "2026-02-15T05:35:20.000925+00:00",
+    "active_count": 14,
+    "not_found_count": 16,
+    "transient_count": 0,
+    "eligible_unhide_count": 14,
+    "active_without_readiness_count": 0,
+    "missing_raw_count": 0,
+    "missing_preview_count": 0,
+    "excluded_count": 16,
+    "eligible_unhide_file": "output/recovery/orphans/20260214-194047-autoloop/20260215-062502-c6/eligible_unhide.json",
+    "excluded_after_recovery_file": "output/recovery/orphans/20260214-194047-autoloop/20260215-062502-c6/excluded_after_recovery.json",
+    "output_orphans": "viewer/static/data/orphan_xids.json"
+  }
+}

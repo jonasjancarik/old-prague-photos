@@ -1,0 +1,16 @@
+{
+  "pairs": [
+    {
+      "group_id_a": "56091748bb86d7eb6ab57854f98d1f68ad09d721",
+      "group_id_b": "698696e3326bebc7c2d09ce420e5ccd57ce6f137",
+      "distance": 18,
+      "xid_a": "CD76745C803111E2BF1B525400E46D25",
+      "xid_b": "A11884E2B67611DF820F00166F1163D4",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "The ruin wall geometry, arched openings, grassy mound contours, faint bridge shapes in the background, perspective, and framing all align exactly. Differences/S",
+      "llm_model": "gpt-5.5",
+      "llm_backend": "codex"
+    }
+  ]
+}

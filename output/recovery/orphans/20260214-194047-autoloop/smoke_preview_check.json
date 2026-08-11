@@ -1,0 +1,46 @@
+{
+  "sample_size": 5,
+  "api_reachable": true,
+  "rows": [
+    {
+      "xid": "FD620B443FFE11E5A5AB74D435EEBE90",
+      "tile_status": 200,
+      "tile_url": "https://pub-731655103ce74d0c930d7de993295739.r2.dev/tiles/FD620B443FFE11E5A5AB74D435EEBE90/scan_0/TileGroup0/0-0-0.jpg",
+      "preview_api_status": 200,
+      "preview_api_source": "r2_tile",
+      "preview_api_url": "https://pub-731655103ce74d0c930d7de993295739.r2.dev/tiles/FD620B443FFE11E5A5AB74D435EEBE90/scan_0/TileGroup0/0-0-0.jpg"
+    },
+    {
+      "xid": "B7D923022FBD11E5A57D74D435EEBE90",
+      "tile_status": 200,
+      "tile_url": "https://pub-731655103ce74d0c930d7de993295739.r2.dev/tiles/B7D923022FBD11E5A57D74D435EEBE90/scan_0/TileGroup0/0-0-0.jpg",
+      "preview_api_status": 200,
+      "preview_api_source": "r2_tile",
+      "preview_api_url": "https://pub-731655103ce74d0c930d7de993295739.r2.dev/tiles/B7D923022FBD11E5A57D74D435EEBE90/scan_0/TileGroup0/0-0-0.jpg"
+    },
+    {
+      "xid": "ACCE76F87D2111E3BE26406186009F3A",
+      "tile_status": 200,
+      "tile_url": "https://pub-731655103ce74d0c930d7de993295739.r2.dev/tiles/ACCE76F87D2111E3BE26406186009F3A/scan_0/TileGroup0/0-0-0.jpg",
+      "preview_api_status": 200,
+      "preview_api_source": "r2_tile",
+      "preview_api_url": "https://pub-731655103ce74d0c930d7de993295739.r2.dev/tiles/ACCE76F87D2111E3BE26406186009F3A/scan_0/TileGroup0/0-0-0.jpg"
+    },
+    {
+      "xid": "CEAD7BAE5BF211E79925406186009F3A",
+      "tile_status": 200,
+      "tile_url": "https://pub-731655103ce74d0c930d7de993295739.r2.dev/tiles/CEAD7BAE5BF211E79925406186009F3A/scan_0/TileGroup0/0-0-0.jpg",
+      "preview_api_status": 200,
+      "preview_api_source": "r2_tile",
+      "preview_api_url": "https://pub-731655103ce74d0c930d7de993295739.r2.dev/tiles/CEAD7BAE5BF211E79925406186009F3A/scan_0/TileGroup0/0-0-0.jpg"
+    },
+    {
+      "xid": "CB5A48A1BAAE11E5A77074D435EEBE90",
+      "tile_status": 200,
+      "tile_url": "https://pub-731655103ce74d0c930d7de993295739.r2.dev/tiles/CB5A48A1BAAE11E5A77074D435EEBE90/scan_0/TileGroup0/0-0-0.jpg",
+      "preview_api_status": 200,
+      "preview_api_source": "r2_tile",
+      "preview_api_url": "https://pub-731655103ce74d0c930d7de993295739.r2.dev/tiles/CB5A48A1BAAE11E5A77074D435EEBE90/scan_0/TileGroup0/0-0-0.jpg"
+    }
+  ]
+}

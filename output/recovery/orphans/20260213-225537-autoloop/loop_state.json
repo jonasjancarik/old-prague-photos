@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-02-14T17:55:29Z",
+  "status": "running",
+  "cycle": 5,
+  "loop_dir": "output/recovery/orphans/20260213-225537-autoloop",
+  "run_dir": "output/recovery/orphans/20260213-225537-autoloop/20260214-185529-c5",
+  "stop_file": "output/recovery/orphans/STOP_LOOP"
+}

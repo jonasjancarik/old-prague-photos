@@ -1,0 +1,58 @@
+{
+  "generated_at": "2026-05-03T20:57:09Z",
+  "distance": 18,
+  "pair_distance": 18,
+  "hash_size": 8,
+  "algo": "dhash-edge-mountcrop",
+  "pairs": [
+    {
+      "group_id_a": "22066f6022e4ff3dab4e57f4e5374145281d7201",
+      "group_id_b": "c9768d9c674c8a4cb927ef39f82421105c33fbbb",
+      "distance": 0,
+      "xid_a": "A14CDA89B67611DF820F00166F1163D4",
+      "xid_b": "70B0EA55D12B11E89EBD74D435EEBE90",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.999,
+      "llm_reason": "The two scans match exactly in composition and all distinctive details: the courtyard architecture, arches and balconies, window openings, ladder placement, whe",
+      "llm_model": "gpt-5.4-mini",
+      "llm_backend": "openai"
+    },
+    {
+      "group_id_a": "0e3e2bcf044fed812e1c63e50e773b1048bce779",
+      "group_id_b": "ec578090df4dd01e714de0a43b282a4ca650d5a7",
+      "distance": 11,
+      "xid_a": "A118895BB67611DF820F00166F1163D4",
+      "xid_b": "B341895DBB1011E3A31E0024BE7CD9AC",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.97,
+      "llm_reason": "The architectural details align closely: same building facade, identical window arrangement, left wall lamp/ornament, balcony/ledge positions, and foreground/di",
+      "llm_model": "gpt-5.4-mini",
+      "llm_backend": "openai"
+    },
+    {
+      "group_id_a": "42ef91a3d4470beccef0777e9a29607b61134bcb",
+      "group_id_b": "b3312e8d1df2d362f53de2a506d5110e515fe236",
+      "distance": 18,
+      "xid_a": "A14CE7F3B67611DF820F00166F1163D4",
+      "xid_b": "95322C7B96B611E6BE20406186009F3A",
+      "llm_verdict": "same_shot",
+      "llm_confidence": 0.99,
+      "llm_reason": "The architectural details, window arrangement, roofline, corner perspective, vegetation, and framing all match exactly; the difference is only tonal/contrast (a",
+      "llm_model": "gpt-5.4-mini",
+      "llm_backend": "openai"
+    }
+  ],
+  "llm_review": {
+    "source_candidates": "output/similarity/hash_candidates.json",
+    "reviews": "output/similarity/eval/llm-sample/reviews.jsonl",
+    "source_pair_count": 207,
+    "reviewed_pair_count": 8,
+    "accepted_pair_count": 3,
+    "rejected_pair_count": 5,
+    "missing_review_count": 199,
+    "accepted_verdicts": [
+      "same_shot"
+    ],
+    "min_confidence": 0.85
+  }
+}

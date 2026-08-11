@@ -1,0 +1,14 @@
+{
+  "old_pairs": 451,
+  "unique_xids": 470,
+  "hashed_xids": 470,
+  "xid_failures": 0,
+  "rescored_pairs": 451,
+  "pair_failures": 0,
+  "old_threshold": 8,
+  "new_threshold": 14,
+  "kept_by_new_threshold": 101,
+  "removed_by_new_threshold": 350,
+  "removed_percent_of_rescored": 77.6,
+  "elapsed_seconds": 1215.5
+}

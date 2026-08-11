@@ -1,0 +1,70 @@
+{
+  "primary_records": 7738,
+  "max_distance": 24,
+  "pairs_le_18": 84,
+  "pairs_19_20": 112,
+  "pairs_21_22": 236,
+  "pairs_23_24": 743,
+  "pairs_le_24": 1175,
+  "distance_counts": {
+    "0": 3,
+    "2": 1,
+    "5": 1,
+    "6": 1,
+    "7": 1,
+    "8": 3,
+    "9": 1,
+    "11": 3,
+    "12": 5,
+    "13": 4,
+    "14": 6,
+    "15": 9,
+    "16": 12,
+    "17": 15,
+    "18": 19,
+    "19": 41,
+    "20": 71,
+    "21": 91,
+    "22": 145,
+    "23": 298,
+    "24": 445
+  },
+  "sheets": {
+    "threshold-18-kept.jpg": {
+      "band": [
+        0,
+        18
+      ],
+      "pairs_in_band": 84,
+      "sampled_pairs": 12,
+      "path": "output/similarity/eval/threshold-sheets/threshold-18-kept.jpg"
+    },
+    "threshold-20-added-19-20.jpg": {
+      "band": [
+        19,
+        20
+      ],
+      "pairs_in_band": 112,
+      "sampled_pairs": 12,
+      "path": "output/similarity/eval/threshold-sheets/threshold-20-added-19-20.jpg"
+    },
+    "threshold-22-added-21-22.jpg": {
+      "band": [
+        21,
+        22
+      ],
+      "pairs_in_band": 236,
+      "sampled_pairs": 12,
+      "path": "output/similarity/eval/threshold-sheets/threshold-22-added-21-22.jpg"
+    },
+    "threshold-24-added-23-24.jpg": {
+      "band": [
+        23,
+        24
+      ],
+      "pairs_in_band": 743,
+      "sampled_pairs": 12,
+      "path": "output/similarity/eval/threshold-sheets/threshold-24-added-23-24.jpg"
+    }
+  }
+}

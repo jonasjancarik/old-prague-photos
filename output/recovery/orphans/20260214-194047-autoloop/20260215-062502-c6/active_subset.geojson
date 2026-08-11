@@ -1,0 +1,485 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.42007,
+          50.08113
+        ]
+      },
+      "properties": {
+        "id": "f353e8ace78445f3815b3e1cd68b3ea6",
+        "group_id": "43d49ed5c17a3db4c5f8567447123047844a83b4",
+        "kind": "negativ",
+        "description": "Celkový pohled na dům čp. 74 na nároží ulic Spálené (v popředí) a Purkyňovy (vlevo) na Novém Městě.",
+        "date_label": "",
+        "start_date": "",
+        "end_date": "",
+        "author": "Reach, Zikmund (1859-1935)",
+        "signature": "X 2989",
+        "note": "",
+        "views": "23x",
+        "geolocation_type": "regional.address",
+        "date_precision": "unknown",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0252/3630f484dba1761c4e0a5f9116fb3ec9.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0252/3630f484dba1761c4e0a5f9116fb3ec9.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41783,
+          50.08711
+        ]
+      },
+      "properties": {
+        "id": "f40f26d11ef746b7a8228c5981c74fae",
+        "group_id": "5594e3f2af1a22103172cdd79e41b7b4bef13413",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu budovy Magistrátu hlavního města Prahy (dům čp. 2) na Mariánském náměstí na Starém Městě.",
+        "date_label": "",
+        "start_date": "",
+        "end_date": "",
+        "author": "",
+        "signature": "I 12898",
+        "note": "",
+        "views": "7x",
+        "geolocation_type": "regional.address",
+        "date_precision": "unknown",
+        "date_imprecise": false,
+        "scan_count": 2,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/e1cd4461fdc280b2c9aa2f86d38b8efc.jpg/nahled_maly.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/e1cd4461fdc280b2c9aa2f86d38b8efc.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/e1cd4461fdc280b2c9aa2f86d38b8efc.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/e1cd4461fdc280b2c9aa2f86d38b8efc.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41783,
+          50.08711
+        ]
+      },
+      "properties": {
+        "id": "fd5b2943830045ffa3abc7f0de181ec4",
+        "group_id": "5de7c551da712864625c3ca7a2f9df0880d0e2cf",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu budovy Magistrátu hlavního města Prahy (dům čp. 2) na Mariánském náměstí na Starém Městě.",
+        "date_label": "10.4.1910",
+        "start_date": "1910-04-10",
+        "end_date": "1910-04-10",
+        "author": "",
+        "signature": "I 12880",
+        "note": "",
+        "views": "9x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 2,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/bcedf5b99a687b10725f889e8e23ea34.jpg/nahled_maly.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/bcedf5b99a687b10725f889e8e23ea34.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/bcedf5b99a687b10725f889e8e23ea34.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/bcedf5b99a687b10725f889e8e23ea34.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41783,
+          50.08711
+        ]
+      },
+      "properties": {
+        "id": "f37a644dbe8b41dcaf7a9b872df47a69",
+        "group_id": "0b6750900fcad090336ea5f45cd3a87a3d7bab8a",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu budovy Magistrátu hlavního města Prahy (dům čp. 2) na Mariánském náměstí na Starém Městě. V pozadí Petřín.",
+        "date_label": "",
+        "start_date": "",
+        "end_date": "",
+        "author": "",
+        "signature": "I 12889",
+        "note": "",
+        "views": "12x",
+        "geolocation_type": "regional.address",
+        "date_precision": "unknown",
+        "date_imprecise": false,
+        "scan_count": 2,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/836f332cafd571c9504e0660c96c9c98.jpg/nahled_maly.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/836f332cafd571c9504e0660c96c9c98.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/836f332cafd571c9504e0660c96c9c98.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/836f332cafd571c9504e0660c96c9c98.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.38474,
+          50.06917
+        ]
+      },
+      "properties": {
+        "id": "d598ad6759f347c588ca1d14de0d4fc5",
+        "group_id": "c99a2c2761feb865e82b75845b1d182931526011",
+        "kind": "pozitiv",
+        "description": "Pohled na dům čp. 160 (dům pro židovské studenty, židovská modlitebna - v současnosti dům čp. 770) v ulici Na Popelce na Smíchově.",
+        "date_label": "",
+        "start_date": "",
+        "end_date": "",
+        "author": "Lederer, Arnold",
+        "signature": "I 13012",
+        "note": "",
+        "views": "40x",
+        "geolocation_type": "regional.address",
+        "date_precision": "unknown",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0245/b69c643b44a2e4ae77852e4271008501.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0245/b69c643b44a2e4ae77852e4271008501.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.42191,
+          50.1171
+        ]
+      },
+      "properties": {
+        "id": "f66761a25c864210903f441874dac8e1",
+        "group_id": "c74bc837930ba88d8169b08fe0b790837ec53509",
+        "kind": "pozitiv",
+        "description": "Pohled na usedlost Kazanku (dům čp. 69) v Troji v dnešní ulici Pod Havránkou.",
+        "date_label": "1958",
+        "start_date": "1958-01-01",
+        "end_date": "1958-12-31",
+        "author": "Hnilička, Eduard (1887-1967)",
+        "signature": "I 12938",
+        "note": "",
+        "views": "13x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/a75846ab81962831800dd18865f3e4d4.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/a75846ab81962831800dd18865f3e4d4.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41783,
+          50.08711
+        ]
+      },
+      "properties": {
+        "id": "dfff7ac616094de884663d9a93b456b1",
+        "group_id": "97d2d4c620e57e33338b8fb94163fdfa1b356e00",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu budovy Magistrátu hlavního města Prahy (dům čp. 2) na Mariánském náměstí na Starém Městě - konstrukce dvorany.",
+        "date_label": "",
+        "start_date": "",
+        "end_date": "",
+        "author": "",
+        "signature": "I 12897",
+        "note": "",
+        "views": "7x",
+        "geolocation_type": "regional.address",
+        "date_precision": "unknown",
+        "date_imprecise": false,
+        "scan_count": 2,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/e7e3d1ed6af09d083571d2434fec8ff7.jpg/nahled_maly.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/e7e3d1ed6af09d083571d2434fec8ff7.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/e7e3d1ed6af09d083571d2434fec8ff7.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/e7e3d1ed6af09d083571d2434fec8ff7.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41783,
+          50.08711
+        ]
+      },
+      "properties": {
+        "id": "f19e739b48d54b5aa34cb7812b473ac9",
+        "group_id": "2e79679bbe01495480eb48f0f51943df496dc3ed",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu budovy Magistrátu hlavního města Prahy (dům čp. 2) na Mariánském náměstí na Starém Městě. V pozadí Klementinum a Petřín.",
+        "date_label": "",
+        "start_date": "",
+        "end_date": "",
+        "author": "",
+        "signature": "I 12891",
+        "note": "",
+        "views": "15x",
+        "geolocation_type": "regional.address",
+        "date_precision": "unknown",
+        "date_imprecise": false,
+        "scan_count": 2,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/ef810c139e702fc173c400ca49963f92.jpg/nahled_maly.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/ef810c139e702fc173c400ca49963f92.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/ef810c139e702fc173c400ca49963f92.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/ef810c139e702fc173c400ca49963f92.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.40957,
+          50.09228
+        ]
+      },
+      "properties": {
+        "id": "d1bfcc80130f4947b54199dd31aca0e5",
+        "group_id": "6d85c8fc60a54b8f8932db112b14a6d5c60d9594",
+        "kind": "negativ",
+        "description": "Pohled na náměstí Klárov na Malé Straně. V pozadí Pražský hrad.",
+        "date_label": "3.10.1947",
+        "start_date": "1947-10-03",
+        "end_date": "1947-10-03",
+        "author": "Poustecký, Josef",
+        "signature": "X 4519",
+        "note": "",
+        "views": "11x",
+        "geolocation_type": "regional.address",
+        "date_precision": "day",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0304/14c78b3940e0ccc7b694ecef711a6767.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0304/14c78b3940e0ccc7b694ecef711a6767.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41739,
+          50.08739
+        ]
+      },
+      "properties": {
+        "id": "d1345f35148b49479c8ee7c4a6ac2520",
+        "group_id": "22735f40fa581070264647b712b1246bef7de37c",
+        "kind": "pozitiv",
+        "description": "Pohled na budovu Ústřední knihovny hlavního města Prahy (dům čp. 98 na Starém Městě) na Mariánském náměstí.",
+        "date_label": "",
+        "start_date": "",
+        "end_date": "",
+        "author": "",
+        "signature": "I 12991",
+        "note": "",
+        "views": "13x",
+        "geolocation_type": "regional.address",
+        "date_precision": "unknown",
+        "date_imprecise": false,
+        "scan_count": 2,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0245/7c513b8cfd59651f372580e161cca9b3.jpg/nahled_maly.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0245/7c513b8cfd59651f372580e161cca9b3.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0245/7c513b8cfd59651f372580e161cca9b3.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0245/7c513b8cfd59651f372580e161cca9b3.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.44878,
+          50.10034
+        ]
+      },
+      "properties": {
+        "id": "fc95bd45324c461eafa5801abf49aa8c",
+        "group_id": "9132ecf70364c3c74d06f5373a05cdb5aa7a24ac",
+        "kind": "pozitiv",
+        "description": "Pohled na odstřel Stalinova pomníku na Letné.",
+        "date_label": "listopad 1962",
+        "start_date": "1962-11-01",
+        "end_date": "1962-11-30",
+        "author": "",
+        "signature": "I 12957",
+        "note": "",
+        "views": "38x",
+        "geolocation_type": "poi",
+        "date_precision": "month",
+        "date_imprecise": false,
+        "scan_count": 1,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0245/fd5dc3e79cc5539471564973e677736e.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0245/fd5dc3e79cc5539471564973e677736e.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41783,
+          50.08711
+        ]
+      },
+      "properties": {
+        "id": "d5753ddd188a46e88d46651f01af9f10",
+        "group_id": "0a5bd23678e2f23ab22b5aa4d3d71c16cedd25b7",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu budovy Magistrátu hlavního města Prahy (dům čp. 2) na Mariánském náměstí na Starém Městě - ze 4. patra na Petřín. V pozadí Klementinum, Platnéřská a Valentinská ulice.",
+        "date_label": "1910",
+        "start_date": "1910-01-01",
+        "end_date": "1910-12-31",
+        "author": "",
+        "signature": "I 12887",
+        "note": "",
+        "views": "24x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 2,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/7a1932511ee74d40c7d9fb7acec3477c.jpg/nahled_maly.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/7a1932511ee74d40c7d9fb7acec3477c.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/7a1932511ee74d40c7d9fb7acec3477c.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/7a1932511ee74d40c7d9fb7acec3477c.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41783,
+          50.08711
+        ]
+      },
+      "properties": {
+        "id": "fbe17b568c9b4d8ba3f6217a9da22138",
+        "group_id": "dd3f68247b4484869076f214948dd44aad4719a6",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu budovy Magistrátu hlavního města Prahy (dům čp. 2) na Mariánském náměstí na Starém Městě. V pozadí náměstí Franze Kafky a Linhartská ulice.",
+        "date_label": "1909",
+        "start_date": "1909-01-01",
+        "end_date": "1909-12-31",
+        "author": "",
+        "signature": "I 12868",
+        "note": "",
+        "views": "12x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 2,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/e9b9d5b1df325deabeaeca28c3d8d1eb.jpg/nahled_maly.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/e9b9d5b1df325deabeaeca28c3d8d1eb.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/e9b9d5b1df325deabeaeca28c3d8d1eb.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/e9b9d5b1df325deabeaeca28c3d8d1eb.jpg"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.41783,
+          50.08711
+        ]
+      },
+      "properties": {
+        "id": "e3571e482bb547febe3826eb7087c227",
+        "group_id": "84af1c2507bc13c3f09f84aa4ec82658c3b0f987",
+        "kind": "pozitiv",
+        "description": "Pohled na stavbu budovy Magistrátu hlavního města Prahy (dům čp. 2) na Mariánském náměstí na Starém Městě. V pozadí náměstí Franze Kafky.",
+        "date_label": "1909",
+        "start_date": "1909-01-01",
+        "end_date": "1909-12-31",
+        "author": "",
+        "signature": "I 12866",
+        "note": "",
+        "views": "10x",
+        "geolocation_type": "regional.address",
+        "date_precision": "year",
+        "date_imprecise": false,
+        "scan_count": 2,
+        "scan_previews": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/5830a75b4cd8b4d699d1041edea3cdb4.jpg/nahled_maly.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/image/cz/archives/CZ-321100010/global-dao/images/0101/5830a75b4cd8b4d699d1041edea3cdb4.jpg/nahled_maly.jpg"
+        ],
+        "scan_zoomify_paths": [
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/5830a75b4cd8b4d699d1041edea3cdb4.jpg",
+          "https://images.ahmp.cz/mrimage/ahmp_watermark/zoomify/cz/archives/CZ-321100010/global-dao/images/0101/5830a75b4cd8b4d699d1041edea3cdb4.jpg"
+        ]
+      }
+    }
+  ]
+}
