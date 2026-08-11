@@ -1,6 +1,8 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from src.pipeline.filter import categorize_records
+from src.pipeline.filter import categorize_records, load_raw_records
 
 
 def record(xid: str, *, place: bool, obsah: str = "", entries: list[dict] | None = None):
@@ -16,6 +18,14 @@ def record(xid: str, *, place: bool, obsah: str = "", entries: list[dict] | None
 
 
 class FilterRecordsTests(unittest.TestCase):
+    def test_corrupt_raw_record_fails_instead_of_disappearing(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "BROKEN.json"
+            path.write_text('{"xid":', encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "Invalid raw-record JSON"):
+                load_raw_records(Path(tmpdir))
+
     def test_adjacent_records_without_places_are_both_excluded(self) -> None:
         records = [
             record("NO_PLACE_1", place=False),

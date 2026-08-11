@@ -5,8 +5,9 @@ import logging
 import json
 from pathlib import Path
 
+from src.pipeline.atomic_io import atomic_write_json
 from src.scraper.nav_partition import fetch_record_ids_via_nav
-from src.scraper.record_scraper import RecordScraper
+from src.scraper.record_scraper import RecordScraper, failure_ledger_state
 from src.utils.helpers import get_full_url, read_urls_from_file, save_ids_to_file
 
 RECORD_IDS_FILENAME = "output/available_record_ids.json"
@@ -16,24 +17,11 @@ logging.basicConfig(level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(
 
 
 def parse_failed_xids(path: Path) -> list[str]:
-    if not path.exists():
-        return []
-    seen: set[str] = set()
-    result: list[str] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        raw = line.strip()
-        if not raw:
-            continue
-        xid = ""
-        try:
-            payload = json.loads(raw)
-            xid = str(payload.get("xid", "")).strip()
-        except json.JSONDecodeError:
-            xid = raw
-        if xid and xid not in seen:
-            seen.add(xid)
-            result.append(xid)
-    return result
+    return [
+        xid
+        for xid, unresolved in failure_ledger_state(path).items()
+        if unresolved
+    ]
 
 
 def parse_int(value: object, default: int = 0) -> int:
@@ -136,10 +124,12 @@ async def main_async(
             if retry_missing_details:
                 missing_ids = parse_missing_details_xids(raw_records_dir)
                 record_ids.extend(missing_ids)
-                missing_details_path.parent.mkdir(parents=True, exist_ok=True)
-                missing_details_path.write_text(
-                    json.dumps(missing_ids, ensure_ascii=True, indent=2) + "\n",
-                    encoding="utf-8",
+                atomic_write_json(
+                    missing_details_path,
+                    missing_ids,
+                    ensure_ascii=True,
+                    indent=2,
+                    trailing_newline=True,
                 )
                 logging.info(
                     "Rescrape-missing-details enabled: found %s record IDs in %s.",
@@ -189,7 +179,9 @@ async def main_async(
             return
 
         failed_xids_path.parent.mkdir(parents=True, exist_ok=True)
-        failed_xids_path.write_text("", encoding="utf-8")
+        # The failure ledger is attempt history. Keep prior entries so an
+        # interrupted retry cannot erase the only record of unfinished work.
+        failed_xids_path.touch(exist_ok=True)
 
         # Scrape records using the scraper
         effective_existing_ids = (

@@ -41,6 +41,43 @@ appropriate:
 Turnstile secret rotation accepts the old and new secret for a short overlap.
 Rotate staging first, exercise all contribution flows, then rotate production.
 
+## The ignored cache baseline must verify before deployment
+
+Before either staging or production release, verify that the expensive ignored
+caches still match the preserved baseline:
+
+```bash
+uv run python scripts/release_baseline_inventory.py verify \
+  data-snapshots/release-baseline-2026-08-11.json
+```
+
+This is a local read-only check and is separate from the private D1 checkpoint.
+The manifest contains file paths, byte counts, and SHA-256 digests, but no cache
+payloads, `.wrangler/` contents, D1 rows, secrets, or local contribution logs.
+An empty top-level `absent_paths` means every selected baseline input was
+present when the manifest was written.
+
+If verification fails, stop the release. Preserve the current bytes before
+investigating; do not rerun collection, downloads, stitching, or model review to
+make the mismatch disappear. A deliberately accepted cache change requires a
+new dated manifest reviewed alongside the reason for the change.
+
+When a release includes a newly derived data snapshot, validate it separately
+before publication:
+
+```bash
+uv run cli run validate runs/<run-id>
+uv run cli run publish runs/<run-id>
+```
+
+`validate` is read-only, and `publish` enforces the same checks. Publication
+merges raw records, geolocation, Gemini batch files, and viewer features by
+stable identity, preserving existing entries omitted from the run. Matching
+record objects retain published fields that the run omits; matching Gemini
+request/result filenames must be byte-identical or publication stops. See the
+[Pipeline Contract](./pipeline-contract.md) for the append-only failure ledger,
+raw-metadata export overlay, and interruption-safe Gemini submission rules.
+
 ## Staging release
 
 Run from a clean, reviewed commit:

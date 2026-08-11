@@ -9,12 +9,14 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 
+from src.pipeline.atomic_io import atomic_write_json
 from src.utils.helpers import fetch
 
 
 TOTAL_RE = re.compile(r"\(\s*<strong>\s*([\d\s.,]+)\s*</strong>", re.IGNORECASE)
 FOUND_RE = re.compile(r"Nalezeno\s*<b>(\d+)</b>", re.IGNORECASE)
 XID_RE = re.compile(r"xid=([A-Za-z0-9]+)", re.IGNORECASE)
+NAV_PROGRESS_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -165,29 +167,103 @@ def _extract_xids(html: str) -> List[str]:
     return sorted(set(XID_RE.findall(html)))
 
 
-def _load_progress(path: str, *, label: str, seed_url: str) -> Dict[str, List[str]]:
+def _validate_partition_ids(
+    label: str,
+    reported_total: int | None,
+    node_ids: List[str] | None,
+) -> List[str]:
+    if node_ids is None:
+        raise RuntimeError(f"missing ids for {label}")
+    if not node_ids and reported_total != 0:
+        if reported_total is None:
+            raise RuntimeError(
+                f"empty id list for {label} without explicit reported total 0"
+            )
+        raise RuntimeError(
+            f"empty id list for {label} despite reported total {reported_total}"
+        )
+    if node_ids and reported_total == 0:
+        raise RuntimeError(f"nonempty id list for {label} despite reported total 0")
+    return node_ids
+
+
+def _load_progress_state(
+    path: str,
+    *,
+    label: str,
+    seed_url: str,
+) -> Tuple[Dict[str, List[str]], Dict[str, int]]:
     if not path or not os.path.exists(path):
-        return {}
+        return {}, {}
     try:
         with open(path, "r") as handle:
             data = json.load(handle)
     except Exception as exc:
-        logging.warning("nav progress load failed %s: %s", path, exc)
-        return {}
-    if data.get("label") and data["label"] != label:
-        logging.warning("nav progress label mismatch %s", data.get("label"))
-        return {}
-    if data.get("seed_url") and data["seed_url"] != seed_url:
-        logging.warning("nav progress seed mismatch %s", data.get("seed_url"))
-        return {}
+        raise ValueError(f"Cannot safely resume from nav progress {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"Invalid nav progress object in {path}")
+    if data.get("label") != label:
+        raise ValueError(
+            f"Nav progress label mismatch in {path}: {data.get('label')!r} != {label!r}"
+        )
+    if data.get("seed_url") != seed_url:
+        raise ValueError(
+            f"Nav progress seed mismatch in {path}: "
+            f"{data.get('seed_url')!r} != {seed_url!r}"
+        )
+    schema_version = data.get("schema_version")
+    if schema_version not in {None, 1, NAV_PROGRESS_SCHEMA_VERSION}:
+        raise ValueError(
+            f"Unsupported nav progress schema {schema_version!r} in {path}"
+        )
     ids_by_label = data.get("ids_by_label")
     if not isinstance(ids_by_label, dict):
-        return {}
+        raise ValueError(f"Invalid ids_by_label in nav progress {path}")
+
+    reported_totals: Dict[str, int] = {}
+    if schema_version == NAV_PROGRESS_SCHEMA_VERSION:
+        raw_reported_totals = data.get("reported_totals_by_label", {})
+        if not isinstance(raw_reported_totals, dict):
+            raise ValueError(
+                f"Invalid reported_totals_by_label in nav progress {path}"
+            )
+        for key, value in raw_reported_totals.items():
+            if not isinstance(key, str):
+                raise ValueError(f"Invalid reported-total label {key!r} in {path}")
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(
+                    f"Invalid reported total for label {key!r} in nav progress {path}"
+                )
+            reported_totals[key] = value
+
     normalized: Dict[str, List[str]] = {}
+    retained_totals: Dict[str, int] = {}
     for key, value in ids_by_label.items():
-        if isinstance(value, list):
-            normalized[str(key)] = [str(item) for item in value]
-    return normalized
+        if not isinstance(key, str) or not isinstance(value, list):
+            raise ValueError(f"Invalid ID list for label {key!r} in nav progress {path}")
+        if any(not isinstance(item, str) for item in value):
+            raise ValueError(f"Invalid ID value for label {key!r} in nav progress {path}")
+        reported_total = reported_totals.get(key)
+        if not value and reported_total != 0:
+            logging.warning(
+                "nav progress will retry unconfirmed empty partition %s from %s",
+                key,
+                path,
+            )
+            continue
+        if value and reported_total == 0:
+            raise ValueError(
+                f"Nonempty partition {key!r} has reported total 0 in nav progress {path}"
+            )
+        normalized[key] = list(value)
+        if reported_total is not None:
+            retained_totals[key] = reported_total
+    return normalized, retained_totals
+
+
+def _load_progress(path: str, *, label: str, seed_url: str) -> Dict[str, List[str]]:
+    ids_by_label, _ = _load_progress_state(path, label=label, seed_url=seed_url)
+    return ids_by_label
 
 
 def _save_progress(
@@ -196,23 +272,28 @@ def _save_progress(
     label: str,
     seed_url: str,
     ids_by_label: Dict[str, List[str]],
+    reported_totals_by_label: Dict[str, int],
     pending_labels: List[str],
     failed_labels: List[str],
 ) -> None:
     if not path:
         return
-    directory = os.path.dirname(path)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
+    for partition_label, partition_ids in ids_by_label.items():
+        _validate_partition_ids(
+            partition_label,
+            reported_totals_by_label.get(partition_label),
+            partition_ids,
+        )
     payload: Dict[str, object] = {
+        "schema_version": NAV_PROGRESS_SCHEMA_VERSION,
         "label": label,
         "seed_url": seed_url,
         "ids_by_label": ids_by_label,
+        "reported_totals_by_label": reported_totals_by_label,
         "pending_labels": pending_labels,
         "failed_labels": failed_labels,
     }
-    with open(path, "w") as handle:
-        json.dump(payload, handle, ensure_ascii=True, indent=2)
+    atomic_write_json(path, payload, ensure_ascii=True, indent=2)
 
 
 async def _fetch_text_with_retry(
@@ -341,8 +422,13 @@ async def fetch_record_ids_via_nav(
         raise RuntimeError("no navigation children found")
 
     ids_by_label: Dict[str, List[str]] = {}
+    reported_totals_by_label: Dict[str, int] = {}
     if resume and progress_path:
-        ids_by_label = _load_progress(progress_path, label=label, seed_url=seed_url)
+        ids_by_label, reported_totals_by_label = _load_progress_state(
+            progress_path,
+            label=label,
+            seed_url=seed_url,
+        )
     completed_labels = set(ids_by_label)
     remaining_children = [
         child for child in children if child.label not in completed_labels
@@ -478,11 +564,11 @@ async def fetch_record_ids_via_nav(
                         len(view_html),
                     )
                 node_ids = ids
-            if node_ids is None:
-                raise RuntimeError(f"missing ids for {child.label}")
-            if total is None and node_ids:
+            node_ids = _validate_partition_ids(child.label, total, node_ids)
+            if total is None:
                 total = len(node_ids)
             ids_by_label[child.label] = node_ids
+            reported_totals_by_label[child.label] = total
             logging.info(
                 "nav node %s -> %s ids (reported %s)",
                 child.label,
@@ -500,6 +586,7 @@ async def fetch_record_ids_via_nav(
             label=label,
             seed_url=seed_url,
             ids_by_label=ids_by_label,
+            reported_totals_by_label=reported_totals_by_label,
             pending_labels=pending_labels,
             failed_labels=errors,
         )

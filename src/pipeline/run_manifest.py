@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from scripts.write_pipeline_manifest import build_manifest
+from src.pipeline.atomic_io import atomic_write_json
 from src.pipeline.paths import PipelinePaths
 
 
@@ -34,8 +35,10 @@ def write_run_manifest(paths: PipelinePaths) -> dict[str, Any]:
         count_dirs=paths.manifest_count_dirs(),
         include_defaults=False,
     )
-    paths.manifest_path.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
+    atomic_write_json(
+        paths.manifest_path,
+        manifest,
+        indent=2,
+        trailing_newline=True,
     )
     return manifest

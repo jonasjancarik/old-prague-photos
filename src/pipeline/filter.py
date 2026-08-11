@@ -2,6 +2,8 @@ import argparse
 import json
 from pathlib import Path
 
+from src.pipeline.atomic_io import atomic_write_json
+
 
 DEFAULT_RAW_RECORDS_DIR = Path("output/raw_records")
 DEFAULT_FILTERED_DIR = Path("output/filtered")
@@ -38,10 +40,15 @@ def load_raw_records(raw_records_dir: Path) -> list[dict]:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except Exception as exc:
-            print(f"Skipping {path}: {exc}")
-            continue
-        if isinstance(payload, dict):
-            records.append(payload)
+            raise ValueError(f"Invalid raw-record JSON in {path}: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise ValueError(f"Raw record must be a JSON object: {path}")
+        xid = payload.get("xid")
+        if xid != path.stem:
+            raise ValueError(
+                f"Raw record XID does not match filename: {path} contains {xid!r}"
+            )
+        records.append(payload)
     return records
 
 
@@ -72,8 +79,7 @@ def categorize_records(records: list[dict]) -> tuple[list[dict], dict[str, list[
 
 
 def write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    atomic_write_json(path, payload)
 
 
 def run_filter(

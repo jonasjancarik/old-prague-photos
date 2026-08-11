@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 from pathlib import Path
 from typing import Optional
 
 import typer
 from typing_extensions import Annotated
+
+from src.pipeline.atomic_io import atomic_write_json
 
 
 run_app = typer.Typer(help="Run-directory snapshot commands.")
@@ -50,9 +51,11 @@ def _run_paths(run_dir: Path):
             "mode": "run",
             "description": "Pipeline run directory for old-prague-photos",
         }
-        paths.config_path.write_text(
-            json.dumps(config, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
+        atomic_write_json(
+            paths.config_path,
+            config,
+            indent=2,
+            trailing_newline=True,
         )
     return paths
 
@@ -113,10 +116,15 @@ def run_init(
         "description": "Pipeline run directory for old-prague-photos",
     }
     if from_output:
-        paths.copy_current_output_snapshot()
-        paths.config_path.write_text(
-            json.dumps(config, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
+        try:
+            paths.copy_current_output_snapshot()
+        except FileExistsError as exc:
+            raise typer.BadParameter(str(exc), param_hint="run_dir") from exc
+        atomic_write_json(
+            paths.config_path,
+            config,
+            indent=2,
+            trailing_newline=True,
         )
         _record_run_stage(paths, "init", {"from_output": True})
         typer.echo(f"Created {run_dir} from current output/ snapshot")
@@ -228,6 +236,27 @@ def run_publish(
         {"output_dir": str(output_dir), "photos_path": str(photos_path)},
     )
     typer.echo(f"Published {run_dir} to {output_dir} and {photos_path}")
+
+
+@run_app.command("validate")
+def run_validate(
+    run_dir: Annotated[
+        Path,
+        typer.Argument(help="Completed run directory to validate without publishing"),
+    ],
+):
+    """Fail closed on corrupt or incomplete publish inputs without changing files."""
+    from src.pipeline.paths import PipelinePaths
+
+    paths = PipelinePaths.from_run_dir(run_dir)
+    paths.assert_snapshot_inputs()
+    counts = paths.validate_publish_snapshot()
+    typer.echo(
+        "Validated "
+        f"{counts['raw_records']} raw records, "
+        f"{counts['geolocation_records']} geolocation records, and "
+        f"{counts['viewer_features']} viewer features."
+    )
 
 
 @run_app.command("geolocate-mapy")
@@ -429,6 +458,33 @@ def run_llm_status(
     manager = _run_batch_manager(paths)
     manager.check_status()
     _record_run_stage(paths, "geolocate_llm_status")
+
+
+@run_geolocate_llm_app.command("reconcile")
+def run_llm_reconcile(
+    run_dir: Annotated[
+        Path,
+        typer.Argument(help="Run directory with an ambiguous local batch intent"),
+    ],
+    local_intent: Annotated[
+        str,
+        typer.Argument(help="Local intent name (local/<fingerprint> or fingerprint)"),
+    ],
+    remote_job: Annotated[
+        str,
+        typer.Argument(help="Verified Gemini batch job name (batches/<id>)"),
+    ],
+):
+    """Attach a create-pending local intent to its verified remote batch job."""
+    paths = _run_paths(run_dir)
+    manager = _run_batch_manager(paths)
+    manager.reconcile_local_intent(local_intent, remote_job)
+    _record_run_stage(
+        paths,
+        "geolocate_llm_reconcile",
+        {"local_intent": local_intent, "remote_job": remote_job},
+    )
+    typer.echo(f"Reconciled {local_intent} with {remote_job}")
 
 
 @run_geolocate_llm_app.command("collect")

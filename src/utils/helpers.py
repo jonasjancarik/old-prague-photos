@@ -11,6 +11,8 @@ import json
 import asyncio
 from typing import List
 
+from src.pipeline.atomic_io import atomic_write_json
+
 # Load the environment variables at module load time.
 load_dotenv()
 
@@ -23,7 +25,11 @@ user_agent = ua.random
 
 
 def get_full_url(path: str) -> str:
-    return f'{os.getenv("BASE_URL", "https://katalog.ahmp.cz/pragapublica")}{path}'
+    base_url = os.getenv("ARCHIVE_BASE_URL") or os.getenv(
+        "BASE_URL",
+        "https://katalog.ahmp.cz/pragapublica",
+    )
+    return f"{base_url}{path}"
 
 
 @backoff.on_exception(backoff.expo, aiohttp.ClientError, max_tries=10)
@@ -86,8 +92,7 @@ def log_summary(times):
 
 
 def save_ids_to_file(urls: List[str], filename: str) -> None:
-    with open(filename, "w") as file:
-        json.dump(urls, file)
+    atomic_write_json(filename, urls, ensure_ascii=True)
 
 
 def read_urls_from_file(filename: str) -> List[str]:

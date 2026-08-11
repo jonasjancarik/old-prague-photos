@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import Dict, Optional
 from dotenv import load_dotenv
 
+from src.pipeline.atomic_io import atomic_write_json
+
 # Prompt versioning storage
 PROMPTS_FILE = "output/prompts.json"
 OUTPUT_OK_DIR = "output/geolocation/ok"
@@ -51,9 +53,7 @@ def save_prompt(prompt_hash: str, prompt: str, prompts_file=PROMPTS_FILE):
 
     if prompt_hash not in prompts:
         prompts[prompt_hash] = prompt
-        prompts_file.parent.mkdir(parents=True, exist_ok=True)
-        with prompts_file.open("w", encoding="utf-8") as f:
-            json.dump(prompts, f, ensure_ascii=False, indent=2)
+        atomic_write_json(prompts_file, prompts, indent=2)
         logging.info(f"Saved new prompt with hash {prompt_hash}")
 
 
@@ -69,9 +69,7 @@ def list_directory(directory):
 def save_to_file(directory, filename, data):
     """Saves data to a file in the specified directory."""
     directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=True)
-    with (directory / f"{filename}.json").open("w", encoding="utf-8") as file:
-        json.dump(data, file, ensure_ascii=False)
+    atomic_write_json(directory / f"{filename}.json", data)
 
 
 def categorize_failed_geolocation(

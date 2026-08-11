@@ -1,7 +1,7 @@
 import json
 import os
 import logging
-import time
+import hashlib
 from dataclasses import asdict
 from typing import Dict, Optional
 from datetime import datetime
@@ -9,6 +9,12 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
+
+from src.pipeline.atomic_io import (
+    atomic_write_bytes,
+    atomic_write_json,
+    atomic_write_text,
+)
 
 # Re-use utilities from the Mapy.cz geolocation pipeline.
 from src.pipeline.geolocate import (
@@ -85,9 +91,198 @@ class BatchManager:
         return {}
 
     def _save_batches(self):
-        self.batches_file.parent.mkdir(parents=True, exist_ok=True)
-        with self.batches_file.open("w", encoding="utf-8") as f:
-            json.dump(self.batches, f, ensure_ascii=False, indent=2)
+        atomic_write_json(self.batches_file, self.batches, indent=2)
+
+    def _record_ids_for_job(self, job_data: dict) -> set[str]:
+        stored_ids = {
+            str(item).strip()
+            for item in (job_data.get("record_ids") or [])
+            if str(item).strip()
+        }
+        if stored_ids:
+            return stored_ids
+
+        input_file = job_data.get("input_file")
+        if not input_file:
+            raise RuntimeError(
+                "Cannot safely resume a batch without record_ids or input_file"
+            )
+        metadata_path = Path(input_file)
+        request_path = self.batch_requests_dir / metadata_path.name
+        if not request_path.exists():
+            request_path = metadata_path
+        if not request_path.exists():
+            raise RuntimeError(
+                f"Cannot safely resume batch; request file is missing: {input_file}"
+            )
+
+        recovered: set[str] = set()
+        for line_number, line in enumerate(
+            request_path.read_text(encoding="utf-8").splitlines(),
+            start=1,
+        ):
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+            except Exception as exc:
+                raise ValueError(
+                    f"Invalid batch request JSON at {request_path}:{line_number}: {exc}"
+                ) from exc
+            key = str(entry.get("key", "")).strip()
+            if not key:
+                raise ValueError(
+                    f"Missing record key at {request_path}:{line_number}"
+                )
+            if key in recovered:
+                raise ValueError(f"Duplicate record key {key!r} in {request_path}")
+            recovered.add(key)
+        if not recovered:
+            raise ValueError(f"Batch request contains no record keys: {request_path}")
+        return recovered
+
+    def _reserved_record_ids(self) -> set[str]:
+        terminal_without_work = {"JOB_STATE_FAILED", "JOB_STATE_CANCELLED"}
+        reserved: set[str] = set()
+        for job_data in self.batches.values():
+            if "processed_at" in job_data:
+                continue
+            if job_data.get("state") in terminal_without_work:
+                continue
+            reserved.update(self._record_ids_for_job(job_data))
+        return reserved
+
+    def _request_path_for_intent(self, intent: dict) -> Path:
+        input_file = intent.get("input_file")
+        if not input_file:
+            raise RuntimeError("Local batch intent has no request file")
+        metadata_path = Path(input_file)
+        request_path = self.batch_requests_dir / metadata_path.name
+        if not request_path.exists():
+            request_path = metadata_path
+        if not request_path.exists():
+            raise RuntimeError(
+                f"Local batch intent request file is missing: {input_file}"
+            )
+        expected_sha256 = str(intent.get("request_sha256") or "").strip()
+        actual_sha256 = hashlib.sha256(request_path.read_bytes()).hexdigest()
+        if expected_sha256 and actual_sha256 != expected_sha256:
+            raise RuntimeError(
+                "Local batch intent request checksum changed: "
+                f"{request_path}"
+            )
+        return request_path
+
+    def _adopt_remote_job(
+        self,
+        intent_name: str,
+        job,
+        *,
+        reconciled: bool = False,
+    ) -> None:
+        intent = self.batches[intent_name]
+        metadata = dict(intent)
+        metadata.update(
+            {
+                "name": job.name,
+                "display_name": job.display_name,
+                "state": job.state.name,
+                "phase": "remote_job",
+            }
+        )
+        if reconciled:
+            metadata["reconciled_at"] = datetime.now().isoformat()
+        if getattr(job, "dest", None) and getattr(job.dest, "file_name", None):
+            metadata["output_file"] = job.dest.file_name
+        self.batches.pop(intent_name)
+        self.batches[job.name] = metadata
+        self._save_batches()
+
+    def _submit_local_intent(self, intent_name: str) -> None:
+        intent = self.batches[intent_name]
+        state = intent.get("state")
+        if state == "LOCAL_REQUEST_READY":
+            request_path = self._request_path_for_intent(intent)
+            logging.info("Uploading saved batch request %s...", request_path)
+            uploaded_file = self.client.files.upload(
+                file=str(request_path),
+                config=types.UploadFileConfig(
+                    display_name=request_path.name,
+                    mime_type="application/jsonl",
+                ),
+            )
+            intent["uploaded_file"] = uploaded_file.name
+            intent["uploaded_at"] = datetime.now().isoformat()
+            intent["state"] = "LOCAL_FILE_UPLOADED"
+            intent["phase"] = "file_uploaded"
+            self._save_batches()
+            state = intent["state"]
+
+        if state != "LOCAL_FILE_UPLOADED":
+            raise RuntimeError(
+                f"Local intent {intent_name} is not safely resumable from {state!r}"
+            )
+
+        intent["state"] = "LOCAL_CREATE_PENDING"
+        intent["phase"] = "create_pending"
+        intent["create_started_at"] = datetime.now().isoformat()
+        self._save_batches()
+
+        # Once this call starts, a transport error is ambiguous: the remote job
+        # may exist. Keep the reservation until the operator reconciles it by
+        # remote job name instead of submitting the records again.
+        logging.info("Creating batch job with model %s...", self.model)
+        job = self.client.batches.create(
+            model=self.model,
+            src=intent["uploaded_file"],
+            config=types.CreateBatchJobConfig(
+                display_name=intent["display_name"]
+            ),
+        )
+        self._adopt_remote_job(intent_name, job)
+        logging.info("Batch job created: %s", job.name)
+
+    def _resume_safe_local_intents(self) -> int:
+        resumable = [
+            name
+            for name, data in self.batches.items()
+            if name.startswith("local/")
+            and data.get("state")
+            in {"LOCAL_REQUEST_READY", "LOCAL_FILE_UPLOADED"}
+        ]
+        for intent_name in sorted(resumable):
+            self._submit_local_intent(intent_name)
+        return len(resumable)
+
+    def reconcile_local_intent(
+        self,
+        intent_name: str,
+        remote_job_name: str,
+    ) -> None:
+        """Attach an ambiguous post-create intent to a verified remote job."""
+        if intent_name not in self.batches and not intent_name.startswith("local/"):
+            intent_name = f"local/{intent_name}"
+        intent = self.batches.get(intent_name)
+        if not intent or not intent_name.startswith("local/"):
+            raise ValueError(f"Unknown local batch intent: {intent_name}")
+        if intent.get("state") != "LOCAL_CREATE_PENDING":
+            raise ValueError(
+                f"Local intent {intent_name} is not awaiting reconciliation"
+            )
+        if remote_job_name in self.batches:
+            raise ValueError(f"Remote batch job is already recorded: {remote_job_name}")
+
+        job = self.client.batches.get(name=remote_job_name)
+        if job.name != remote_job_name:
+            raise ValueError(
+                f"Remote batch identity mismatch: {job.name!r} != {remote_job_name!r}"
+            )
+        if job.display_name != intent.get("display_name"):
+            raise ValueError(
+                "Remote batch display name does not match the local intent: "
+                f"{job.display_name!r} != {intent.get('display_name')!r}"
+            )
+        self._adopt_remote_job(intent_name, job, reconciled=True)
 
     def submit(
         self,
@@ -104,6 +299,9 @@ class BatchManager:
             include_failed_cp: If True, include records that failed direct geocoding
             retry_missing_content: If True, include LLM failures missing content parts
         """
+        if self._resume_safe_local_intents():
+            return
+
         records_to_process = []
         record_ids_to_process = set()
 
@@ -129,7 +327,9 @@ class BatchManager:
             except Exception:
                 direct_geolocated_ids.add(xid)  # Assume direct if can't read
 
-        # Determine which IDs to skip
+        # Determine which IDs to skip for ordinary selection. Explicit retry
+        # modes bypass prior failure files, but never a successful output or an
+        # unfinished remote-work reservation.
         if redo_llm:
             # Skip only direct matches and failed, include old LLM records
             processed_ids = direct_geolocated_ids.union(set(geolocation_failed_files))
@@ -140,6 +340,16 @@ class BatchManager:
             # Skip everything already processed
             processed_ids = direct_geolocated_ids.union(llm_geolocated_ids).union(
                 set(geolocation_failed_files)
+            )
+        reserved_ids = self._reserved_record_ids()
+        processed_ids.update(reserved_ids)
+        explicit_retry_skip_ids = (
+            direct_geolocated_ids.union(llm_geolocated_ids).union(reserved_ids)
+        )
+        if reserved_ids:
+            logging.info(
+                "Skipping %s records reserved by unfinished batch jobs",
+                len(reserved_ids),
             )
 
         # Load filtered records (records_without_cp and records_with_cp_in_record_obsah)
@@ -185,7 +395,7 @@ class BatchManager:
                     with Path(filepath).open("r", encoding="utf-8") as file:
                         record = json.load(file)
                     xid = record["xid"]
-                    if xid in record_ids_to_process:
+                    if xid in explicit_retry_skip_ids or xid in record_ids_to_process:
                         continue
                     records_to_process.append(record)
                     record_ids_to_process.add(xid)
@@ -207,7 +417,7 @@ class BatchManager:
                 if record.get("llm_error") not in retry_errors:
                     continue
                 xid = record["xid"]
-                if xid in record_ids_to_process:
+                if xid in explicit_retry_skip_ids or xid in record_ids_to_process:
                     continue
                 records_to_process.append(record)
                 record_ids_to_process.add(xid)
@@ -227,81 +437,68 @@ class BatchManager:
         logging.info(f"Preparing batch for {len(records_to_process)} records...")
 
         # Create JSONL file
-        self.batch_requests_dir.mkdir(parents=True, exist_ok=True)
-        batch_path = self.batch_requests_dir / f"batch_request_{int(time.time())}.jsonl"
-        with batch_path.open("w", encoding="utf-8") as f:
-            for record in records_to_process:
-                # Use extraction prompt logic
-                obsah = record.get("obsah", "")
-                misto_entries = [
-                    item["obsah"]
-                    for item in record.get("rejstříkové záznamy", [])
-                    if item.get("typ", "").lower() == "místo"
-                ]
-                dilo_entries = [
-                    item["obsah"]
-                    for item in record.get("rejstříkové záznamy", [])
-                    if item.get("typ", "").lower() == "dílo"
-                ]
-                datace = record.get("datace", "")
+        request_lines = []
+        for record in records_to_process:
+            # Use extraction prompt logic
+            obsah = record.get("obsah", "")
+            misto_entries = [
+                item["obsah"]
+                for item in record.get("rejstříkové záznamy", [])
+                if item.get("typ", "").lower() == "místo"
+            ]
+            dilo_entries = [
+                item["obsah"]
+                for item in record.get("rejstříkové záznamy", [])
+                if item.get("typ", "").lower() == "dílo"
+            ]
+            datace = record.get("datace", "")
 
-                prompt = COMBINED_PROMPT_TEMPLATE.format(
-                    obsah=obsah,
-                    misto_entries=misto_entries,
-                    dilo_entries=dilo_entries,
-                    datace=datace,
-                )
+            prompt = COMBINED_PROMPT_TEMPLATE.format(
+                obsah=obsah,
+                misto_entries=misto_entries,
+                dilo_entries=dilo_entries,
+                datace=datace,
+            )
 
-                request = {
-                    "key": record["xid"],
-                    "request": {
-                        "contents": [{"parts": [{"text": prompt}], "role": "user"}],
-                        "generation_config": {
-                            "temperature": 1.0,
-                            "thinking_config": {"thinking_level": "MEDIUM"},
-                        },
+            request = {
+                "key": record["xid"],
+                "request": {
+                    "contents": [{"parts": [{"text": prompt}], "role": "user"}],
+                    "generation_config": {
+                        "temperature": 1.0,
+                        "thinking_config": {"thinking_level": "MEDIUM"},
                     },
-                }
-                f.write(json.dumps(request, ensure_ascii=False) + "\n")
-
-        # Upload file
-        logging.info(f"Uploading {batch_path}...")
-        uploaded_file = self.client.files.upload(
-            file=str(batch_path),
-            config=types.UploadFileConfig(
-                display_name=batch_path.name,
-                mime_type="application/jsonl",
-            ),
+                },
+            }
+            request_lines.append(json.dumps(request, ensure_ascii=False))
+        request_payload = "\n".join(request_lines) + "\n"
+        request_fingerprint = hashlib.sha256(request_payload.encode("utf-8")).hexdigest()
+        batch_path = self.batch_requests_dir / (
+            f"batch_request_{request_fingerprint[:16]}.jsonl"
         )
+        atomic_write_text(batch_path, request_payload)
 
-        # Create batch job
-        logging.info(f"Creating batch job with model {self.model}...")
-        job = self.client.batches.create(
-            model=self.model,
-            src=uploaded_file.name,
-            config=types.CreateBatchJobConfig(
-                display_name=f"Geolocation_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            ),
-        )
-
-        # Store metadata
-        self.batches[job.name] = {
-            "name": job.name,
-            "display_name": job.display_name,
-            "state": job.state.name,
+        intent_name = f"local/{request_fingerprint[:16]}"
+        self.batches[intent_name] = {
+            "name": intent_name,
+            "state": "LOCAL_REQUEST_READY",
             "created_at": datetime.now().isoformat(),
             "input_file": str(batch_path),
+            "request_sha256": request_fingerprint,
+            "phase": "request_ready",
+            "display_name": f"Geolocation_{request_fingerprint[:16]}",
             "record_ids": sorted(str(record["xid"]) for record in records_to_process),
             "record_count": len(records_to_process),
         }
         self._save_batches()
-        logging.info(f"Batch job created: {job.name}")
+        self._submit_local_intent(intent_name)
 
     def check_status(self):
         """Check status of active jobs and update metadata."""
         active_jobs = [
             j
             for j, data in self.batches.items()
+            if not j.startswith("local/")
             if data["state"]
             not in ["JOB_STATE_SUCCEEDED", "JOB_STATE_FAILED", "JOB_STATE_CANCELLED"]
         ]
@@ -372,10 +569,8 @@ class BatchManager:
 
             logging.info(f"Downloading results for {job_name}...")
             content = self.client.files.download(file=output_file_name)
-            self.batch_results_dir.mkdir(parents=True, exist_ok=True)
             results_path = self._results_path(job_name)
-            with results_path.open("wb") as results_file:
-                results_file.write(content)
+            atomic_write_bytes(results_path, content)
             job_data["downloaded_at"] = datetime.now().isoformat()
             job_data["results_file"] = str(results_path)
             logging.info("Saved batch results to %s", results_path)
@@ -454,15 +649,34 @@ class BatchManager:
             lines = content.decode("utf-8").splitlines()
             total_lines = len(lines)
             result_entries = []
-            for line in lines:
+            for line_number, line in enumerate(lines, start=1):
                 if not line.strip():
                     continue
-                result_entries.append(json.loads(line))
-            submitted_ids = {
-                str(entry.get("key", "")).strip()
-                for entry in result_entries
-                if str(entry.get("key", "")).strip()
-            }
+                entry = json.loads(line)
+                if not isinstance(entry, dict):
+                    raise ValueError(
+                        f"Batch result entry must be an object at "
+                        f"{results_path}:{line_number}"
+                    )
+                key = entry.get("key")
+                if not isinstance(key, str) or not key or key != key.strip():
+                    raise ValueError(
+                        f"Batch result has a noncanonical record key at "
+                        f"{results_path}:{line_number}: {key!r}"
+                    )
+                result_entries.append(entry)
+            result_keys = [entry["key"] for entry in result_entries]
+            if len(result_keys) != len(set(result_keys)):
+                raise ValueError(f"Batch result contains duplicate record keys: {results_path}")
+            expected_ids = self._record_ids_for_job(job_data)
+            if set(result_keys) != expected_ids:
+                missing = sorted(expected_ids - set(result_keys))
+                unexpected = sorted(set(result_keys) - expected_ids)
+                raise ValueError(
+                    f"Batch result keys do not match its request for {job_name}: "
+                    f"missing={missing[:5]} unexpected={unexpected[:5]}"
+                )
+            submitted_ids = set(result_keys)
             submitted_ids.update(
                 str(item).strip()
                 for item in job_data.get("record_ids", [])
@@ -482,6 +696,13 @@ class BatchManager:
             processed_ids = set()
             if not reprocess:
                 processed_ids = geolocated_ids.union(failed_ids - submitted_ids)
+
+            missing_source_ids = expected_ids - set(record_map) - processed_ids
+            if missing_source_ids:
+                raise ValueError(
+                    f"Cannot safely process {job_name}; original records are missing for "
+                    f"{sorted(missing_source_ids)[:5]}"
+                )
 
             results_count = 0
             logging.info(f"Processing {total_lines} results from batch...")

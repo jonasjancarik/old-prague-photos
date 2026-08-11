@@ -1,7 +1,8 @@
+import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from src.pipeline.collect import (
     dedupe_keep_order,
@@ -34,6 +35,24 @@ class CollectRetryFailedTests(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "missing.jsonl"
             self.assertEqual(parse_failed_xids(path), [])
+
+    def test_parse_failed_xids_uses_latest_failure_or_resolution_event(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "failed_xids.jsonl"
+            path.write_text(
+                "\n".join(
+                    [
+                        '{"xid":"A1","error":"first"}',
+                        '{"xid":"A1","resolved":true}',
+                        '{"xid":"B2","error":"still failed"}',
+                        '{"xid":"C3","resolved":true}',
+                        '{"xid":"C3","error":"failed again"}',
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            self.assertEqual(parse_failed_xids(path), ["B2", "C3"])
 
     def test_record_missing_scan_details(self) -> None:
         self.assertFalse(
@@ -85,6 +104,72 @@ class CollectRetryFailedTests(unittest.TestCase):
 
 
 class CollectPathTests(unittest.IsolatedAsyncioTestCase):
+    async def test_retry_does_not_treat_a_newer_raw_mtime_as_resolution(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            raw_dir = root / "raw_records"
+            raw_dir.mkdir()
+            failed_path = root / "failed_xids.jsonl"
+            failed_path.write_text(
+                '{"xid":"A1","error":"earlier attempt"}\n',
+                encoding="utf-8",
+            )
+            (raw_dir / "A1.json").write_text('{"xid":"A1"}', encoding="utf-8")
+
+            with patch.dict(
+                "os.environ",
+                {
+                    "RETRY_FAILED_RECORDS": "True",
+                    "RESCRAPE_MISSING_DETAILS": "False",
+                    "FETCH_IDS_ONLY": "False",
+                    "GET_RECORD_IDS": "False",
+                    "RESCRAPE_EXISTING_RECORDS": "True",
+                },
+            ), patch(
+                "src.pipeline.collect.RecordScraper.scrape_records",
+                new_callable=AsyncMock,
+            ) as scrape_records:
+                await main_async(
+                    record_ids_path=root / "available_record_ids.json",
+                    failed_xids_path=failed_path,
+                    missing_details_path=root / "missing_details_xids.json",
+                    raw_records_dir=raw_dir,
+                )
+
+            scrape_records.assert_awaited_once()
+            self.assertEqual(scrape_records.await_args.args[0], ["A1"])
+            self.assertEqual(parse_failed_xids(failed_path), ["A1"])
+
+    async def test_retry_keeps_existing_failure_history(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            failed_path = root / "failed_xids.jsonl"
+            previous = '{"xid":"A1","error":"earlier attempt"}\n'
+            failed_path.write_text(previous, encoding="utf-8")
+
+            with patch.dict(
+                "os.environ",
+                {
+                    "RETRY_FAILED_RECORDS": "True",
+                    "RESCRAPE_MISSING_DETAILS": "False",
+                    "FETCH_IDS_ONLY": "False",
+                    "GET_RECORD_IDS": "False",
+                    "RESCRAPE_EXISTING_RECORDS": "True",
+                },
+            ), patch(
+                "src.pipeline.collect.RecordScraper.scrape_records",
+                new_callable=AsyncMock,
+                return_value=[],
+            ):
+                await main_async(
+                    record_ids_path=root / "available_record_ids.json",
+                    failed_xids_path=failed_path,
+                    missing_details_path=root / "missing_details_xids.json",
+                    raw_records_dir=root / "raw_records",
+                )
+
+            self.assertEqual(failed_path.read_text(encoding="utf-8"), previous)
+
     async def test_retry_missing_details_uses_custom_raw_records_dir(self) -> None:
         with TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

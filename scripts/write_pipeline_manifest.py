@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from src.pipeline.atomic_io import atomic_write_json
+
 
 DEFAULT_ARTIFACTS = [
     "output/available_record_ids.json",
@@ -111,11 +113,61 @@ def artifact_info(root: Path, relative_path: str) -> dict[str, Any]:
 def directory_info(root: Path, relative_path: str) -> dict[str, Any]:
     path = root / relative_path
     if not path.exists():
-        return {"path": relative_path, "exists": False, "file_count": 0}
+        return {
+            "path": relative_path,
+            "exists": False,
+            "file_count": 0,
+            "size_bytes": 0,
+            "directory_root_sha256": None,
+            "files": [],
+        }
+    files = []
+    root_digest = hashlib.sha256()
+    for item in sorted(
+        (candidate for candidate in path.rglob("*") if candidate.is_file()),
+        key=lambda candidate: candidate.relative_to(path).as_posix(),
+    ):
+        relative_file = item.relative_to(path).as_posix()
+        if item.is_symlink():
+            raise ValueError(f"Refusing to hash symbolic link in run manifest: {item}")
+        before = item.stat()
+        file_sha256 = sha256_file(item)
+        after = item.stat()
+        if (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+        ):
+            raise RuntimeError(f"File changed while hashing run manifest: {item}")
+        size_bytes = after.st_size
+        entry = {
+            "path": relative_file,
+            "size_bytes": size_bytes,
+            "sha256": file_sha256,
+        }
+        files.append(entry)
+        root_digest.update(
+            json.dumps(
+                entry,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        )
+        root_digest.update(b"\n")
     return {
         "path": relative_path,
         "exists": True,
-        "file_count": sum(1 for item in path.rglob("*") if item.is_file()),
+        "file_count": len(files),
+        "size_bytes": sum(item["size_bytes"] for item in files),
+        "directory_root_sha256": root_digest.hexdigest(),
+        "files": files,
     }
 
 
@@ -166,10 +218,11 @@ def main() -> None:
     root = Path.cwd()
     manifest = build_manifest(root, artifacts=args.artifact, count_dirs=args.count_dir)
     output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
+    atomic_write_json(
+        output_path,
+        manifest,
+        indent=2,
+        trailing_newline=True,
     )
     print(f"Wrote manifest to {output_path}")
 

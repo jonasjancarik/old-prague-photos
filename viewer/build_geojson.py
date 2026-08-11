@@ -4,6 +4,8 @@ import json
 import hashlib
 from pathlib import Path
 
+from src.pipeline.atomic_io import atomic_write_json
+
 DATE_PLACEHOLDER_START = "1800-01-01"
 DATE_PLACEHOLDER_END = "2000-12-31"
 
@@ -207,9 +209,7 @@ def build_geojson(
         )
 
     geojson = {"type": "FeatureCollection", "features": features}
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8") as handle:
-        json.dump(geojson, handle, ensure_ascii=False)
+    atomic_write_json(output_path, geojson)
 
     print(f"Wrote {len(features)} features to {output_path}")
     return len(features)

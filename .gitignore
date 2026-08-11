@@ -1,6 +1,11 @@
 .vscode
 .DS_Store
-output/
+# Keep raw archive records visible to Git; other pipeline outputs stay ignored
+# unless they are intentionally force-added as curated provenance.
+output/*
+!output/raw_records/
+output/raw_records/*
+!output/raw_records/*.json
 runs/
 downloads/archive/
 .ignore*

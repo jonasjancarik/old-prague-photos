@@ -33,6 +33,7 @@ def derive_snapshot(
         geolocation_ok_dir=paths.geolocation_ok_dir,
         output_file=paths.photos_csv_path,
         minimal=minimal_export,
+        raw_records_dir=paths.raw_records_dir,
     )
     geojson_count = build_geojson(
         input_path=paths.photos_csv_path,

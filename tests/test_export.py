@@ -62,6 +62,55 @@ class ExportTests(unittest.TestCase):
         self.assertNotIn("extra_field", minimal.columns)
         self.assertIn("extra_field", full.columns)
 
+    def test_current_raw_metadata_overlays_preserved_geolocation(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            geo_dir = root / "ok"
+            raw_dir = root / "raw"
+            geo_dir.mkdir()
+            raw_dir.mkdir()
+            geolocated = {
+                "xid": "A1",
+                "typ záznamu": "Archiválie",
+                "autor": "Stale author",
+                "datace": "1900",
+                "geolocation": {
+                    "position": {"lon": 14.0, "lat": 50.0},
+                    "type": "regional.address",
+                    "endpoint": "geocode",
+                },
+            }
+            raw = {
+                "xid": "A1",
+                "typ záznamu": "Archiválie",
+                "autor": "Current author",
+                "datace": "1901",
+            }
+            (geo_dir / "A1.json").write_text(json.dumps(geolocated), encoding="utf-8")
+            (raw_dir / "A1.json").write_text(json.dumps(raw), encoding="utf-8")
+            output = root / "full.csv"
+
+            export_records(
+                geo_dir,
+                output,
+                minimal=False,
+                raw_records_dir=raw_dir,
+            )
+            exported = pd.read_csv(output)
+
+        self.assertEqual(exported.loc[0, "autor"], "Current author")
+        self.assertEqual(exported.loc[0, "datace"], 1901)
+        self.assertEqual(exported.loc[0, "geolocation_position_lon"], 14.0)
+
+    def test_corrupt_geolocation_fails_instead_of_disappearing(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            geo_dir = Path(tmpdir) / "ok"
+            geo_dir.mkdir()
+            (geo_dir / "A1.json").write_text('{"xid":', encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "Invalid geolocation record JSON"):
+                export_records(geo_dir, Path(tmpdir) / "output.csv")
+
 
 if __name__ == "__main__":
     unittest.main()

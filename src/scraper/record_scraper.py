@@ -5,6 +5,7 @@ import html as html_lib
 import logging
 import re
 import json
+import uuid
 from typing import Any, List, Set
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
@@ -75,6 +76,62 @@ def extract_xid_from_url(url: str) -> str:
     query = parse_qs(parts.query)
     xid = query.get("xid", [""])[0]
     return str(xid or "").strip()
+
+
+def append_failure_event(path: str | Path, payload: dict[str, Any]) -> None:
+    """Durably append one complete event to the record failure ledger."""
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    event = dict(payload)
+    event.setdefault("event_id", uuid.uuid4().hex)
+    encoded = (json.dumps(event, ensure_ascii=True) + "\n").encode("utf-8")
+    descriptor = os.open(
+        destination,
+        os.O_APPEND | os.O_CREAT | os.O_WRONLY,
+        0o644,
+    )
+    try:
+        view = memoryview(encoded)
+        while view:
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise OSError(f"Could not append failure event to {destination}")
+            view = view[written:]
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def failure_ledger_state(path: str | Path) -> dict[str, bool]:
+    """Return whether each XID's latest durable ledger event is unresolved."""
+    source = Path(path)
+    if not source.exists():
+        return {}
+    state: dict[str, bool] = {}
+    for line in source.read_text(encoding="utf-8").splitlines():
+        raw = line.strip()
+        if not raw:
+            continue
+        xid = ""
+        resolved = False
+        try:
+            payload = json.loads(raw)
+            if isinstance(payload, dict):
+                xid = str(payload.get("xid", "")).strip()
+                resolved = (
+                    payload.get("resolved") is True
+                    or payload.get("status") == "resolved"
+                )
+            elif isinstance(payload, str):
+                xid = payload.strip()
+        except json.JSONDecodeError:
+            # Preserve the original one-XID-per-line format. A torn JSON append
+            # is ignored instead of becoming a synthetic XID.
+            if not raw.startswith(("{", "[")):
+                xid = raw
+        if xid:
+            state[xid] = not resolved
+    return state
 
 
 class RecordScraper:
@@ -333,26 +390,29 @@ class RecordScraper:
             logging.info("Scraping %s records (total %s)", len(urls_to_scrape), total)
         completed, errors, times = 0, 0, []
         records = []
-        failed_file = None
-        if failed_ids_path:
-            failed_path = Path(failed_ids_path)
-            failed_path.parent.mkdir(parents=True, exist_ok=True)
-            failed_file = failed_path.open("a", encoding="utf-8")
-        try:
-            for url in urls_to_scrape:
-                record, time_taken, failure = await self.scrape_record(url)
-                if record:
-                    record.save(raw_records_dir)
-                    records.append(record)
-                    completed += 1
-                else:
-                    errors += 1
-                    if failed_file and failure:
-                        failed_file.write(json.dumps(failure, ensure_ascii=True) + "\n")
-                times.append(time_taken)
-                log_progress(times, completed, errors, len(urls_to_scrape), start_time)
-        finally:
-            if failed_file:
-                failed_file.close()
+        failure_state = (
+            failure_ledger_state(failed_ids_path) if failed_ids_path else {}
+        )
+        for url in urls_to_scrape:
+            record, time_taken, failure = await self.scrape_record(url)
+            if record:
+                record.save(raw_records_dir)
+                if failed_ids_path and failure_state.get(record.xid, False):
+                    append_failure_event(
+                        failed_ids_path,
+                        {"xid": record.xid, "resolved": True},
+                    )
+                    failure_state[record.xid] = False
+                records.append(record)
+                completed += 1
+            else:
+                errors += 1
+                if failed_ids_path and failure:
+                    append_failure_event(failed_ids_path, failure)
+                    failure_xid = str(failure.get("xid", "")).strip()
+                    if failure_xid:
+                        failure_state[failure_xid] = True
+            times.append(time_taken)
+            log_progress(times, completed, errors, len(urls_to_scrape), start_time)
         log_summary(times)
         return records

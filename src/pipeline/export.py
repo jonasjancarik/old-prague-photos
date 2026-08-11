@@ -6,8 +6,11 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.pipeline.atomic_io import atomic_write_text
+
 
 DEFAULT_GEOLOCATION_OK_DIR = Path("output/geolocation/ok")
+DEFAULT_RAW_RECORDS_DIR = Path("output/raw_records")
 DEFAULT_OUTPUT_FILE = Path("output/old_prague_photos.csv")
 DATE_PLACEHOLDER_START = "1800-01-01"
 DATE_PLACEHOLDER_END = "2000-12-31"
@@ -186,16 +189,41 @@ def normalize_json_array(value):
     return json.dumps([value], ensure_ascii=False)
 
 
-def load_geolocated_records(directory: Path) -> pd.DataFrame:
+def _load_json_object(path: Path, *, label: str) -> dict:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ValueError(f"Invalid {label} JSON in {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"{label.capitalize()} must be a JSON object: {path}")
+    xid = payload.get("xid")
+    if xid != path.stem:
+        raise ValueError(
+            f"{label.capitalize()} XID does not match filename: "
+            f"{path} contains {xid!r}"
+        )
+    return payload
+
+
+def load_geolocated_records(
+    directory: Path,
+    raw_records_dir: Path | None = None,
+) -> pd.DataFrame:
     frames = []
     for path in sorted(directory.glob("*.json")):
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            print(f"Skipping {path}: {exc}")
-            continue
-        if not isinstance(payload, dict):
-            continue
+        geolocated = _load_json_object(path, label="geolocation record")
+        payload = geolocated
+        if raw_records_dir is not None:
+            raw_path = raw_records_dir / path.name
+            if raw_path.exists():
+                raw_record = _load_json_object(raw_path, label="raw record")
+                if "geolocation" not in geolocated:
+                    raise ValueError(f"Missing geolocation result in {path}")
+                payload = {
+                    **geolocated,
+                    **raw_record,
+                    "geolocation": geolocated["geolocation"],
+                }
         date = parse_date(payload.get("datace"))
         payload["start_date"] = date["start_date"]
         payload["end_date"] = date["end_date"]
@@ -253,13 +281,16 @@ def export_records(
     geolocation_ok_dir: Path = DEFAULT_GEOLOCATION_OK_DIR,
     output_file: Path = DEFAULT_OUTPUT_FILE,
     minimal: bool = True,
+    raw_records_dir: Path | None = None,
 ) -> int:
     if not geolocation_ok_dir.exists():
         raise FileNotFoundError(f"Geolocation directory not found: {geolocation_ok_dir}")
-    combined_data = load_geolocated_records(geolocation_ok_dir)
+    combined_data = load_geolocated_records(
+        geolocation_ok_dir,
+        raw_records_dir=raw_records_dir,
+    )
     export_frame = prepare_export_frame(combined_data, minimal=minimal)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    export_frame.to_csv(output_file, index=False)
+    atomic_write_text(output_file, export_frame.to_csv(index=False))
     print(f"Saved {len(export_frame)} records to {output_file}")
     return len(export_frame)
 
@@ -267,6 +298,11 @@ def export_records(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Export geolocated records to CSV.")
     parser.add_argument("--input-dir", default=str(DEFAULT_GEOLOCATION_OK_DIR))
+    parser.add_argument(
+        "--raw-dir",
+        default=str(DEFAULT_RAW_RECORDS_DIR),
+        help="Current raw metadata to join with preserved geolocation results",
+    )
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT_FILE))
     parser.add_argument("--minimal", dest="minimal", action="store_true", default=True)
     parser.add_argument("--full", dest="minimal", action="store_false")
@@ -279,6 +315,7 @@ def main() -> None:
         geolocation_ok_dir=Path(args.input_dir),
         output_file=Path(args.output),
         minimal=args.minimal,
+        raw_records_dir=Path(args.raw_dir),
     )
 
 

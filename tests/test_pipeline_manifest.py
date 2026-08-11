@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from scripts.write_pipeline_manifest import build_manifest, sha256_file
+from scripts.write_pipeline_manifest import build_manifest, directory_info, sha256_file
 from src.pipeline.paths import PipelinePaths
 from src.pipeline.run_manifest import append_stage_event, write_run_manifest
 
@@ -28,6 +28,7 @@ class PipelineManifestTests(unittest.TestCase):
             counted.mkdir()
             artifact.write_text(json.dumps({"ok": True}), encoding="utf-8")
             (counted / "one.json").write_text("{}", encoding="utf-8")
+            counted_sha = sha256_file(counted / "one.json")
 
             with patch(
                 "scripts.write_pipeline_manifest.git_value",
@@ -47,6 +48,26 @@ class PipelineManifestTests(unittest.TestCase):
         ][0]
         self.assertTrue(artifact_info["exists"])
         self.assertEqual(directory_info["file_count"], 1)
+        self.assertEqual(directory_info["files"][0]["path"], "one.json")
+        self.assertEqual(directory_info["files"][0]["sha256"], counted_sha)
+
+    def test_directory_digest_changes_when_content_changes_at_same_count(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            records = root / "records"
+            records.mkdir()
+            path = records / "one.json"
+            path.write_text('{"value":1}', encoding="utf-8")
+            before = directory_info(root, "records")
+
+            path.write_text('{"value":2}', encoding="utf-8")
+            after = directory_info(root, "records")
+
+        self.assertEqual(before["file_count"], after["file_count"])
+        self.assertNotEqual(
+            before["directory_root_sha256"],
+            after["directory_root_sha256"],
+        )
 
     def test_run_manifest_records_stage_log(self) -> None:
         with TemporaryDirectory() as tmpdir:
