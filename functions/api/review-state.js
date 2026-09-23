@@ -1,6 +1,5 @@
 import {
   buildReviewState,
-  loadXidGroupMap,
   REVIEW_STATE_SCHEMA_VERSION,
 } from "./_review_state.js";
 import { loadCommunityDataVersion } from "./_data_version.js";
@@ -60,6 +59,24 @@ async function readProjection(env) {
     }
     throw error;
   }
+}
+
+async function readCatalogMetadata(env) {
+  return env.CORRECTIONS_DB.prepare(
+    "SELECT data_version, row_count FROM catalog_metadata WHERE singleton = 1",
+  ).first();
+}
+
+async function loadMembershipOverrides(env) {
+  const rows = await queryRows(
+    env,
+    "SELECT xid, group_id FROM group_membership_overrides",
+  );
+  return Object.fromEntries(
+    rows
+      .map((row) => [String(row.xid || "").trim(), String(row.group_id || "").trim()])
+      .filter(([xid, groupId]) => xid && groupId),
+  );
 }
 
 async function loadReviewRows(env) {
@@ -174,6 +191,28 @@ export async function onRequest(context) {
       { "Cache-Control": "no-store" },
     );
   }
+  let catalogMetadata;
+  try {
+    catalogMetadata = await readCatalogMetadata(env);
+  } catch (error) {
+    logDatabaseError("/api/review-state", "load catalog metadata", error);
+    return jsonResponse(
+      { detail: "Katalog fotografií není dočasně dostupný" },
+      503,
+      { "Cache-Control": "no-store" },
+    );
+  }
+  if (
+    !catalogMetadata ||
+    String(catalogMetadata.data_version || "") !== dataVersion ||
+    Number(catalogMetadata.row_count) < 1
+  ) {
+    return jsonResponse(
+      { detail: "Katalog fotografií ještě není připravený" },
+      503,
+      { "Cache-Control": "no-store" },
+    );
+  }
   const key = cacheKeyFor(request, dataVersion);
   const edgeCache =
     typeof caches !== "undefined" && caches.default ? caches.default : null;
@@ -209,6 +248,7 @@ export async function onRequest(context) {
         Number(projectedPayload?.reviewStateSchemaVersion) ===
         REVIEW_STATE_SCHEMA_VERSION
       ) {
+        projectedPayload.revision = Number(projection.current_revision) || 0;
         const response = jsonResponse(projectedPayload, 200, {
           "Cache-Control": responseCacheControl(stableSnapshot),
           "X-Community-Revision": String(Number(projection.current_revision) || 0),
@@ -238,11 +278,11 @@ export async function onRequest(context) {
     );
   }
 
-  let xidGroupMap;
+  let membershipOverrides;
   try {
-    xidGroupMap = await loadXidGroupMap(request, env);
+    membershipOverrides = await loadMembershipOverrides(env);
   } catch (error) {
-    logDatabaseError("/api/review-state", "load photo groups", error);
+    logDatabaseError("/api/review-state", "load membership overrides", error);
     return jsonResponse(
       { detail: "Stav komunity není dočasně dostupný" },
       503,
@@ -252,11 +292,15 @@ export async function onRequest(context) {
   const reviewState = buildReviewState({
     correctionRows,
     mergeRows,
-    xidGroupMap,
+    // Correction events retain their historical group_id. Merge endpoints are
+    // explicit group IDs, so reducing them never needs the full photo catalog.
+    xidGroupMap: new Map(),
   });
 
   const payload = {
     ...reviewState,
+    revision: Number(projection?.current_revision) || 0,
+    resolvedGroupByXid: membershipOverrides,
     reviewStateSchemaVersion: REVIEW_STATE_SCHEMA_VERSION,
     counts: {
       corrections: reviewState.groupCorrections.length,
@@ -271,7 +315,7 @@ export async function onRequest(context) {
         (item) => item?.anchor_type === "flag",
       ).length,
       merges: reviewState.mergeDecisions.length,
-      knownXids: Object.keys(reviewState.resolvedGroupByXid).length,
+      knownXids: Number(catalogMetadata.row_count),
     },
   };
 

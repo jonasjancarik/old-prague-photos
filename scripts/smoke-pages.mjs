@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { isValidCandidatePayload } from "./smoke-pages-validation.mjs";
+import { isValidReviewSnapshot } from "./smoke-pages-validation.mjs";
 
 const baseUrl = String(process.argv[2] || "").replace(/\/$/, "");
 if (!baseUrl || !/^https?:\/\//.test(baseUrl)) {
@@ -40,12 +40,40 @@ if (process.env.SMOKE_REQUIRE_SECURE_CONFIG === "1") {
   }
 }
 
-for (const flow of ["location", "duplicate", "group"]) {
-  const payload = await getJson(`/api/community-candidates?flow=${flow}&limit=1`);
-  if (!isValidCandidatePayload(payload)) {
-    throw new Error(`/api/community-candidates: invalid ${flow} payload`);
-  }
+const reviewResponse = await fetch(`${baseUrl}/api/review-state?snapshot=1`, {
+  headers,
+  redirect: "error",
+  signal: AbortSignal.timeout(15_000),
+});
+if (
+  reviewResponse.status !== 200 ||
+  reviewResponse.headers.get("X-Community-Revision-Stable") !== "1" ||
+  !reviewResponse.headers.get("X-Community-Data-Version") ||
+  !isValidReviewSnapshot(await reviewResponse.json())
+) {
+  throw new Error("/api/review-state: compact community state is unavailable");
 }
+
+for (const path of [
+  "/data/photos.geojson",
+  "/data/orphan_xids.json",
+  "/data/series_version_clusters.json",
+  "/data/similarity_candidates.json",
+]) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "HEAD",
+    headers,
+    redirect: "error",
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) throw new Error(`${path}: browser candidate data is unavailable (${response.status})`);
+}
+
+await Promise.all([
+  getJson("/api/corrections"),
+  getJson("/api/merges"),
+  getJson("/api/group-review-votes"),
+]);
 
 if (process.env.SMOKE_REQUIRE_ACCESS === "1") {
   if (!process.env.CF_ACCESS_CLIENT_ID || !process.env.CF_ACCESS_CLIENT_SECRET) {

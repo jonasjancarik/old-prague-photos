@@ -65,6 +65,7 @@ class ReleaseScriptTests(unittest.TestCase):
                     "CONFIRM_STAGING_DEPLOY": "old-prague-photos-staging",
                     "D1_BACKUP_DIR": "/tmp/not-used",
                     "PAGES_STAGING_URL": "https://staging.example.test",
+                    "CLOUDFLARE_ACCOUNT_ID": "test-account",
                     "ADMIN_API_TOKEN": "x",
                     "CF_ACCESS_CLIENT_ID": "x",
                     "CF_ACCESS_CLIENT_SECRET": "x",
@@ -119,7 +120,11 @@ class ReleaseScriptTests(unittest.TestCase):
     def test_production_deploy_checks_cloudflare_branch_before_migrating(self) -> None:
         with TemporaryDirectory() as tmpdir:
             git = Path(tmpdir) / "git"
-            git.write_text("#!/bin/sh\nprintf '%s\\n' 'test-production'\n", encoding="utf-8")
+            git.write_text(
+                "#!/bin/sh\n"
+                "if [ \"$1\" = symbolic-ref ]; then printf '%s\\n' 'test-production'; fi\n",
+                encoding="utf-8",
+            )
             git.chmod(0o755)
             curl = Path(tmpdir) / "curl"
             curl.write_text(

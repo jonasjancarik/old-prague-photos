@@ -27,6 +27,11 @@ if [ "$CURRENT_BRANCH" != "$PRODUCTION_BRANCH" ]; then
   exit 2
 fi
 
+if [ -n "$(git status --porcelain)" ]; then
+  echo "Production deployment must run from a clean reviewed commit." >&2
+  exit 2
+fi
+
 if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
   echo "Set CLOUDFLARE_ACCOUNT_ID to verify the Pages production branch." >&2
   exit 2
@@ -60,6 +65,10 @@ fi
 # It invalidates projections atomically with every deployed data bundle.
 npm run prepare:community-data
 npm run release:verify
+if [ -n "$(git status --porcelain)" ]; then
+  echo "The release gate changed tracked files; review and commit them before deployment." >&2
+  exit 2
+fi
 
 # Capture both a portable SQL export and a Time Travel bookmark before any
 # remote schema mutation. The checkpoint contains private contribution data.
@@ -68,6 +77,7 @@ scripts/checkpoint-d1.sh production
 # Migrations are additive/backward-compatible and must land before Functions
 # start querying the new projection tables.
 CI=1 npx wrangler d1 migrations apply CORRECTIONS_DB --remote
+scripts/seed-catalog-d1.sh
 npx wrangler pages deploy viewer/static \
   --project-name "$PROJECT_NAME" \
   --branch "$PRODUCTION_BRANCH"

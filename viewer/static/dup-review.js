@@ -125,15 +125,14 @@ async function loadDuplicateCandidatePage({ reset = false } = {}) {
   state.loadingCandidates = true;
   updateCounts();
   try {
-    const params = new URLSearchParams({
-      flow: "duplicate",
-      cursor,
-      limit: "24",
-    });
-    if (state.focusGroupId) params.set("group_id", state.focusGroupId);
     let payload;
     try {
-      payload = await fetchJson(`/api/community-candidates?${params}`);
+      payload = await window.OldPragueCandidates.loadPage({
+        flow: "duplicate",
+        cursor,
+        limit: 24,
+        focusGroupId: state.focusGroupId,
+      });
     } catch (error) {
       if (error?.status === 409 && !reset) {
         state.loadingCandidates = false;
@@ -155,6 +154,7 @@ async function loadDuplicateCandidatePage({ reset = false } = {}) {
         knownKeys.has(pair.key) ||
         state.reviewedPairKeys.has(pair.key)
       ) return;
+      pair.candidateRevision = payload.revision;
       knownKeys.add(pair.key);
       state.candidates.push(pair);
       state.remaining.push(pair);
@@ -338,23 +338,26 @@ function setSideFeature(side, group, feature) {
 }
 
 function showPair(pair) {
-  if (!pair) return;
-  state.currentPair = pair;
-  state.leftGroup = pair.groupA;
-  state.rightGroup = pair.groupB;
+  const expanded = window.OldPragueCandidates.expandDuplicatePair(pair);
+  if (!expanded) return;
+  expanded.candidateRevision = pair.candidateRevision;
+  state.candidateRevision = pair.candidateRevision;
+  state.currentPair = expanded;
+  state.leftGroup = expanded.groupA;
+  state.rightGroup = expanded.groupB;
   if (pairSourceEl) {
     const label =
-      pair.source === "similarity"
+      expanded.source === "similarity"
         ? "Vybráno podle vizuální podobnosti"
         : "Vybráno podle stejné polohy";
     pairSourceEl.textContent = label;
   }
 
-  const leftFeature = pair.groupA?.primary || pair.groupA?.items?.[0];
-  const rightFeature = pair.groupB?.primary || pair.groupB?.items?.[0];
+  const leftFeature = expanded.groupA?.primary || expanded.groupA?.items?.[0];
+  const rightFeature = expanded.groupB?.primary || expanded.groupB?.items?.[0];
 
-  setSideFeature("left", pair.groupA, leftFeature);
-  setSideFeature("right", pair.groupB, rightFeature);
+  setSideFeature("left", expanded.groupA, leftFeature);
+  setSideFeature("right", expanded.groupB, rightFeature);
 
   clearStatus();
   updateActionState();
@@ -365,6 +368,21 @@ function randomItem(items) {
   if (!Array.isArray(items) || !items.length) return null;
   const idx = Math.floor(Math.random() * items.length);
   return items[idx];
+}
+
+function compactPair(pair) {
+  const groupAId = String(pair?.groupAId || pair?.groupA?.id || "").trim();
+  const groupBId = String(pair?.groupBId || pair?.groupB?.id || "").trim();
+  const key = String(pair?.key || pairKey(groupAId, groupBId)).trim();
+  return key && groupAId && groupBId
+    ? {
+        key,
+        source: String(pair?.source || ""),
+        groupAId,
+        groupBId,
+        candidateRevision: pair.candidateRevision,
+      }
+    : null;
 }
 
 function removeRandomRemaining(source = "") {
@@ -430,7 +448,8 @@ async function pickNext() {
   state.lastPickedSource = String(pair.source || "").trim();
 
   if (state.currentPair) {
-    state.history.push(state.currentPair);
+    const currentRef = compactPair(state.currentPair);
+    if (currentRef) state.history.push(currentRef);
   }
   showPair(pair);
 }
@@ -439,7 +458,8 @@ function pickPrev() {
   if (!state.history.length) return;
   const prevPair = state.history.pop();
   if (state.currentPair) {
-    state.remaining.push(state.currentPair);
+    const currentRef = compactPair(state.currentPair);
+    if (currentRef) state.remaining.push(currentRef);
   }
   showPair(prevPair);
 }

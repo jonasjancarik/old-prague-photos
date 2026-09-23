@@ -166,7 +166,10 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
 
 - `GET /api/config` - Turnstile + archive base URL config + `fullResDownloadMode` (`client` on Pages Functions)
 - `POST /api/verify` - Turnstile verification, sets session cookie
-- `GET /api/review-state` - backend-resolved group roots + latest corrections + done groups
+- `GET /api/review-state` - compact, revisioned community changes (membership
+  overrides, merged roots, corrections, and done groups). The browser combines
+  these with the published photo data; the Function does not load the full
+  photo catalog.
   - `?fresh=1` bypasses edge cache for immediate post-submit refresh
 - `GET /api/corrections` - latest corrections (per group)
 - `POST /api/corrections` - submit correction / flag; every `ok` confirmation
@@ -184,27 +187,22 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
     resolved both members to one root.
 - `GET /api/group-review-votes` - current per-voter series-review aggregation (`ok_votes`, `split_votes`, `done`, `needs_split`)
 - `POST /api/group-review-votes` - submit series-review vote (`ok`, `split`, `undo`)
-- `GET /api/community-candidates?flow=location|group|duplicate` - authoritative,
-  paginated work queues. Responses contain at most 50 items; the contribution
-  pages request 24–40 at a time instead of downloading the full photo corpus.
-  Corrected features include `properties.original_coordinates`, allowing the
-  client to restore their source position after membership changes or undo.
-  Location candidates also carry the applied point separately from
-  `proposed_id`, `proposed_lat`, `proposed_lon`, and `location_revision`, which
-  binds a confirmation to the proposal the voter actually saw.
-  `group_id` focuses the location flow on one exact current group and the
-  duplicate flow on pairs containing that group; unknown groups return `400`.
-  Cursors are bound to both the community-state revision and deployed static
-  data version; a stale cursor returns `409`, and the browser restarts from a
-  current first page instead of skipping or duplicating work.
+- The contribution pages build their location, group, and duplicate queues in
+  the browser from the published photo, cluster, and similarity files plus the
+  compact review-state snapshot. They keep only pair IDs in the duplicate
+  queue and expand the displayed pair. Cursors carry the static data version
+  and community revision; the browser restarts when either changes. The server
+  validates each submitted XID, group, and revision against indexed D1 data.
+  The former `GET /api/community-candidates` endpoint returns `410`.
 - `GET /api/admin/review` - maintainer overview (pending corrections, flags,
   conflicts, split evidence and vote history, membership history, recent merges,
   public-state freshness, queue age, request failures, submissions, and
   contributor continuity)
 - `POST /api/admin/session` - exchange the curator token for a signed, short-lived
   HttpOnly session cookie; the token is not kept in browser storage
-- `GET /api/admin/groups?query=...` - bounded curator search for an existing
-  destination series by ID, XID, description, signature, author, or date
+- `GET /api/admin/groups?query=...` - indexed D1 search for an existing
+  destination series by ID, XID, description, signature, author, or date;
+  returns at most 20 group summaries
 - `GET /api/admin/export?format=json|csv&since=...&limit=...` - maintainer export
   (projected group state is included only when both its D1 revision and deployed
   data version are current)
@@ -214,10 +212,11 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
   or existing series and append a curator audit event. A complete source series
   may move only into an existing destination, which makes mistaken splits
   reversible without allowing an accidental rename into a new empty series.
-- `GET /api/preview-url?xid=...` - preview URL resolver (R2 tile probe -> feature preview/zoomify fallback)
+- `GET /api/preview-url?xid=...` - indexed photo lookup and preview URL resolver
+  (R2 tile probe -> catalog preview/zoomify fallback)
 - `GET /api/preview-local?xid=...&scanIndex=0` - serve local preview file from `downloads/archive/previews`
 - `GET /api/zoomify?xid=...&scanIndex=0` - server-side Zoomify metadata
-  - Uses R2 if `R2_TILES_BASE` is set and the scan exists there.
+  - Uses one indexed D1 photo lookup and prefers R2 when the scan exists there.
 - `GET /api/dezoomify?xid=...&scanIndex=0` - FastAPI-only full-resolution JPEG download (tile stitch on server)
 
 Write API hardening:
@@ -343,7 +342,8 @@ npm run deploy:pages:staging
 
 This captures a private preview-D1 export and Time Travel bookmark, applies
 migrations only to the preview database, deploys the `staging` branch preview,
-and checks configuration, all three candidate queues, Access, and the curator
+  and checks configuration, compact community state, browser candidate assets,
+  Access, and the curator
 API. The command fails before remote work unless the worktree is clean and the
 staging URL, checkpoint destination, confirmation, and smoke credentials are
 present.
@@ -352,7 +352,8 @@ present.
 
 Use the guarded release command. It runs Python/API/real-D1 tests, builds the
 frontend, captures a private SQL export and Time Travel bookmark, applies
-additive migrations remotely, deploys Pages, and runs the same smoke checks:
+additive migrations and seeds the indexed photo catalog remotely, deploys
+Pages, and runs the same smoke checks:
 
 ```bash
 D1_BACKUP_DIR=/secure/retained/old-prague-photos \
@@ -430,15 +431,16 @@ SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
 - `/api/zoomify` resolves in this order: `R2_TILES_BASE` -> feature `scan_zoomify_paths` -> archive permalink (only when `ALLOW_ARCHIVE_FALLBACK=1`).
 - In client mode, full-res download is disabled when Zoomify source is archive-host/CORS-blocked or image area exceeds `80,000,000` pixels.
 - Frontend filters out xids listed in `viewer/static/data/orphan_xids.json` on `/`, `/pomoc.html`, `/dup-review.html`, and `/group-review.html`.
-- D1 stores append-only contribution events, current merge/vote projections,
-  versioned group membership overrides, a revisioned public-state snapshot, and
-  bounded hourly request-outcome counters. The curator workbench combines those
+- D1 stores the indexed photo catalog, append-only contribution events,
+  current merge/vote projections, versioned group membership overrides, a
+  compact revisioned public-state snapshot, and bounded hourly request-outcome
+  counters. The curator workbench combines those
   counters with aggregate event queries to show stale cursors, failures,
   submission volume, queue age, and new/returning contributors without exposing
   contributor identities. Hourly counters are retained for 90 days.
-- Candidate delivery is a bounded read model shared by Pages and the FastAPI
-  compatibility runtime. It applies current merges, membership overrides,
-  corrections, and orphan filtering before pagination. Duplicate candidates
+- The browser builds candidate queues from the published catalog and current
+  compact review-state snapshot. The server checks each submitted identifier
+  and revision against indexed D1 rows. Duplicate candidates
   prioritize similarity pairs and cap exact-coordinate expansion at eight
   neighbors per group, avoiding quadratic all-pairs queues for large buckets.
   Similarity pairs follow their referenced XIDs through curator membership
@@ -448,9 +450,9 @@ SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
 - Candidate cursor revisions include effective XID membership in both Pages and
   FastAPI, so moving members between already-existing series invalidates old
   offsets instead of skipping or repeating work.
-- A write marks the public snapshot dirty. The next review-state read rebuilds
-  against a captured revision and only publishes the snapshot if no concurrent
-  write changed that revision. Warm reads do not scan contribution history.
+- A write marks the compact public snapshot dirty. The next review-state read
+  reduces contribution events against a captured revision and publishes only
+  if no concurrent write changed it. It does not parse the full photo catalog.
 - `review-state` includes consensus metadata per group:
   - `correction_state`: `none | pending | approved`
   - `anchor_type`: `none | flag | correction`

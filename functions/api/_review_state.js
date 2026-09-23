@@ -1,6 +1,8 @@
 const PHOTOS_CACHE_TTL_MS = 60 * 1000;
 const REQUIRED_SAME_MERGE_VOTES = 2;
-export const REVIEW_STATE_SCHEMA_VERSION = 3;
+// Version 4 carries only membership changes. Browsers combine those changes
+// with the immutable catalog; Functions no longer serialize every photo ID.
+export const REVIEW_STATE_SCHEMA_VERSION = 4;
 const SQLITE_DATETIME_PATTERN =
   /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
 

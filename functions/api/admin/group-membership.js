@@ -1,7 +1,10 @@
 import { authorizeAdmin } from "../_admin_auth.js";
-import { assertSameOrigin, toHttpError } from "../_security.js";
+import { catalogGroupExists, requireCatalog } from "../_catalog.js";
 import { logDatabaseError } from "../_db.js";
+import { assertSameOrigin, toHttpError } from "../_security.js";
 import { onRequest as reviewStateOnRequest } from "../review-state.js";
+
+const PROJECTION_RESERVATION_BASE = -9_000_000_000_000_000;
 
 function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
@@ -22,8 +25,8 @@ function validGroupId(value) {
   return /^[A-Za-z0-9_-]{1,128}$/u.test(value);
 }
 
-async function loadAuthoritativeGroupMap(request, env) {
-  const url = new URL("/api/review-state?fresh=1", request.url);
+async function loadAuthoritativeGroups(request, env) {
+  const url = new URL("/api/review-state?snapshot=1", request.url);
   const response = await reviewStateOnRequest({
     request: new Request(url.toString(), {
       method: "GET",
@@ -40,9 +43,328 @@ async function loadAuthoritativeGroupMap(request, env) {
   }
   const payload = await response.json();
   return {
-    resolvedGroupMap: new Map(Object.entries(payload?.resolvedGroupByXid || {})),
     groupRoots: payload?.groupRoots || {},
+    revision: Number(response.headers.get("X-Community-Revision")) || 0,
   };
+}
+
+function aliasesForRoot(groupRoots, rootId) {
+  const root = normalizeId(rootId);
+  const aliases = new Set(root ? [root] : []);
+  Object.entries(groupRoots || {}).forEach(([groupId, currentRootId]) => {
+    if (normalizeId(currentRootId) === root) aliases.add(normalizeId(groupId));
+  });
+  return Array.from(aliases).filter(Boolean);
+}
+
+async function loadSourceMembership(env, sourceAliases, xids) {
+  const sourceAliasesJson = JSON.stringify(sourceAliases);
+  const [countRow, selectedResult] = await Promise.all([
+    env.CORRECTIONS_DB.prepare(
+      `
+        SELECT COUNT(*) AS member_count
+        FROM catalog_photos AS photos
+        LEFT JOIN group_membership_overrides AS overrides
+          ON overrides.xid = photos.xid
+        WHERE COALESCE(overrides.group_id, photos.base_group_id) IN (
+          SELECT value FROM json_each(?)
+        )
+      `,
+    )
+      .bind(sourceAliasesJson)
+      .first(),
+    env.CORRECTIONS_DB.prepare(
+      `
+        SELECT photos.xid
+        FROM catalog_photos AS photos
+        LEFT JOIN group_membership_overrides AS overrides
+          ON overrides.xid = photos.xid
+        WHERE photos.xid IN (SELECT value FROM json_each(?))
+          AND COALESCE(overrides.group_id, photos.base_group_id) IN (
+            SELECT value FROM json_each(?)
+          )
+      `,
+    )
+      .bind(JSON.stringify(xids), sourceAliasesJson)
+      .all(),
+  ]);
+  return {
+    memberCount: Number(countRow?.member_count) || 0,
+    selectedXids: new Set(
+      (selectedResult?.results || [])
+        .map((row) => normalizeId(row.xid))
+        .filter(Boolean),
+    ),
+  };
+}
+
+async function loadProjection(env) {
+  const row = await env.CORRECTIONS_DB.prepare(
+    `
+      SELECT current_revision, computed_revision
+      FROM community_state_projection
+      WHERE id = 1
+    `,
+  ).first();
+  const currentRevision = Number(row?.current_revision);
+  const computedRevision = Number(row?.computed_revision);
+  if (
+    !Number.isSafeInteger(currentRevision) ||
+    currentRevision < 0 ||
+    !Number.isSafeInteger(computedRevision)
+  ) {
+    throw new Error("Community state projection is unavailable");
+  }
+  return { currentRevision, computedRevision };
+}
+
+function projectionReservationMarker(revision) {
+  const marker = PROJECTION_RESERVATION_BASE + revision;
+  if (!Number.isSafeInteger(marker)) {
+    throw new Error("Community revision is outside the supported range");
+  }
+  return marker;
+}
+
+function reserveProjectionStatement(
+  env,
+  {
+    expectedRevision,
+    expectedComputedRevision,
+    reservationMarker,
+    expectedCatalogVersion,
+  },
+) {
+  return env.CORRECTIONS_DB.prepare(
+    `
+      UPDATE community_state_projection
+      SET computed_revision = ?
+      WHERE id = 1
+        AND current_revision = ?
+        AND computed_revision = ?
+        AND EXISTS (
+          SELECT 1
+          FROM catalog_metadata
+          WHERE singleton = 1 AND data_version = ?
+        )
+    `,
+  ).bind(
+    reservationMarker,
+    expectedRevision,
+    expectedComputedRevision,
+    expectedCatalogVersion,
+  );
+}
+
+function releaseProjectionStatement(env, computedRevision, reservationMarker) {
+  return env.CORRECTIONS_DB.prepare(
+    `
+      UPDATE community_state_projection
+      SET computed_revision = ?
+      WHERE id = 1 AND computed_revision = ?
+    `,
+  ).bind(computedRevision, reservationMarker);
+}
+
+function membershipUpsertStatement(
+  env,
+  {
+    xids,
+    sourceAliases,
+    sourceGroupId,
+    targetGroupId,
+    reason,
+    curator,
+    expectedRevision,
+    reservationMarker,
+    expectedCatalogVersion,
+  },
+) {
+  return env.CORRECTIONS_DB.prepare(
+    `
+      WITH requested(xid) AS (
+        SELECT value FROM json_each(?)
+      )
+      INSERT INTO group_membership_overrides (
+        xid, group_id, source_group_id, revision, reason, curator, updated_at
+      )
+      SELECT requested.xid, ?, ?, 1, ?, ?, datetime('now')
+      FROM requested
+      WHERE EXISTS (
+        SELECT 1
+        FROM community_state_projection
+        WHERE id = 1
+          AND current_revision = ?
+          AND computed_revision = ?
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM catalog_metadata
+        WHERE singleton = 1 AND data_version = ?
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM requested AS candidate
+        LEFT JOIN catalog_photos AS photos ON photos.xid = candidate.xid
+        LEFT JOIN group_membership_overrides AS overrides
+          ON overrides.xid = photos.xid
+        WHERE photos.xid IS NULL
+          OR NOT EXISTS (
+            SELECT 1
+            FROM json_each(?) AS source_aliases
+            WHERE source_aliases.value =
+              COALESCE(overrides.group_id, photos.base_group_id)
+          )
+      )
+      ON CONFLICT(xid) DO UPDATE SET
+        group_id = excluded.group_id,
+        source_group_id = excluded.source_group_id,
+        revision = group_membership_overrides.revision + 1,
+        reason = excluded.reason,
+        curator = excluded.curator,
+        updated_at = datetime('now')
+    `,
+  ).bind(
+    JSON.stringify(xids),
+    targetGroupId,
+    sourceGroupId,
+    reason || null,
+    curator,
+    expectedRevision,
+    reservationMarker,
+    expectedCatalogVersion,
+    JSON.stringify(sourceAliases),
+  );
+}
+
+function membershipEventStatement(
+  env,
+  {
+    sourceGroupId,
+    targetGroupId,
+    xids,
+    reason,
+    curator,
+    expectedRevision,
+    reservationMarker,
+    expectedCatalogVersion,
+  },
+) {
+  return env.CORRECTIONS_DB.prepare(
+    `
+      INSERT INTO group_membership_events (
+        source_group_id, target_group_id, assignments_json, reason, curator
+      )
+      SELECT ?, ?, ?, ?, ?
+      WHERE EXISTS (
+        SELECT 1
+        FROM community_state_projection
+        WHERE id = 1
+          AND current_revision = ?
+          AND computed_revision = ?
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM catalog_metadata
+        WHERE singleton = 1 AND data_version = ?
+      )
+    `,
+  ).bind(
+    sourceGroupId,
+    targetGroupId,
+    JSON.stringify(xids),
+    reason || null,
+    curator,
+    expectedRevision,
+    reservationMarker,
+    expectedCatalogVersion,
+  );
+}
+
+function reviewResolutionStatement(
+  env,
+  {
+    groupId,
+    curator,
+    expectedRevision,
+    reservationMarker,
+    expectedCatalogVersion,
+  },
+) {
+  return env.CORRECTIONS_DB.prepare(
+    `
+      INSERT INTO group_review_resolutions (
+        group_id, through_event_id, curator, resolved_at
+      )
+      SELECT ?, COALESCE(MAX(source_event_id), 0), ?, datetime('now')
+      FROM current_group_review_votes
+      WHERE group_id = ?
+        AND EXISTS (
+          SELECT 1
+          FROM community_state_projection
+          WHERE id = 1
+            AND current_revision = ?
+            AND computed_revision = ?
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM catalog_metadata
+          WHERE singleton = 1 AND data_version = ?
+        )
+      ON CONFLICT(group_id) DO UPDATE SET
+        through_event_id = MAX(
+          group_review_resolutions.through_event_id,
+          excluded.through_event_id
+        ),
+        curator = excluded.curator,
+        resolved_at = excluded.resolved_at
+    `,
+  ).bind(
+    groupId,
+    curator,
+    groupId,
+    expectedRevision,
+    reservationMarker,
+    expectedCatalogVersion,
+  );
+}
+
+function clearResolvedReviewVotesStatement(
+  env,
+  { groupId, expectedRevision, reservationMarker, expectedCatalogVersion },
+) {
+  return env.CORRECTIONS_DB.prepare(
+    `
+      DELETE FROM current_group_review_votes
+      WHERE group_id = ?
+        AND source_event_id <= COALESCE(
+          (
+            SELECT through_event_id
+            FROM group_review_resolutions
+            WHERE group_id = ?
+          ),
+          0
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM community_state_projection
+          WHERE id = 1
+            AND current_revision = ?
+            AND computed_revision = ?
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM catalog_metadata
+          WHERE singleton = 1 AND data_version = ?
+        )
+    `,
+  ).bind(
+    groupId,
+    groupId,
+    expectedRevision,
+    reservationMarker,
+    expectedCatalogVersion,
+  );
 }
 
 export async function onRequest({ request, env }) {
@@ -86,133 +408,143 @@ export async function onRequest({ request, env }) {
   if (!xids.length) {
     return jsonResponse({ detail: "Vyberte alespoň jednu fotografii" }, 400);
   }
+  if (xids.length > 100) {
+    return jsonResponse({ detail: "Přesuňte nejvýše 100 fotografií najednou." }, 400);
+  }
 
+  let catalog;
   let authoritativeGroups;
+  let projection;
   try {
-    authoritativeGroups = await loadAuthoritativeGroupMap(request, env);
+    catalog = await requireCatalog(request, env);
+    authoritativeGroups = await loadAuthoritativeGroups(request, env);
+    projection = await loadProjection(env);
   } catch (error) {
     logDatabaseError("/api/admin/group-membership", "load groups", error);
     return jsonResponse({ detail: "Skupiny nejsou dočasně dostupné" }, 503);
   }
-  const { resolvedGroupMap, groupRoots } = authoritativeGroups;
+
+  const { groupRoots, revision } = authoritativeGroups;
+  if (projection.currentRevision !== revision) {
+    return jsonResponse(
+      { detail: "Skupina se mezitím změnila. Načtěte ji znovu." },
+      409,
+    );
+  }
   const resolvedSourceGroupId = normalizeId(groupRoots[sourceGroupId]) ||
     sourceGroupId;
-  const targetGroupExists =
-    Object.prototype.hasOwnProperty.call(groupRoots, targetGroupId) ||
-    Array.from(resolvedGroupMap.values()).includes(targetGroupId);
+  const sourceAliases = aliasesForRoot(groupRoots, resolvedSourceGroupId);
+  let targetGroupExists;
+  try {
+    targetGroupExists =
+      Object.prototype.hasOwnProperty.call(groupRoots, targetGroupId) ||
+      await catalogGroupExists(env, targetGroupId);
+  } catch (error) {
+    logDatabaseError("/api/admin/group-membership", "find target group", error);
+    return jsonResponse({ detail: "Skupiny nejsou dočasně dostupné" }, 503);
+  }
   const resolvedTargetGroupId = targetGroupExists
     ? normalizeId(groupRoots[targetGroupId]) || targetGroupId
     : targetGroupId;
   if (resolvedSourceGroupId === resolvedTargetGroupId) {
     return jsonResponse({ detail: "Cílová skupina musí být jiná" }, 400);
   }
-  const sourceMembers = Array.from(resolvedGroupMap.entries())
-    .filter(([, groupId]) => groupId === resolvedSourceGroupId)
-    .map(([xid]) => xid);
-  if (sourceMembers.length === 0) {
+
+  let sourceMembership;
+  try {
+    sourceMembership = await loadSourceMembership(env, sourceAliases, xids);
+  } catch (error) {
+    logDatabaseError("/api/admin/group-membership", "load source group", error);
+    return jsonResponse({ detail: "Skupiny nejsou dočasně dostupné" }, 503);
+  }
+  if (sourceMembership.memberCount === 0) {
     return jsonResponse({ detail: "Zdrojová skupina je prázdná" }, 400);
   }
-  if (sourceMembers.length < 2 && !targetGroupExists) {
+  if (sourceMembership.memberCount < 2 && !targetGroupExists) {
     return jsonResponse({ detail: "Zdrojovou skupinu nelze rozdělit" }, 400);
   }
-  if (xids.some((xid) => resolvedGroupMap.get(xid) !== resolvedSourceGroupId)) {
+  if (xids.some((xid) => !sourceMembership.selectedXids.has(xid))) {
     return jsonResponse(
       { detail: "Některá fotografie už do zdrojové skupiny nepatří" },
       409,
     );
   }
-  if (xids.length >= sourceMembers.length && !targetGroupExists) {
+  if (xids.length >= sourceMembership.memberCount && !targetGroupExists) {
     return jsonResponse({ detail: "Ve zdrojové skupině musí něco zůstat" }, 400);
   }
 
   const curator = "admin-token";
-  const statements = xids.map((xid) =>
-    env.CORRECTIONS_DB.prepare(
-      `
-        INSERT INTO group_membership_overrides (
-          xid, group_id, source_group_id, revision, reason, curator, updated_at
-        ) VALUES (?, ?, ?, 1, ?, ?, datetime('now'))
-        ON CONFLICT(xid) DO UPDATE SET
-          group_id = excluded.group_id,
-          source_group_id = excluded.source_group_id,
-          revision = group_membership_overrides.revision + 1,
-          reason = excluded.reason,
-          curator = excluded.curator,
-          updated_at = datetime('now')
-      `,
-    ).bind(
-      xid,
-      resolvedTargetGroupId,
-      resolvedSourceGroupId,
-      reason || null,
+  const reservationMarker = projectionReservationMarker(revision);
+  const expectedRevisionAfterMembership = revision + xids.length;
+  const statements = [
+    reserveProjectionStatement(env, {
+      expectedRevision: revision,
+      expectedComputedRevision: projection.computedRevision,
+      reservationMarker,
+      expectedCatalogVersion: catalog.dataVersion,
+    }),
+    membershipUpsertStatement(env, {
+      xids,
+      sourceAliases,
+      sourceGroupId: resolvedSourceGroupId,
+      targetGroupId: resolvedTargetGroupId,
+      reason,
       curator,
-    ),
-  );
-  statements.push(
-    env.CORRECTIONS_DB.prepare(
-      `
-        INSERT INTO group_membership_events (
-          source_group_id, target_group_id, assignments_json, reason, curator
-        ) VALUES (?, ?, ?, ?, ?)
-      `,
-    ).bind(
-      resolvedSourceGroupId,
-      resolvedTargetGroupId,
-      JSON.stringify(xids),
-      reason || null,
+      expectedRevision: revision,
+      reservationMarker,
+      expectedCatalogVersion: catalog.dataVersion,
+    }),
+    membershipEventStatement(env, {
+      sourceGroupId: resolvedSourceGroupId,
+      targetGroupId: resolvedTargetGroupId,
+      xids,
+      reason,
       curator,
-    ),
-  );
+      expectedRevision: expectedRevisionAfterMembership,
+      reservationMarker,
+      expectedCatalogVersion: catalog.dataVersion,
+    }),
+  ];
   const reviewGroupIds = new Set();
   const addReviewRoot = (rootId) => {
-    if (!rootId) return;
-    reviewGroupIds.add(rootId);
-    Object.entries(groupRoots || {}).forEach(([groupId, currentRootId]) => {
-      if (normalizeId(currentRootId) === rootId) reviewGroupIds.add(groupId);
+    const root = normalizeId(rootId);
+    if (!root) return;
+    aliasesForRoot(groupRoots, root).forEach((groupId) => {
+      reviewGroupIds.add(groupId);
     });
   };
   addReviewRoot(resolvedSourceGroupId);
   if (targetGroupExists) addReviewRoot(resolvedTargetGroupId);
   reviewGroupIds.forEach((reviewGroupId) => {
     statements.push(
-      env.CORRECTIONS_DB.prepare(
-        `
-          INSERT INTO group_review_resolutions (
-            group_id, through_event_id, curator, resolved_at
-          )
-          SELECT ?, COALESCE(MAX(source_event_id), 0), ?, datetime('now')
-          FROM current_group_review_votes
-          WHERE group_id = ?
-          ON CONFLICT(group_id) DO UPDATE SET
-            through_event_id = MAX(
-              group_review_resolutions.through_event_id,
-              excluded.through_event_id
-            ),
-            curator = excluded.curator,
-            resolved_at = excluded.resolved_at
-        `,
-      ).bind(reviewGroupId, curator, reviewGroupId),
+      reviewResolutionStatement(env, {
+        groupId: reviewGroupId,
+        curator,
+        expectedRevision: expectedRevisionAfterMembership,
+        reservationMarker,
+        expectedCatalogVersion: catalog.dataVersion,
+      }),
     );
     statements.push(
-      env.CORRECTIONS_DB.prepare(
-        `
-          DELETE FROM current_group_review_votes
-          WHERE group_id = ?
-            AND source_event_id <= COALESCE(
-              (
-                SELECT through_event_id
-                FROM group_review_resolutions
-                WHERE group_id = ?
-              ),
-              0
-            )
-        `,
-      ).bind(reviewGroupId, reviewGroupId),
+      clearResolvedReviewVotesStatement(env, {
+        groupId: reviewGroupId,
+        expectedRevision: expectedRevisionAfterMembership,
+        reservationMarker,
+        expectedCatalogVersion: catalog.dataVersion,
+      }),
     );
   });
+  statements.push(
+    releaseProjectionStatement(
+      env,
+      projection.computedRevision,
+      reservationMarker,
+    ),
+  );
 
+  let results;
   try {
-    await env.CORRECTIONS_DB.batch(statements);
+    results = await env.CORRECTIONS_DB.batch(statements);
   } catch (error) {
     logDatabaseError(
       "/api/admin/group-membership",
@@ -220,6 +552,12 @@ export async function onRequest({ request, env }) {
       error,
     );
     return jsonResponse({ detail: "Rozdělení se nepodařilo uložit" }, 503);
+  }
+  if (Number(results?.[1]?.meta?.changes || 0) < xids.length) {
+    return jsonResponse(
+      { detail: "Skupina se mezitím změnila. Načtěte ji znovu." },
+      409,
+    );
   }
 
   return jsonResponse({

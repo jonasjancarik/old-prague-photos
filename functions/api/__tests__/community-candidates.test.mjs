@@ -229,7 +229,7 @@ test("candidate cursors reject a different community revision", () => {
   );
 });
 
-test("community controllers do not download full-corpus artifacts", () => {
+test("community controllers use browser candidate computation", () => {
   for (const path of [
     "viewer/static/pomoc.js",
     "viewer/static/group-review.js",
@@ -239,8 +239,12 @@ test("community controllers do not download full-corpus artifacts", () => {
     assert.equal(source.includes("/data/photos.geojson"), false, path);
     assert.equal(source.includes("/data/series_version_clusters.json"), false, path);
     assert.equal(source.includes("/data/similarity_candidates.json"), false, path);
-    assert.equal(source.includes("/api/community-candidates"), true, path);
+    assert.equal(source.includes("window.OldPragueCandidates.loadPage"), true, path);
   }
+  const clientSource = readFileSync("viewer/static/candidate-client.js", "utf8");
+  assert.equal(clientSource.includes("/data/photos.geojson"), true);
+  assert.equal(clientSource.includes("/data/series_version_clusters.json"), true);
+  assert.equal(clientSource.includes("/data/similarity_candidates.json"), true);
   const locationSource = readFileSync("viewer/static/pomoc.js", "utf8");
   assert.equal(
     locationSource.includes("applyReviewStateSnapshot(state.lastReviewState)"),
@@ -250,14 +254,8 @@ test("community controllers do not download full-corpus artifacts", () => {
     locationSource.includes('/api/review-state?snapshot=1'),
     true,
   );
-  const endpointSource = readFileSync(
-    "functions/api/community-candidates.js",
-    "utf8",
-  );
-  assert.equal(
-    endpointSource.includes("${dataVersion}:${revision}:${flow}:${focusGroupId}"),
-    false,
-  );
+  const endpointSource = readFileSync("functions/api/community-candidates.js", "utf8");
+  assert.equal(endpointSource.includes("/data/photos.geojson"), false);
   const duplicateSource = readFileSync("viewer/static/dup-review.js", "utf8");
   assert.equal(
     duplicateSource.includes("state.lastSubmittedPair = result.decision"),

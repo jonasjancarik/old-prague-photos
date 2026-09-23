@@ -1,6 +1,7 @@
 import { logDatabaseError } from "./_db.js";
 import { recordOperation } from "./_operations.js";
 import { onRequest as reviewStateOnRequest } from "./review-state.js";
+import { catalogGroupExists } from "./_catalog.js";
 import {
   assertSameOrigin,
   buildVoterKey,
@@ -193,29 +194,29 @@ async function loadAuthoritativeGroups(request, env) {
   }
   const payload = await response.json();
   const groupRoots = payload?.groupRoots || {};
-  const knownGroupIds = new Set(
-    Object.values(payload?.resolvedGroupByXid || {})
-      .map((groupId) => normalizeId(groupRoots[groupId]) || normalizeId(groupId))
-      .filter(Boolean),
-  );
-  if (knownGroupIds.size === 0) return null;
-  return { knownGroupIds, groupRoots };
+  return {
+    groupRoots,
+    revision: Number(response.headers.get("X-Community-Revision")) || 0,
+  };
 }
 
 async function handleGet(request, env) {
   const authoritativeGroups = await loadAuthoritativeGroups(request, env);
-  if (!authoritativeGroups) {
-    return jsonResponse({ detail: "Chybí metadata skupin" }, 500);
-  }
 
   const [rows, currentVoterKey] = await Promise.all([
     queryRows(env),
     buildVoterKey(request, env),
   ]);
+  // The event table contains only validated groups. Map historical group IDs
+  // through current merge roots without enumerating the entire photo catalog.
+  const knownGroupIds = new Set(rows.map((row) => {
+    const id = normalizeId(row.group_id);
+    return normalizeId(authoritativeGroups.groupRoots[id]) || id;
+  }).filter(Boolean));
   const items = summarizeVotes(
     rows,
     currentVoterKey,
-    authoritativeGroups.knownGroupIds,
+    knownGroupIds,
     authoritativeGroups.groupRoots,
   );
   return jsonResponse({ items, count: items.length });
@@ -251,6 +252,14 @@ async function handlePost(request, env) {
   if (!["ok", "split", "undo"].includes(verdict)) {
     return jsonResponse({ detail: "Neplatný typ rozhodnutí" }, 400);
   }
+  const submittedCandidateRevision = body?.candidate_revision;
+  if (
+    verdict !== "undo" &&
+    (!Number.isSafeInteger(submittedCandidateRevision) ||
+      submittedCandidateRevision < 0)
+  ) {
+    return jsonResponse({ detail: "Chybí verze prohlížené skupiny" }, 400);
+  }
 
   let authoritativeGroups;
   try {
@@ -266,12 +275,25 @@ async function handlePost(request, env) {
       503,
     );
   }
-  if (!authoritativeGroups) {
-    return jsonResponse({ detail: "Chybí metadata skupin" }, 500);
-  }
   const resolvedGroupId =
     normalizeId(authoritativeGroups.groupRoots[groupId]) || groupId;
-  if (!authoritativeGroups.knownGroupIds.has(resolvedGroupId)) {
+  if (
+    verdict !== "undo" &&
+    submittedCandidateRevision !== authoritativeGroups.revision
+  ) {
+    return jsonResponse(
+      { detail: "Skupina se mezitím změnila. Načtěte ji znovu." },
+      409,
+    );
+  }
+  let knownGroup;
+  try {
+    knownGroup = await catalogGroupExists(env, resolvedGroupId);
+  } catch (error) {
+    logDatabaseError("/api/group-review-votes", "check group in catalog", error);
+    return jsonResponse({ detail: "Stav komunity není dočasně dostupný" }, 503);
+  }
+  if (!knownGroup) {
     return jsonResponse({ detail: "Neznámá skupina" }, 400);
   }
 
@@ -295,8 +317,9 @@ async function handlePost(request, env) {
   }
 
   const voterIdentity = await ensureVoterIdentity(request, env);
+  let insertResult;
   try {
-    await env.CORRECTIONS_DB.prepare(
+    insertResult = await env.CORRECTIONS_DB.prepare(
       `
         INSERT INTO group_review_votes (
           group_id,
@@ -304,7 +327,9 @@ async function handlePost(request, env) {
           voter_key,
           user_agent
         )
-        VALUES (?, ?, ?, ?)
+        SELECT ?, ?, ?, ?
+        FROM community_state_projection
+        WHERE id = 1 AND current_revision = ?
       `,
     )
       .bind(
@@ -312,6 +337,7 @@ async function handlePost(request, env) {
         verdict,
         voterIdentity.voterKey,
         request.headers.get("User-Agent") || "",
+        authoritativeGroups.revision,
       )
       .run();
   } catch (error) {
@@ -321,6 +347,12 @@ async function handlePost(request, env) {
       error,
     );
     return jsonResponse({ detail: "Nepodařilo se uložit hlas" }, 503);
+  }
+  if (Number(insertResult?.meta?.changes || 0) < 1) {
+    return jsonResponse(
+      { detail: "Skupina se mezitím změnila. Načtěte ji znovu." },
+      409,
+    );
   }
 
   const response = jsonResponse({

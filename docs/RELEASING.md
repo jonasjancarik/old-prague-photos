@@ -85,6 +85,7 @@ Run from a clean, reviewed commit:
 ```bash
 PAGES_STAGING_URL=https://staging.example.com \
 D1_BACKUP_DIR=/secure/retained/old-prague-photos \
+CLOUDFLARE_ACCOUNT_ID=... \
 ADMIN_API_TOKEN=... \
 CF_ACCESS_CLIENT_ID=... \
 CF_ACCESS_CLIENT_SECRET=... \
@@ -97,8 +98,9 @@ retained checkpoint directory, the protected staging URL, and every credential
 needed by the smoke check before it does remote work. It refuses production-like
 branch names and an absent, all-zero, or production-equal staging D1 UUID. It
 verifies the full local test/build gate, captures a private SQL export and Time
-Travel bookmark, migrates the preview database, deploys a Pages preview, then
-checks secure configuration, candidate delivery, Access enforcement, the signed
+Travel bookmark, migrates and seeds the preview database, deploys a Pages
+preview, then checks secure configuration, compact community state, browser
+candidate assets, Access enforcement, the signed
 HttpOnly curator session, and current operational diagnostics.
 
 After the automated check, use a fresh browser session to submit one location
@@ -108,10 +110,9 @@ curator workbench. Confirm the audit/history and operational-health screens.
 
 ## First production release (davnapraha.cz)
 
-Do this once, before the first `npm run deploy:pages`. The production D1
-database `old-prague-photos` already exists but has no tables; the deploy
-script applies every migration. There are no contributions yet, so the first
-release does not need staging. Provision staging before the first release that
+This records the initial setup. The guarded deploy applies any pending D1
+migrations, seeds the versioned photo catalog, then deploys Pages. The first
+release had no contributions; provision staging before the first release that
 follows real contributions.
 
 This login can see several Cloudflare accounts, so export the account that holds
@@ -127,9 +128,11 @@ export CLOUDFLARE_ACCOUNT_ID=...
 2. **Pages project.**
    `npx wrangler pages project create old-prague-photos-viewer --production-branch main`
 3. **Keys.**
-   - Turnstile widget for `davnapraha.cz` and `www.davnapraha.cz` → site key and
-     secret key.
-   - Mapy.cz API key restricted to the `davnapraha.cz` referrer.
+   - Turnstile widget for `davnapraha.cz` → site key and secret key. `www`
+     redirects to the apex before the application runs.
+   - Mapy.cz API key restricted to `davnapraha.cz`. The existing project key
+     also allows `www.davnapraha.cz`, `localhost:*`, and `127.0.0.1:*` for
+     redirects and local development. Use a separate key for staging.
    - Three random secrets, for example `openssl rand -base64 48`, for
      `ADMIN_API_TOKEN`, `TURNSTILE_SESSION_SECRET` and `API_RATE_LIMIT_SECRET`.
 4. **Project secrets.** Each command prompts for the value, which keeps it out
@@ -143,7 +146,7 @@ export CLOUDFLARE_ACCOUNT_ID=...
    done
    ```
 
-   `TURNSTILE_ALLOWED_HOSTNAMES` is `davnapraha.cz,www.davnapraha.cz`.
+   `TURNSTILE_ALLOWED_HOSTNAMES` is `davnapraha.cz`.
    The local `.env` may still use the development-only `r2.dev` address;
    do not copy that value to production. Never set `TURNSTILE_BYPASS` remotely.
 5. **Domains and tiles.** In the R2 bucket that holds the `tiles/` objects,
@@ -196,11 +199,30 @@ with `CLOUDFLARE_ACCOUNT_ID` and either the `cf` login or
 `CLOUDFLARE_API_TOKEN`, then fails closed if
 the configured production branch differs. This prevents a migrated production
 database from being paired accidentally with a
-preview upload. The checkpoint is written before migrations and contains
+preview upload. After migrations, the release imports the versioned photo
+catalog in checked chunks before uploading Functions. The checkpoint is
+written before migrations and contains
 `database.sql`,
 `time-travel.json`, the deployed Git commit, and its UTC creation time. Retain
 it according to the project's backup policy and periodically test an import
 against a disposable database.
+
+### Workers Free check
+
+The Pages Functions run on the account's Workers Free plan. Its 10 ms CPU limit
+was reached when Functions parsed the complete photo catalog and assembled all
+candidate pairs. The current release keeps the catalog indexed in D1 and
+builds candidate queues in the browser. Before replacing a maintenance page
+or calling a release healthy, verify the live `/api/review-state`, photo lookup,
+contribution, and curator routes from cold requests. Check the Cloudflare
+invocation outcome and CPU time, including immediately after a write; a local
+test or a warm cache hit does not prove the Free-plan limit is met.
+The first catalog seed contains 12,518 photos. Check account-wide D1 rows
+written before a new seed, because the Free daily allowance also covers other
+databases in the account. The seed helper skips photo writes when the catalog
+digest matches, updating only the version marker if the surrounding static
+assets changed. A changed catalog digest requires checked photo imports and
+refuses unexpected row counts or membership changes.
 
 ## Recovery
 

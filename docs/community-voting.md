@@ -283,14 +283,15 @@ Shared, server-backed state:
 - merge decisions
 - group-review votes
 
-The three contribution pages consume `/api/community-candidates` in bounded
-pages. They no longer download `photos.geojson`, version clusters, or similarity
-data directly. The server resolves current memberships and corrections first;
-corrected candidates retain `properties.original_coordinates` so the browser
-can restore the source position after a split or merge undo;
-large exact-coordinate duplicate buckets use a bounded neighbor graph instead
-of every possible pair. Pagination cursors carry the state revision, so a write
-between pages causes a current-page restart instead of an offset skip.
+The three contribution pages load the published photo, version-cluster, and
+similarity files in the browser. They combine them with the compact,
+revisioned `/api/review-state` snapshot before showing candidates. Original
+coordinates remain available after a correction, split, or merge undo. Large
+exact-coordinate duplicate buckets use a limited neighbor graph, and the
+browser keeps only group IDs in the duplicate queue until it shows a pair.
+Pagination cursors carry the static data version and community revision, so a
+write between pages restarts the list. Every submitted XID, group, and revision
+is checked again against indexed D1 data on the server.
 
 Local browser-only state:
 - `/group-review.html` keeps a hide list in local storage after the current user
@@ -393,11 +394,14 @@ fingerprints.
 
 ## Deploy / Migration Notes
 
-Migrations `0009` through `0013` add versioned membership overrides, audit
+Migrations `0009` through `0015` add versioned membership overrides, audit
 events, current merge/vote projections, the revisioned review-state snapshot,
 durable group-review resolution boundaries, and bounded hourly operational
 counters. Migration `0013` persists the proposal target carried by new
-location confirmations. Apply them before deploying Functions. The guarded
+location confirmations. Migration `0014` adds an indexed photo catalog, and
+`0015` records its source digest; the
+guarded release imports the catalog in checked chunks before deploying
+Functions. Apply them before deploying Functions. The guarded
 release command enforces this order:
 
 ```bash

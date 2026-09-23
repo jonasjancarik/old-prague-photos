@@ -213,9 +213,11 @@ async function loadNextGroupPage({ reset = false } = {}) {
   try {
     let payload;
     try {
-      payload = await fetchJson(
-        `/api/community-candidates?flow=group&cursor=${encodeURIComponent(cursor)}&limit=40`,
-      );
+      payload = await window.OldPragueCandidates.loadPage({
+        flow: "group",
+        cursor,
+        limit: 40,
+      });
     } catch (error) {
       if (error?.status === 409 && !reset) {
         state.loadingCandidates = false;
@@ -231,6 +233,7 @@ async function loadNextGroupPage({ reset = false } = {}) {
     const knownIds = new Set(state.allGroups.map((group) => group.id));
     (Array.isArray(payload?.items) ? payload.items : []).forEach((group) => {
       if (!group?.id || knownIds.has(group.id)) return;
+      group.candidate_revision = payload.revision;
       knownIds.add(group.id);
       registerVersionClusters(group);
       state.allGroups.push(group);
@@ -657,6 +660,7 @@ async function submitCurrentGroupVote(verdict) {
     await submitGroupReviewVoteRequest({
       group_id: submittedGroupId,
       verdict,
+      candidate_revision: state.currentGroup.candidate_revision,
     });
     state.reviewedGroupIds.add(submittedGroupId);
     state.sessionVotes += 1;

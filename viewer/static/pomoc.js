@@ -300,13 +300,12 @@ async function loadLocationCandidatePage({ reset = false } = {}) {
   try {
     let payload;
     try {
-      const params = new URLSearchParams({
+      payload = await window.OldPragueCandidates.loadPage({
         flow: "location",
         cursor,
-        limit: "40",
+        limit: 40,
+        focusGroupId: state.focusGroupId,
       });
-      if (state.focusGroupId) params.set("group_id", state.focusGroupId);
-      payload = await fetchJson(`/api/community-candidates?${params.toString()}`);
     } catch (error) {
       if (error?.status === 409 && !reset) {
         state.loadingCandidates = false;
@@ -331,6 +330,7 @@ async function loadLocationCandidatePage({ reset = false } = {}) {
       (Array.isArray(group?.items) ? group.items : []).forEach((feature) => {
         const xid = String(feature?.properties?.id || "").trim();
         if (!xid || knownXids.has(xid)) return;
+        feature.properties.candidate_revision = payload.revision;
         knownXids.add(xid);
         state.features.push(feature);
       });
@@ -873,6 +873,7 @@ async function submitCorrection() {
   const payload = {
     xid: submittedXid,
     group_id: submittedGroupId,
+    candidate_revision: state.currentFeature.properties.candidate_revision,
     lat: proposed.lat,
     lon: proposed.lon,
     verdict: "wrong",
@@ -916,6 +917,7 @@ async function submitFlag() {
   const payload = {
     xid: submittedXid,
     group_id: submittedGroupId,
+    candidate_revision: state.currentFeature.properties.candidate_revision,
     verdict: "flag",
     message: (messageEl?.value || "").trim() || "Nahlášeno bez upřesnění polohy.",
     email: (emailEl?.value || "").trim() || null,
@@ -968,6 +970,7 @@ async function submitOk() {
   const payload = {
     xid: submittedXid,
     group_id: submittedGroupId,
+    candidate_revision: properties.candidate_revision,
     verdict: "ok",
     location_revision: locationRevision,
     proposal_id: proposalId,

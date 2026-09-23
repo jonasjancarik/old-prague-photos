@@ -22,6 +22,8 @@ Status meanings:
 | `scripts/backfill_scan_metadata.py` | maintenance | metadata | Copies scan metadata from raw records into geolocated records after rescrapes. |
 | `scripts/write_pipeline_manifest.py` | maintenance | reproducibility | Manifest writer used by run-directory derivation. |
 | `scripts/release_baseline_inventory.py` | maintenance | backup-verification | Writes and verifies deterministic per-file SHA-256 inventories for expensive ignored caches without running the pipeline. |
+| `scripts/build_catalog_seed.py` | maintenance | build/deployment | Generates versioned, resumable D1 catalog import chunks from the published photo data; run before enabling the Free-plan API. |
+| `scripts/seed-catalog-d1.sh` | maintenance | deployment | Applies the generated catalog chunks to D1 with version checks, resumable imports, and a final row-count check. |
 | `scripts/orphan_recovery.py` | maintenance | recovery | Gentle orphan xid probe/finalize workflow with readiness gates. |
 | `scripts/orphan_recovery_loop.sh` | maintenance | recovery | Shell wrapper for repeated orphan recovery passes. |
 | `scripts/llm_review_similarity.py` | maintenance | review | LLM review/materialization for visual duplicate candidates. |

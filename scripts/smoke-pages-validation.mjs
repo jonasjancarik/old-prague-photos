@@ -1,7 +1,12 @@
-export function isValidCandidatePayload(payload) {
+export function isValidReviewSnapshot(payload) {
   return (
-    Array.isArray(payload?.items) &&
-    Number.isSafeInteger(payload?.revision) &&
-    payload.revision >= 0
+    payload?.reviewStateSchemaVersion === 4 &&
+    Array.isArray(payload?.groupCorrections) &&
+    Array.isArray(payload?.doneGroupIds) &&
+    Array.isArray(payload?.mergeDecisions) &&
+    payload?.resolvedGroupByXid !== null &&
+    typeof payload?.resolvedGroupByXid === "object" &&
+    Number.isSafeInteger(payload?.counts?.knownXids) &&
+    payload.counts.knownXids > 0
   );
 }

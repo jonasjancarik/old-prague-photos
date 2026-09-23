@@ -1555,8 +1555,10 @@ def get_corrections() -> JSONResponse:
 @app.get("/api/review-state")
 def get_review_state() -> JSONResponse:
     state = build_review_state()
+    revision = _candidate_revision(state)
     payload = {
         **state,
+        "revision": revision,
         "reviewStateSchemaVersion": REVIEW_STATE_SCHEMA_VERSION,
         "counts": {
             "corrections": len(state.get("groupCorrections", [])),
@@ -1586,7 +1588,14 @@ def get_review_state() -> JSONResponse:
             "knownXids": len(state.get("resolvedGroupByXid", {})),
         },
     }
-    return JSONResponse(payload)
+    return JSONResponse(
+        payload,
+        headers={
+            "X-Community-Revision": str(revision),
+            "X-Community-Revision-Stable": "1",
+            "X-Community-Data-Version": _candidate_data_version(),
+        },
+    )
 
 
 def _candidate_data_version() -> str:

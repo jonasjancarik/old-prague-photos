@@ -7,6 +7,7 @@ import {
   verifyTurnstileToken,
 } from "./_security.js";
 import { onRequest as reviewStateOnRequest } from "./review-state.js";
+import { catalogGroupExists } from "./_catalog.js";
 import {
   isMissingColumnError,
   logDatabaseError,
@@ -63,16 +64,9 @@ async function loadAuthoritativeReviewState(request, env) {
 async function loadAuthoritativeGroups(request, env) {
   const { payload, revision } = await loadAuthoritativeReviewState(request, env);
   const groupRoots = payload?.groupRoots || {};
-  const knownGroupIds = new Set([
-    ...Object.keys(groupRoots),
-    ...Object.values(groupRoots),
-    ...Object.values(payload?.resolvedGroupByXid || {}),
-  ].map((value) => String(value || "").trim()).filter(Boolean));
-  if (knownGroupIds.size === 0) return null;
   return {
     revision,
     groupRoots,
-    knownGroupIds,
     mergeDecisions: Array.isArray(payload?.mergeDecisions)
       ? payload.mergeDecisions
       : [],
@@ -132,9 +126,6 @@ async function handlePost(request, env) {
       503,
     );
   }
-  if (!authoritativeGroups) {
-    return jsonResponse({ detail: "Chybí metadata skupin" }, 500);
-  }
   if (
     verdict !== "undo" &&
     submittedCandidateRevision !== authoritativeGroups.revision
@@ -144,10 +135,23 @@ async function handlePost(request, env) {
       409,
     );
   }
-  if (
-    !authoritativeGroups.knownGroupIds.has(groupIdA) ||
-    !authoritativeGroups.knownGroupIds.has(groupIdB)
-  ) {
+  let knownA;
+  let knownB;
+  try {
+    [knownA, knownB] = await Promise.all([
+      catalogGroupExists(env, groupIdA),
+      catalogGroupExists(env, groupIdB),
+    ]);
+    // A historical merge endpoint may have no current members after a curator
+    // move. Keep it addressable so an exact old pair can still be disagreed
+    // with or undone without accepting arbitrary unknown group IDs.
+    knownA ||= Object.prototype.hasOwnProperty.call(authoritativeGroups.groupRoots, groupIdA);
+    knownB ||= Object.prototype.hasOwnProperty.call(authoritativeGroups.groupRoots, groupIdB);
+  } catch (error) {
+    logDatabaseError("/api/merges", "check groups in catalog", error);
+    return jsonResponse({ detail: "Stav komunity není dočasně dostupný" }, 503);
+  }
+  if (!knownA || !knownB) {
     return jsonResponse({ detail: "Neznámá skupina" }, 400);
   }
   const resolvedGroupIdA = String(

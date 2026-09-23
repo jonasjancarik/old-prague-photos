@@ -140,4 +140,4 @@ import{m as e}from"./loadLegacyScripts-CCwIcKCm.js";import{i as n}from"./opensea
       </section>
     </main>
   </div>
-`;n();e(a,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./dup-review.js","./mode-picker.js"]).catch(console.error);
+`;n();e(a,["./zoomify.js","./photo-meta.js","./grouping.js","./candidate-client.js","./media-filter.js","./session-verify.js","./dup-review.js","./mode-picker.js"]).catch(console.error);

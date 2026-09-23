@@ -1,12 +1,9 @@
 import {
   buildLocationRevision,
-  buildReviewState,
-  loadXidGroupMap,
 } from "./_review_state.js";
-import {
-  isMissingColumnError,
-  logDatabaseError,
-} from "./_db.js";
+import { logDatabaseError } from "./_db.js";
+import { findCatalogPhoto } from "./_catalog.js";
+import { onRequest as reviewStateOnRequest } from "./review-state.js";
 import {
   assertSameOrigin,
   ensureVoterIdentity,
@@ -42,101 +39,26 @@ function confirmationTarget(reviewState, groupId) {
   };
 }
 
-async function loadReviewState(request, env) {
-  const correctionsResult = await env.CORRECTIONS_DB.prepare(
-    `
-      SELECT
-        id,
-        xid,
-        group_id,
-        lat,
-        lon,
-        has_coordinates,
-        voter_key,
-        verdict,
-        location_revision,
-        proposal_id,
-        created_at
-      FROM corrections
-    `,
-  ).all();
-  const correctionRows = correctionsResult?.results || [];
-
-  let mergeRows = [];
-  try {
-    const mergesResult = await env.CORRECTIONS_DB.prepare(
-      `
-        SELECT
-          id,
-          group_id_a,
-          group_id_b,
-          verdict,
-          voter_key,
-          created_at
-        FROM (
-          SELECT
-            id,
-            group_id_a,
-            group_id_b,
-            verdict,
-            voter_key,
-            created_at,
-            ROW_NUMBER() OVER (
-              PARTITION BY
-                group_id_a,
-                group_id_b,
-                COALESCE(NULLIF(voter_key, ''), 'legacy')
-              ORDER BY created_at DESC, id DESC
-            ) AS active_rank
-          FROM merge_decisions
-        )
-        WHERE active_rank = 1
-      `,
-    ).all();
-    mergeRows = mergesResult?.results || [];
-  } catch (error) {
-    if (!isMissingColumnError(error, ["voter_key"])) {
-      throw error;
-    }
-    const mergesResult = await env.CORRECTIONS_DB.prepare(
-      `
-        SELECT
-          id,
-          group_id_a,
-          group_id_b,
-          verdict,
-          created_at
-        FROM (
-          SELECT
-            id,
-            group_id_a,
-            group_id_b,
-            verdict,
-            created_at,
-            ROW_NUMBER() OVER (
-              PARTITION BY group_id_a, group_id_b
-              ORDER BY created_at DESC, id DESC
-            ) AS active_rank
-          FROM merge_decisions
-        )
-        WHERE active_rank = 1
-      `,
-    ).all();
-    mergeRows = mergesResult?.results || [];
-  }
-
-  const xidGroupMap = await loadXidGroupMap(request, env);
-  return buildReviewState({
-    correctionRows,
-    mergeRows,
-    xidGroupMap,
+async function loadReviewSnapshot(request, env) {
+  const url = new URL("/api/review-state?snapshot=1", request.url);
+  const response = await reviewStateOnRequest({
+    request: new Request(url.toString(), { method: "GET", headers: request.headers }),
+    env,
+    waitUntil() {},
   });
+  if (response.status !== 200 || response.headers.get("X-Community-Revision-Stable") !== "1") {
+    throw new Error("Authoritative community state is changing");
+  }
+  return {
+    payload: await response.json(),
+    revision: Number(response.headers.get("X-Community-Revision")) || 0,
+  };
 }
 
 async function handleGet(request, env) {
   try {
-    const reviewState = await loadReviewState(request, env);
-    const items = reviewState.groupCorrections || [];
+    const { payload } = await loadReviewSnapshot(request, env);
+    const items = payload.groupCorrections || [];
     return jsonResponse({ items, count: items.length });
   } catch (error) {
     logDatabaseError("/api/corrections", "load review state", error);
@@ -170,6 +92,13 @@ async function handlePost(request, env) {
   const xid = String(body?.xid || "").trim();
   if (!xid) {
     return jsonResponse({ detail: "Chybí xid" }, 400);
+  }
+  const submittedCandidateRevision = body?.candidate_revision;
+  if (
+    !Number.isSafeInteger(submittedCandidateRevision) ||
+    submittedCandidateRevision < 0
+  ) {
+    return jsonResponse({ detail: "Chybí verze prohlížené fotografie" }, 400);
   }
 
   const groupId = String(body?.group_id || "").trim();
@@ -235,35 +164,40 @@ async function handlePost(request, env) {
     }
   }
 
-  let xidGroupMap;
+  let catalogPhoto;
   try {
-    xidGroupMap = await loadXidGroupMap(request, env);
+    catalogPhoto = await findCatalogPhoto(env, xid);
   } catch (error) {
-    logDatabaseError("/api/corrections", "load photo groups", error);
+    logDatabaseError("/api/corrections", "load photo from catalog", error);
     return jsonResponse(
       { detail: "Stav komunity není dočasně dostupný" },
       503,
     );
   }
-  if (xidGroupMap.size === 0) {
-    return jsonResponse({ detail: "Chybí metadata skupin" }, 500);
-  }
-  const mappedGroupId = xidGroupMap.get(xid) || "";
+  const mappedGroupId = String(catalogPhoto?.current_group_id || "").trim();
   if (!mappedGroupId) {
     return jsonResponse({ detail: "Neznámé xid" }, 400);
   }
   let resolvedGroupId = mappedGroupId;
   let reviewState;
+  let snapshotRevision;
   try {
-    reviewState = await loadReviewState(request, env);
+    const snapshot = await loadReviewSnapshot(request, env);
+    reviewState = snapshot.payload;
+    snapshotRevision = snapshot.revision;
     resolvedGroupId =
-      String(reviewState.resolvedGroupByXid?.[xid] || "").trim() ||
-      mappedGroupId;
+      String(reviewState.groupRoots?.[mappedGroupId] || "").trim() || mappedGroupId;
   } catch (error) {
     logDatabaseError("/api/corrections", "resolve submitted group", error);
     return jsonResponse(
       { detail: "Stav komunity není dočasně dostupný" },
       503,
+    );
+  }
+  if (submittedCandidateRevision !== snapshotRevision) {
+    return jsonResponse(
+      { detail: "Skupina se mezitím změnila. Načtěte ji znovu." },
+      409,
     );
   }
   if (
@@ -309,7 +243,16 @@ async function handlePost(request, env) {
         email,
         user_agent
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      FROM community_state_projection
+      WHERE id = 1 AND current_revision = ?
+        AND EXISTS (
+          SELECT 1
+          FROM catalog_photos AS p
+          LEFT JOIN group_membership_overrides AS o ON o.xid = p.xid
+          WHERE p.xid = ?
+            AND COALESCE(o.group_id, p.base_group_id) = ?
+        )
     `,
   ).bind(
     xid,
@@ -324,13 +267,23 @@ async function handlePost(request, env) {
     message,
     email || null,
     request.headers.get("User-Agent") || "",
+    snapshotRevision,
+    xid,
+    mappedGroupId,
   );
 
+  let insertResult;
   try {
-    await statement.run();
+    insertResult = await statement.run();
   } catch (error) {
     logDatabaseError("/api/corrections", "insert correction", error);
     return jsonResponse({ detail: "Nepodařilo se uložit příspěvek" }, 503);
+  }
+  if (Number(insertResult?.meta?.changes || 0) < 1) {
+    return jsonResponse(
+      { detail: "Poloha se mezitím změnila. Načtěte ji znovu." },
+      409,
+    );
   }
 
   const response = jsonResponse({

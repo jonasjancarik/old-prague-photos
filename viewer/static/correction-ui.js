@@ -220,6 +220,7 @@ let MAPY_CZ_API_KEY = "";
 
             const payload = {
                 xid: submittedFeature.properties.id,
+                candidate_revision: submittedFeature.properties.candidate_revision,
                 lat: submittedCoords.lat,
                 lon: submittedCoords.lon,
                 verdict: "wrong",

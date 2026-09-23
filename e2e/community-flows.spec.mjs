@@ -15,11 +15,18 @@ async function openPage(page, path) {
   await page.goto(path, { waitUntil: "domcontentloaded" });
 }
 
-async function postFromOrigin(request, path, data) {
-  return request.post(path, {
-    data,
-    headers: { Origin: "http://127.0.0.1:8790" },
-  });
+async function loadBrowserCandidates(page, options) {
+  await page.waitForFunction(
+    () => typeof window.OldPragueCandidates?.loadPage === "function",
+  );
+  return page.evaluate(
+    (params) => window.OldPragueCandidates.loadPage(params),
+    options,
+  );
+}
+
+function primaryFeature(group) {
+  return group?.primary || group?.items?.[0] || null;
 }
 
 test.describe.serial("community contribution flows", () => {
@@ -75,24 +82,37 @@ test.describe.serial("community contribution flows", () => {
 
   test("opens a pending map proposal in the exact location-review flow without confirming it", async ({
     page,
-    request,
   }) => {
-    const candidatesResponse = await request.get(
-      "/api/community-candidates?flow=location&limit=1",
-    );
-    expect(candidatesResponse.ok()).toBeTruthy();
-    const candidate = (await candidatesResponse.json()).items[0];
+    await openPage(page, "/pomoc.html?mode=location");
+    await waitForFlow(page, "#current-xid", "#vote-down");
+    const candidatePage = await loadBrowserCandidates(page, { flow: "location", limit: 1 });
+    const candidate = candidatePage.items[0];
     expect(candidate).toBeTruthy();
-    const [lon, lat] = candidate.primary.geometry.coordinates;
-    const proposal = await postFromOrigin(request, "/api/corrections", {
-      xid: candidate.primary.properties.id,
-      group_id: candidate.id,
-      verdict: "wrong",
-      lat: Number(lat) + 0.001,
-      lon: Number(lon) + 0.001,
-      message: "E2E návrh pro přesné předání do kontroly",
+    const feature = primaryFeature(candidate);
+    const [lon, lat] = feature.geometry.coordinates;
+    const proposal = await page.evaluate(async ({ xid, groupId, candidateRevision, lat, lon }) => {
+      const response = await fetch("/api/corrections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          xid,
+          group_id: groupId,
+          candidate_revision: candidateRevision,
+          verdict: "wrong",
+          lat: Number(lat) + 0.001,
+          lon: Number(lon) + 0.001,
+          message: "E2E návrh pro přesné předání do kontroly",
+        }),
+      });
+      return { ok: response.ok, status: response.status };
+    }, {
+      xid: feature.properties.id,
+      groupId: candidate.id,
+      candidateRevision: candidatePage.revision,
+      lat,
+      lon,
     });
-    expect(proposal.ok()).toBeTruthy();
+    expect(proposal.ok).toBeTruthy();
 
     let confirmationPosts = 0;
     page.on("request", (outgoing) => {
@@ -105,7 +125,7 @@ test.describe.serial("community contribution flows", () => {
     });
     await openPage(
       page,
-      `/?xid=${encodeURIComponent(candidate.primary.properties.id)}`,
+      `/?xid=${encodeURIComponent(feature.properties.id)}`,
     );
     await expect(page.locator("#confirm-cta")).toBeVisible();
     await expect(page.locator("#confirm-cta")).toHaveText("Zkontrolovat návrh");
@@ -275,28 +295,64 @@ test.describe.serial("community contribution flows", () => {
     await expect(page.locator("#vote-up")).toBeEnabled();
   });
 
-  test("rejects a stale candidate cursor after a contribution", async ({ request }) => {
-    const pageResponse = await request.get(
-      "/api/community-candidates?flow=location&limit=1",
-    );
-    expect(pageResponse.ok()).toBeTruthy();
-    const candidates = await pageResponse.json();
-    expect(candidates.nextCursor).toBeTruthy();
-    const candidate = candidates.items[0];
-
-    const write = await postFromOrigin(request, "/api/corrections", {
-      xid: candidate.primary.properties.id,
-      group_id: candidate.id,
-      verdict: "ok",
-      location_revision: candidate.primary.properties.location_revision,
-      proposal_id: candidate.primary.properties.proposed_id || null,
+  test("recovers a stale browser candidate cursor after a contribution", async ({ page }) => {
+    await openPage(page, "/pomoc.html?mode=location");
+    await waitForFlow(page, "#current-xid", "#vote-up");
+    const candidates = await loadBrowserCandidates(page, {
+      flow: "location",
+      limit: 1,
     });
-    expect(write.ok()).toBeTruthy();
+    expect(candidates.nextCursor).toBeTruthy();
+    const nextPage = await loadBrowserCandidates(page, {
+      flow: "location",
+      limit: 1,
+      cursor: candidates.nextCursor,
+    });
+    expect(nextPage.items[0]?.id).not.toBe(candidates.items[0]?.id);
+    const candidate = candidates.items[0];
+    const feature = primaryFeature(candidate);
+    const write = await page.evaluate(async ({ xid, groupId, candidateRevision, revision, proposalId }) => {
+      const response = await fetch("/api/corrections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          xid,
+          group_id: groupId,
+          candidate_revision: candidateRevision,
+          verdict: "ok",
+          location_revision: revision,
+          proposal_id: proposalId,
+        }),
+      });
+      return { ok: response.ok, status: response.status };
+    }, {
+      xid: feature.properties.id,
+      groupId: candidate.id,
+      candidateRevision: candidates.revision,
+      revision: feature.properties.location_revision,
+      proposalId: feature.properties.proposed_id || null,
+    });
+    expect(write.ok).toBeTruthy();
 
-    const stale = await request.get(
-      `/api/community-candidates?flow=location&limit=1&cursor=${encodeURIComponent(candidates.nextCursor)}`,
-    );
-    expect(stale.status()).toBe(409);
+    const stale = await page.evaluate(async (cursor) => {
+      try {
+        await window.OldPragueCandidates.loadPage({
+          flow: "location",
+          limit: 1,
+          cursor,
+        });
+        return null;
+      } catch (error) {
+        return { status: error?.status || null };
+      }
+    }, candidates.nextCursor);
+    expect(stale?.status).toBe(409);
+    const recovered = await loadBrowserCandidates(page, {
+      flow: "location",
+      limit: 1,
+      cursor: "0",
+    });
+    expect(recovered.revision).toBeGreaterThan(candidates.revision);
   });
 
   test("keeps the correction dialog keyboard-contained and closes with Escape", async ({
@@ -428,26 +484,45 @@ test.describe.serial("community contribution flows", () => {
     page,
   }) => {
     await page.route("https://unpkg.com/**", (route) => route.abort());
-    let candidateRequests = 0;
-    await page.route("**/api/community-candidates?*", async (route) => {
+    let submittedPair = null;
+    let candidatePairs = [];
+    await page.route("**/api/review-state?*", async (route) => {
       const url = new URL(route.request().url());
-      if (url.searchParams.get("flow") !== "duplicate") {
+      if (url.searchParams.get("snapshot") !== "1") {
         await route.continue();
         return;
       }
-      candidateRequests += 1;
-      if (candidateRequests === 1) {
-        await route.continue();
-        return;
+      const upstream = await route.fetch();
+      const payload = await upstream.json();
+      if (submittedPair) {
+        payload.mergeDecisions = [
+          ...(payload.mergeDecisions || []),
+          ...candidatePairs.map((pair) => ({
+            group_id_a: pair.groupAId,
+            group_id_b: pair.groupBId,
+            verdict: "same",
+          })),
+        ];
       }
       await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ items: [], total: 0, nextCursor: null }),
+        response: upstream,
+        body: JSON.stringify(payload),
+        headers: {
+          ...upstream.headers(),
+          "content-type": "application/json",
+          ...(submittedPair
+            ? {
+                "x-community-revision": String(
+                  Number(upstream.headers()["x-community-revision"] || 0) + 1,
+                ),
+              }
+            : {}),
+        },
       });
     });
     await page.route("**/api/merges", async (route) => {
       const decision = route.request().postDataJSON();
+      submittedPair = decision;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -459,6 +534,21 @@ test.describe.serial("community contribution flows", () => {
       waitUntil: "domcontentloaded",
     });
     await waitForEnabled(page, "#mark-same");
+    candidatePairs = await page.evaluate(async () => {
+      const all = [];
+      let cursor = "0";
+      do {
+        const payload = await window.OldPragueCandidates.loadPage({
+          flow: "duplicate",
+          cursor,
+          limit: 50,
+        });
+        all.push(...payload.items);
+        cursor = payload.nextCursor;
+      } while (cursor);
+      return all;
+    });
+    expect(candidatePairs.length).toBeGreaterThan(0);
     await expect(page.locator("#left-details")).not.toBeEmpty();
     await page.locator("#mark-same").click();
 
@@ -479,15 +569,10 @@ test.describe.serial("community contribution flows", () => {
   test("keeps exact-pair undo available when refreshing after a saved vote fails", async ({
     page,
   }) => {
-    let candidateRequests = 0;
-    await page.route("**/api/community-candidates?*", async (route) => {
+    let submittedPair = null;
+    await page.route("**/api/review-state?*", async (route) => {
       const url = new URL(route.request().url());
-      if (url.searchParams.get("flow") !== "duplicate") {
-        await route.continue();
-        return;
-      }
-      candidateRequests += 1;
-      if (candidateRequests === 1) {
+      if (url.searchParams.get("snapshot") !== "1" || !submittedPair) {
         await route.continue();
         return;
       }
@@ -499,6 +584,7 @@ test.describe.serial("community contribution flows", () => {
     });
     await page.route("**/api/merges", async (route) => {
       const decision = route.request().postDataJSON();
+      submittedPair = decision;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -552,12 +638,15 @@ test.describe.serial("community contribution flows", () => {
     );
   });
 
-  test("opens the duplicate comparison focused on one group", async ({ page, request }) => {
-    const candidates = await request.get(
-      "/api/community-candidates?flow=duplicate&cursor=0&limit=1",
-    );
-    expect(candidates.ok()).toBeTruthy();
-    const groupId = (await candidates.json()).items[0].groupA.id;
+  test("opens the duplicate comparison focused on one group", async ({ page }) => {
+    await openPage(page, "/dup-review.html?mode=dedupe");
+    await waitForEnabled(page, "#mark-same");
+    const candidates = await loadBrowserCandidates(page, {
+      flow: "duplicate",
+      cursor: "0",
+      limit: 1,
+    });
+    const groupId = candidates.items[0].groupAId;
 
     await openPage(page, `/dup-review.html?mode=dedupe&group_id=${groupId}`);
     await expect(page.locator("#pair-filter")).toHaveText("Jen páry s vybranou skupinou");

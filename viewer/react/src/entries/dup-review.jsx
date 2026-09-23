@@ -8,6 +8,7 @@ mountPage(template, [
   './zoomify.js',
   './photo-meta.js',
   './grouping.js',
+  './candidate-client.js',
   './media-filter.js',
   './session-verify.js',
   './dup-review.js',

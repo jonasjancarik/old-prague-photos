@@ -25,6 +25,7 @@ export function makeRequest(
 
 export function makePhotosAsset(features = []) {
   return {
+    features,
     fetch: async (request) => {
       const path = new URL(request.url).pathname;
       const payload = path.endsWith("/community-data-version.json")
@@ -72,11 +73,20 @@ export class FakeD1 {
     this.groupMembershipOverrides = new Map();
     this.groupMembershipEvents = [];
     this.groupReviewResolutions = new Map();
-    this.communityProjection = null;
+    this.communityProjection = {
+      current_revision: 0,
+      computed_revision: -1,
+      data_version: "test-data-v1",
+      payload_json: null,
+    };
+    this.catalogMetadata = { data_version: "test-data-v1", row_count: 2 };
+    this.catalogPhotos = new Map();
     this.operationMetrics = [];
     this.projectionUpdateChanges = 1;
     this.allFailures = [];
     this.beforeMergeInsert = null;
+    this.beforeGroupVoteInsert = null;
+    this.beforeCorrectionInsert = null;
     this.mergeAuditColumnsMissing = false;
   }
 
@@ -92,10 +102,33 @@ export class FakeD1 {
     const query = String(sql || "").toLowerCase();
 
     if (query.includes("update community_state_projection")) {
-      return {
-        success: true,
-        meta: { changes: Number(this.projectionUpdateChanges) || 0 },
-      };
+      const projection = this.communityProjection;
+      let changes = Number(this.projectionUpdateChanges) || 0;
+      if (query.includes("set computed_revision = ?") && query.includes("and current_revision = ?")) {
+        const [marker, expectedRevision, expectedComputed, catalogVersion] = args;
+        changes = Number(Boolean(
+          projection &&
+          projection.current_revision === Number(expectedRevision) &&
+          projection.computed_revision === Number(expectedComputed) &&
+          this.catalogMetadata?.data_version === catalogVersion,
+        ));
+        if (changes) projection.computed_revision = Number(marker);
+      } else if (query.includes("set computed_revision = ?") && query.includes("and computed_revision = ?")) {
+        const [computedRevision, marker] = args;
+        changes = Number(Boolean(projection && projection.computed_revision === Number(marker)));
+        if (changes) projection.computed_revision = Number(computedRevision);
+      } else if (query.includes("set payload_json")) {
+        const [payloadJson, computedRevision, dataVersion, expectedRevision] = args;
+        changes = Number(Boolean(
+          changes && projection && projection.current_revision === Number(expectedRevision),
+        ));
+        if (changes) {
+          projection.payload_json = payloadJson;
+          projection.computed_revision = Number(computedRevision);
+          projection.data_version = dataVersion;
+        }
+      }
+      return { success: true, meta: { changes } };
     }
 
     if (query.includes("insert into api_rate_limits")) {
@@ -150,6 +183,23 @@ export class FakeD1 {
     }
 
     if (query.includes("insert into corrections")) {
+      if (typeof this.beforeCorrectionInsert === "function") {
+        const callback = this.beforeCorrectionInsert;
+        this.beforeCorrectionInsert = null;
+        callback(this);
+      }
+      if (query.includes("from community_state_projection")) {
+        const currentRevision = Number(this.communityProjection?.current_revision || 0);
+        const expectedRevision = Number(args[12]);
+        const xidForGuard = String(args[13] || "");
+        const groupForGuard = String(args[14] || "");
+        const feature = this.catalogPhotos.get(xidForGuard);
+        const currentGroup = this.groupMembershipOverrides.get(xidForGuard)?.group_id ||
+          feature?.properties?.group_id || "";
+        if (expectedRevision !== currentRevision || currentGroup !== groupForGuard) {
+          return { success: true, meta: { changes: 0 } };
+        }
+      }
       const [
         xid,
         groupId,
@@ -174,7 +224,10 @@ export class FakeD1 {
         proposal_id: proposalId || null,
         created_at: "2026-01-01 00:00:00",
       });
-      return;
+      if (this.communityProjection) {
+        this.communityProjection.current_revision += 1;
+      }
+      return { success: true, meta: { changes: 1 } };
     }
 
     if (query.includes("insert into merge_decisions")) {
@@ -220,6 +273,17 @@ export class FakeD1 {
     }
 
     if (query.includes("insert into group_review_votes")) {
+      if (typeof this.beforeGroupVoteInsert === "function") {
+        const callback = this.beforeGroupVoteInsert;
+        this.beforeGroupVoteInsert = null;
+        callback(this);
+      }
+      if (
+        query.includes("from community_state_projection") &&
+        Number(args[4]) !== Number(this.communityProjection?.current_revision || 0)
+      ) {
+        return { success: true, meta: { changes: 0 } };
+      }
       const [groupId, verdict, voterKey, userAgent] = args;
       this.groupReviewVotes.push({
         id: this.groupReviewVotes.length + 1,
@@ -229,21 +293,62 @@ export class FakeD1 {
         user_agent: userAgent || "",
         created_at: "2026-01-01 00:00:00",
       });
-      return;
+      return { success: true, meta: { changes: 1 } };
     }
 
     if (query.includes("insert into group_review_resolutions")) {
       const [groupId, curator] = args;
+      if (query.includes("from community_state_projection")) {
+        const [, , , expectedRevision, marker, catalogVersion] = args;
+        if (
+          this.communityProjection?.current_revision !== Number(expectedRevision) ||
+          this.communityProjection?.computed_revision !== Number(marker) ||
+          this.catalogMetadata?.data_version !== catalogVersion
+        ) return { success: true, meta: { changes: 0 } };
+      }
       const throughEventId = this.groupReviewVotes
         .filter((row) => row.group_id === groupId)
         .reduce((maximum, row) => Math.max(maximum, Number(row.id) || 0), 0);
       const existing = Number(this.groupReviewResolutions.get(groupId) || 0);
       this.groupReviewResolutions.set(groupId, Math.max(existing, throughEventId));
-      return;
+      return { success: true, meta: { changes: 1 } };
     }
 
     if (query.includes("delete from current_group_review_votes")) {
-      return;
+      return { success: true, meta: { changes: 0 } };
+    }
+
+    if (query.includes("with requested(xid)") && query.includes("insert into group_membership_overrides")) {
+      const [xidsJson, groupId, sourceGroupId, reason, curator,
+        expectedRevision, marker, catalogVersion, aliasesJson] = args;
+      const xids = JSON.parse(xidsJson);
+      const sourceAliases = new Set(JSON.parse(aliasesJson));
+      const projection = this.communityProjection;
+      const allowed = Boolean(
+        projection?.current_revision === Number(expectedRevision) &&
+        projection?.computed_revision === Number(marker) &&
+        this.catalogMetadata?.data_version === catalogVersion &&
+        xids.every((xid) => {
+          const feature = this.catalogPhotos.get(xid);
+          const currentGroup = this.groupMembershipOverrides.get(xid)?.group_id ||
+            feature?.properties?.group_id || "";
+          return Boolean(feature) && sourceAliases.has(currentGroup);
+        }),
+      );
+      if (!allowed) return { success: true, meta: { changes: 0 } };
+      xids.forEach((xid) => {
+        const existing = this.groupMembershipOverrides.get(xid);
+        this.groupMembershipOverrides.set(xid, {
+          xid,
+          group_id: groupId,
+          source_group_id: sourceGroupId,
+          revision: Number(existing?.revision || 0) + 1,
+          reason,
+          curator,
+        });
+      });
+      projection.current_revision += xids.length;
+      return { success: true, meta: { changes: xids.length } };
     }
 
     if (query.includes("insert into group_membership_overrides")) {
@@ -262,6 +367,14 @@ export class FakeD1 {
 
     if (query.includes("insert into group_membership_events")) {
       const [sourceGroupId, targetGroupId, assignmentsJson, reason, curator] = args;
+      if (query.includes("from community_state_projection")) {
+        const [, , , , , expectedRevision, marker, catalogVersion] = args;
+        if (
+          this.communityProjection?.current_revision !== Number(expectedRevision) ||
+          this.communityProjection?.computed_revision !== Number(marker) ||
+          this.catalogMetadata?.data_version !== catalogVersion
+        ) return { success: true, meta: { changes: 0 } };
+      }
       this.groupMembershipEvents.push({
         id: this.groupMembershipEvents.length + 1,
         source_group_id: sourceGroupId,
@@ -271,16 +384,61 @@ export class FakeD1 {
         curator,
         created_at: "2026-01-01 00:00:00",
       });
+      return { success: true, meta: { changes: 1 } };
     }
   }
 
   async batch(statements) {
-    for (const statement of statements) await statement.run();
-    return statements.map(() => ({ success: true }));
+    const results = [];
+    for (const statement of statements) {
+      results.push(await statement.run());
+    }
+    return results;
   }
 
   first(sql, args) {
     const query = String(sql || "").toLowerCase();
+
+    if (query.includes("count(*) as member_count") && query.includes("from catalog_photos as photos")) {
+      const aliases = new Set(JSON.parse(String(args[0] || "[]")));
+      let memberCount = 0;
+      this.catalogPhotos.forEach((feature, xid) => {
+        const currentGroup = this.groupMembershipOverrides.get(xid)?.group_id ||
+          feature.properties?.group_id || xid;
+        if (aliases.has(currentGroup)) memberCount += 1;
+      });
+      return { member_count: memberCount };
+    }
+
+    if (query.includes("from catalog_metadata")) {
+      return this.catalogMetadata;
+    }
+    if (query.includes("from catalog_photos as p") && query.includes("where p.xid = ?")) {
+      const xid = String(args[0] || "");
+      const feature = this.catalogPhotos.get(xid);
+      if (!feature) return null;
+      const baseGroupId = String(feature.properties?.group_id || xid);
+      return {
+        xid,
+        base_group_id: baseGroupId,
+        current_group_id: this.groupMembershipOverrides.get(xid)?.group_id || baseGroupId,
+        source_lon: feature.geometry?.coordinates?.[0] ?? 14.4,
+        source_lat: feature.geometry?.coordinates?.[1] ?? 50.1,
+        feature_json: JSON.stringify(feature.properties || {}),
+      };
+    }
+    if (query.includes("from catalog_photos as p") && query.includes("p.base_group_id = ?")) {
+      const groupId = String(args[0] || "");
+      const known = Array.from(this.catalogPhotos.entries()).some(
+        ([xid, feature]) =>
+          String(feature.properties?.group_id || "") === groupId &&
+          !this.groupMembershipOverrides.has(xid),
+      );
+      const moved = Array.from(this.groupMembershipOverrides.values()).some(
+        (row) => String(row.group_id || "") === groupId,
+      );
+      return known || moved ? { found: 1 } : null;
+    }
 
     if (query.includes("select count from api_rate_limits")) {
       const key = String(args[0] || "");
@@ -326,12 +484,89 @@ export class FakeD1 {
     return null;
   }
 
-  all(sql) {
+  all(sql, args = []) {
     const query = String(sql || "").toLowerCase();
     const failure = this.allFailures.find(({ fragment }) =>
       query.includes(fragment),
     );
     if (failure) throw failure.error;
+
+    if (query.includes("select photos.xid") && query.includes("json_each(?)")) {
+      const requested = new Set(JSON.parse(String(args[0] || "[]")));
+      const aliases = new Set(JSON.parse(String(args[1] || "[]")));
+      return {
+        results: Array.from(this.catalogPhotos.entries())
+          .filter(([xid, feature]) => requested.has(xid) && aliases.has(
+            this.groupMembershipOverrides.get(xid)?.group_id ||
+              feature.properties?.group_id || xid,
+          ))
+          .map(([xid]) => ({ xid })),
+      };
+    }
+
+    if (query.includes("from catalog_photos where xid in")) {
+      const ids = new Set(args.map(String));
+      return {
+        results: Array.from(this.catalogPhotos.entries())
+          .filter(([xid]) => ids.has(xid))
+          .map(([xid, feature]) => ({
+            xid,
+            base_group_id: String(feature.properties?.group_id || xid),
+          })),
+      };
+    }
+    if (query.includes("from catalog_photos as photos") && query.includes("group by")) {
+      const term = String(args[0] || "").replaceAll("%", "").replaceAll("\\", "").toLowerCase();
+      const groups = new Map();
+      this.catalogPhotos.forEach((feature, xid) => {
+        const groupId = this.groupMembershipOverrides.get(xid)?.group_id ||
+          String(feature.properties?.group_id || xid);
+        const props = feature.properties || {};
+        const item = groups.get(groupId) || {
+          group_id: groupId,
+          member_count: 0,
+          sample_xid: "",
+          feature_json: "{}",
+        };
+        item.member_count += 1;
+        const haystack = [groupId, xid, props.description, props.signature, props.author, props.date_label]
+          .join(" ").toLowerCase();
+        if (haystack.includes(term) && !item.sample_xid) {
+          item.sample_xid = xid;
+          item.feature_json = JSON.stringify(props);
+        }
+        groups.set(groupId, item);
+      });
+      return {
+        results: Array.from(groups.values())
+          .filter((item) => item.sample_xid)
+          .sort((a, b) =>
+            Number(b.group_id.toLowerCase().startsWith(term)) -
+              Number(a.group_id.toLowerCase().startsWith(term)) ||
+            a.group_id.localeCompare(b.group_id),
+          )
+          .slice(0, 20),
+      };
+    }
+    if (query.includes("from catalog_photos as photos")) {
+      const ids = new Set(args.map(String));
+      return {
+        results: Array.from(this.catalogPhotos.entries())
+          .filter(([xid, feature]) => ids.has(
+            this.groupMembershipOverrides.get(xid)?.group_id ||
+              String(feature.properties?.group_id || xid),
+          ))
+          .map(([xid, feature]) => ({
+            xid,
+            base_group_id: String(feature.properties?.group_id || xid),
+            current_group_id: this.groupMembershipOverrides.get(xid)?.group_id ||
+              String(feature.properties?.group_id || xid),
+            source_lon: feature.geometry?.coordinates?.[0] ?? 14.4,
+            source_lat: feature.geometry?.coordinates?.[1] ?? 50.1,
+            feature_json: JSON.stringify(feature.properties || {}),
+          })),
+      };
+    }
 
     if (query.includes("operations_submission_counts")) {
       const now = Date.now();

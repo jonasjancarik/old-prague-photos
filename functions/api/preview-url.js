@@ -1,8 +1,11 @@
-const PHOTO_CACHE_TTL_MS = 60 * 1000;
+import {
+  catalogFeature,
+  findCatalogPhoto,
+  requireCatalog,
+} from "./_catalog.js";
+
 const R2_PROBE_CACHE_TTL_MS = 5 * 60 * 1000;
 
-let featurePreviewCache = new Map();
-let featurePreviewCacheExpiresAt = 0;
 let r2ProbeCache = new Map();
 
 function normalizeId(value) {
@@ -88,42 +91,6 @@ function previewFromFeatureProps(props, scanIndex = 0, options = {}) {
   return { url: "", source: "none" };
 }
 
-async function fetchPhotosJson(request, env) {
-  if (!request || !env?.ASSETS) return null;
-  const url = new URL(request.url);
-  url.pathname = "/data/photos.geojson";
-  url.search = "";
-  const response = await env.ASSETS.fetch(new Request(url.toString()));
-  if (!response.ok) return null;
-  return response.json();
-}
-
-async function loadFeaturePreviewMap(request, env, options = {}) {
-  const { forceRefresh = false } = options;
-  const now = Date.now();
-  if (!forceRefresh && now < featurePreviewCacheExpiresAt) {
-    return featurePreviewCache;
-  }
-
-  const mapping = new Map();
-  try {
-    const photos = await fetchPhotosJson(request, env);
-    const features = Array.isArray(photos?.features) ? photos.features : [];
-    features.forEach((feature) => {
-      const props = feature?.properties || {};
-      const xid = normalizeId(props.id);
-      if (!xid) return;
-      mapping.set(xid, props);
-    });
-  } catch (error) {
-    // keep empty map on read failures
-  }
-
-  featurePreviewCache = mapping;
-  featurePreviewCacheExpiresAt = now + PHOTO_CACHE_TTL_MS;
-  return featurePreviewCache;
-}
-
 function r2PreviewUrl(r2Base, xid, scanIndex = 0) {
   const base = normalizeBaseUrl(r2Base);
   if (!base || !xid) return "";
@@ -172,6 +139,14 @@ export async function onRequest({ request, env }) {
     return jsonResponse({ detail: "Chybí xid" }, 400);
   }
 
+  let catalogRow;
+  try {
+    await requireCatalog(request, env);
+    catalogRow = await findCatalogPhoto(env, xid);
+  } catch (error) {
+    return jsonResponse({ detail: "Katalog fotografií není dočasně dostupný" }, 503);
+  }
+
   const r2Candidate = r2PreviewUrl(env.R2_TILES_BASE || "", xid, scanIndex);
   if (r2Candidate && (await probeUrlExists(r2Candidate))) {
     return jsonResponse({
@@ -182,13 +157,13 @@ export async function onRequest({ request, env }) {
     });
   }
 
-  let previewMap = await loadFeaturePreviewMap(request, env);
-  if (!previewMap.has(xid)) {
-    previewMap = await loadFeaturePreviewMap(request, env, { forceRefresh: true });
-  }
-  const preview = previewFromFeatureProps(previewMap.get(xid) || {}, scanIndex, {
-    allowArchiveFallback,
-  });
+  const preview = previewFromFeatureProps(
+    catalogFeature(catalogRow)?.properties || {},
+    scanIndex,
+    {
+      allowArchiveFallback,
+    },
+  );
   return jsonResponse({
     xid,
     scan_index: scanIndex,

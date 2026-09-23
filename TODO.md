@@ -47,7 +47,6 @@ Ahoj Peter — TODO (Cloudflare Pages + D1 + viewer)
   Kaprovy ulice (`/og.png`, 1200×630 px); veřejné stránky mají `og:image`,
   `og:url` a `twitter:card`. Zdroj je v `docs/og-image-source.md`. Před veřejným
   spuštěním ověřit podmínky použití snímku u AHMP a případně získat souhlas.
-- Dlaždice z R2 přesunout z `*.r2.dev` na vlastní doménu (např.
-  `tiles.davnapraha.cz`): CSP a produkční hodnota `R2_TILES_BASE` jsou připravené
-  v kódu a návodu. Zbývá připojit doménu k R2 bucketu, ověřit dlaždici na nové
-  adrese a nastavit hodnotu v produkčním projektu Pages.
+- Dlaždice z R2 jsou na `tiles.davnapraha.cz`: doména a certifikát jsou aktivní,
+  známý XML soubor se načetl přes HTTPS. Produkční Pages používá
+  `R2_TILES_BASE=https://tiles.davnapraha.cz/tiles` a CSP tuto doménu povoluje.

@@ -2450,6 +2450,13 @@ function rebuildGroupIndexes() {
 function applyReviewStatePayload(reviewState = {}) {
   const grouping = window.OldPragueGrouping;
   const appliedReviewState = grouping.applyReviewState(state.features, reviewState);
+  if (Number.isSafeInteger(reviewState?.revision)) {
+    state.features.forEach((feature) => {
+      if (feature?.properties) {
+        feature.properties.candidate_revision = reviewState.revision;
+      }
+    });
+  }
   state.correctionsByGroup = appliedReviewState.correctionByGroup;
   state.reviewCounts = reviewState?.counts || {};
   rebuildGroupIndexes();
@@ -2502,6 +2509,7 @@ async function submitModalFlag() {
   const payload = {
     xid: submittedFeature.properties.id,
     group_id: groupId || undefined,
+    candidate_revision: submittedFeature.properties.candidate_revision,
     verdict: "flag",
     message: "Nahlášeno bez upřesnění polohy.",
   };

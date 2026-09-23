@@ -98,6 +98,31 @@
     return JSON.stringify([normalizeId(groupId), normalizeId(anchorId) || null]);
   }
 
+  // Snapshot payloads only include membership and root entries that differ from
+  // the static photo data. Resolve through the sparse root map so callers can
+  // still use a complete effective group id for every photo.
+  function resolveReviewGroupId(value, groupRoots = {}) {
+    let current = normalizeId(value);
+    const visited = new Set();
+    while (current && !visited.has(current)) {
+      visited.add(current);
+      const next = normalizeId(groupRoots?.[current]);
+      if (!next || next === current) break;
+      current = next;
+    }
+    return current;
+  }
+
+  function resolvedGroupForFeature(feature, reviewState = {}) {
+    const props = feature?.properties || {};
+    const xid = normalizeId(props.id);
+    const baseGroup =
+      normalizeId(reviewState?.resolvedGroupByXid?.[xid]) ||
+      normalizeId(props.group_id) ||
+      xid;
+    return resolveReviewGroupId(baseGroup, reviewState?.groupRoots);
+  }
+
   function buildMergeResolver(groupIds, decisions) {
     const unionFind = createUnionFind(groupIds);
     (decisions || []).forEach((item) => {
@@ -144,7 +169,6 @@
   }
 
   function applyReviewState(features, reviewState) {
-    const resolvedByXid = reviewState?.resolvedGroupByXid || {};
     const corrections = Array.isArray(reviewState?.groupCorrections)
       ? reviewState.groupCorrections
       : [];
@@ -152,7 +176,10 @@
 
     corrections.forEach((item) => {
       if (!item) return;
-      const groupId = normalizeId(item.group_id);
+      const groupId = resolveReviewGroupId(
+        normalizeId(item.group_id),
+        reviewState?.groupRoots,
+      );
       if (!groupId) return;
       correctionByGroup.set(groupId, item);
     });
@@ -160,9 +187,7 @@
     (features || []).forEach((feature) => {
       restoreOriginalCoordinates(feature);
       const props = feature?.properties || {};
-      const xid = normalizeId(props.id);
-      const fallbackGroup = normalizeId(props.group_id) || xid;
-      const resolvedGroup = normalizeId(resolvedByXid[xid]) || fallbackGroup;
+      const resolvedGroup = resolvedGroupForFeature(feature, reviewState);
       if (resolvedGroup) {
         props.group_root = resolvedGroup;
       }
@@ -206,7 +231,9 @@
 
     const doneGroupIds = new Set(
       Array.isArray(reviewState?.doneGroupIds)
-        ? reviewState.doneGroupIds.map((value) => normalizeId(value)).filter(Boolean)
+        ? reviewState.doneGroupIds
+          .map((value) => resolveReviewGroupId(value, reviewState?.groupRoots))
+          .filter(Boolean)
         : [],
     );
 
@@ -219,11 +246,10 @@
       const propsB = b?.properties || {};
       const signatureA = normalizeId(propsA.signature);
       const signatureB = normalizeId(propsB.signature);
-      if (signatureA && signatureB) {
-        return signatureA.localeCompare(signatureB, "cs");
+      if (signatureA || signatureB) {
+        const compared = signatureA.localeCompare(signatureB, "cs");
+        if (compared !== 0) return compared;
       }
-      if (signatureA) return -1;
-      if (signatureB) return 1;
       const idA = normalizeId(propsA.id);
       const idB = normalizeId(propsB.id);
       return idA.localeCompare(idB);
@@ -259,8 +285,8 @@
       sortGroupItems(group.items);
       group.primary = group.items[0] || null;
       const coords = group.primary?.geometry?.coordinates || [];
-      group.lon = Number(coords[0]);
-      group.lat = Number(coords[1]);
+      group.lon = toFiniteCoord(coords[0]);
+      group.lat = toFiniteCoord(coords[1]);
     });
 
     return {
@@ -290,6 +316,8 @@
 
   window.OldPragueGrouping = {
     buildGroupIdByXid,
+    resolveReviewGroupId,
+    resolvedGroupForFeature,
     buildMergeResolver,
     applyCorrections,
     applyReviewState,

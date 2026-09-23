@@ -174,4 +174,4 @@ import{m as n}from"./loadLegacyScripts-CCwIcKCm.js";import{i as e}from"./leaflet
       </div>
     </div>
   </div>
-`;e();a();n(o,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./pomoc.js","./mode-picker.js"]).catch(console.error);
+`;e();a();n(o,["./zoomify.js","./photo-meta.js","./grouping.js","./candidate-client.js","./media-filter.js","./session-verify.js","./correction-ui.js","./pomoc.js","./mode-picker.js"]).catch(console.error);

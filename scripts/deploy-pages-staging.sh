@@ -21,6 +21,10 @@ if [ -z "${PAGES_STAGING_URL:-}" ]; then
   echo "Set PAGES_STAGING_URL to the protected staging origin for post-deploy smoke checks." >&2
   exit 2
 fi
+if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+  echo "Set CLOUDFLARE_ACCOUNT_ID for the selected Cloudflare account." >&2
+  exit 2
+fi
 
 if [ -z "${ADMIN_API_TOKEN:-}" ]; then
   echo "Set ADMIN_API_TOKEN for the protected staging smoke checks." >&2
@@ -81,6 +85,7 @@ npm run release:verify
 # both a portable export and Time Travel bookmark before any schema mutation.
 scripts/checkpoint-d1.sh preview
 CI=1 npx wrangler d1 migrations apply CORRECTIONS_DB --remote --env preview
+scripts/seed-catalog-d1.sh preview
 npx wrangler pages deploy viewer/static --project-name "$PROJECT_NAME" --branch "$BRANCH"
 SMOKE_REQUIRE_SECURE_CONFIG=1 SMOKE_REQUIRE_ACCESS=1 \
   npm run smoke:pages -- "$PAGES_STAGING_URL"

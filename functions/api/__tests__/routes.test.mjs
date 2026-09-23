@@ -19,7 +19,7 @@ import { recordOperation } from "../_operations.js";
 import { FakeD1, makePhotosAsset, makeRequest } from "./test-helpers.mjs";
 
 function makeEnv(overrides = {}) {
-  return {
+  const env = {
     CORRECTIONS_DB: new FakeD1(),
     TURNSTILE_SECRET_KEY: "turnstile-secret",
     ADMIN_API_TOKEN: "admin-test-token",
@@ -46,10 +46,20 @@ function makeEnv(overrides = {}) {
     ]),
     ...overrides,
   };
+  const features = env.ASSETS?.features || [];
+  env.CORRECTIONS_DB.catalogPhotos = new Map(
+    features.map((feature) => [String(feature.properties?.id || ""), feature]),
+  );
+  env.CORRECTIONS_DB.catalogMetadata = {
+    data_version: "test-data-v1",
+    row_count: features.length,
+  };
+  return env;
 }
 
 function makeCommunityAssets(features, similarityPairs = [], clusters = []) {
   return {
+    features,
     fetch: async (request) => {
       const path = new URL(request.url).pathname;
       let payload;
@@ -79,6 +89,16 @@ function candidateFeature(id, groupId) {
     geometry: { type: "Point", coordinates: [14.4, 50.1] },
     properties: { id, group_id: groupId, signature: id },
   };
+}
+
+function addCatalogPhoto(env, properties, coordinates = [14.4, 50.1]) {
+  const id = String(properties.id);
+  env.CORRECTIONS_DB.catalogPhotos.set(id, {
+    type: "Feature",
+    geometry: { type: "Point", coordinates },
+    properties: { group_id: id, ...properties },
+  });
+  env.CORRECTIONS_DB.catalogMetadata.row_count = env.CORRECTIONS_DB.catalogPhotos.size;
 }
 
 test("POST /api/verify rejects cross-origin requests", async () => {
@@ -158,6 +178,7 @@ test("POST /api/corrections rejects invalid Turnstile action", async () => {
     headers: { Origin: "https://example.com" },
     jsonBody: {
       xid: "A1",
+      candidate_revision: 0,
       lat: 50.087,
       lon: 14.421,
       verdict: "wrong",
@@ -192,6 +213,7 @@ test("POST /api/corrections accepts same-origin with valid token", async () => {
     headers: { Origin: "https://example.com" },
     jsonBody: {
       xid: "A1",
+      candidate_revision: 0,
       lat: 50.087,
       lon: 14.421,
       verdict: "wrong",
@@ -245,6 +267,7 @@ test("POST /api/corrections accepts same-origin with valid session cookie", asyn
       headers: { Origin: "https://example.com", Cookie: cookie },
       jsonBody: {
         xid: "A1",
+        candidate_revision: 0,
         lat: 50.087,
         lon: 14.421,
         verdict: "wrong",
@@ -286,6 +309,7 @@ test("POST /api/corrections accepts the resolved root for a merged group", async
     protocol: "http:",
     jsonBody: {
       xid: "A2",
+      candidate_revision: 0,
       group_id: "group-a",
       verdict: "ok",
       location_revision: '["group-a",null]',
@@ -318,7 +342,7 @@ test("POST /api/corrections binds OK to the displayed location proposal", async 
     request: makeRequest("/api/corrections", {
       host: "localhost",
       protocol: "http:",
-      jsonBody: { xid: "A1", group_id: "group-a", verdict: "ok" },
+      jsonBody: { xid: "A1", candidate_revision: 0, group_id: "group-a", verdict: "ok" },
     }),
     env,
   });
@@ -331,6 +355,7 @@ test("POST /api/corrections binds OK to the displayed location proposal", async 
       protocol: "http:",
       jsonBody: {
         xid: "A1",
+        candidate_revision: 0,
         group_id: "group-a",
         verdict: "ok",
         location_revision: '["group-a","1"]',
@@ -359,6 +384,7 @@ test("POST /api/corrections binds OK to the displayed location proposal", async 
       protocol: "http:",
       jsonBody: {
         xid: "A1",
+        candidate_revision: env.CORRECTIONS_DB.communityProjection.current_revision,
         group_id: "group-a",
         verdict: "ok",
         location_revision: '["group-a","1"]',
@@ -370,6 +396,33 @@ test("POST /api/corrections binds OK to the displayed location proposal", async 
   assert.equal(stale.status, 409);
   assert.match((await stale.json()).detail, /mezitím změnila/u);
   assert.equal(env.CORRECTIONS_DB.corrections.length, 3);
+});
+
+test("POST /api/corrections rejects stale displayed membership before and during insert", async () => {
+  const env = makeEnv({ TURNSTILE_BYPASS: "1" });
+  const request = () => makeRequest("/api/corrections", {
+    host: "localhost",
+    protocol: "http:",
+    jsonBody: {
+      xid: "A1",
+      group_id: "group-a",
+      candidate_revision: 0,
+      verdict: "wrong",
+      lat: 50.087,
+      lon: 14.421,
+    },
+  });
+
+  env.CORRECTIONS_DB.communityProjection.current_revision = 1;
+  assert.equal((await correctionsOnRequest({ request: request(), env })).status, 409);
+  assert.equal(env.CORRECTIONS_DB.corrections.length, 0);
+
+  env.CORRECTIONS_DB.communityProjection.current_revision = 0;
+  env.CORRECTIONS_DB.beforeCorrectionInsert = (db) => {
+    db.communityProjection.current_revision += 1;
+  };
+  assert.equal((await correctionsOnRequest({ request: request(), env })).status, 409);
+  assert.equal(env.CORRECTIONS_DB.corrections.length, 0);
 });
 
 test("GET /api/review-state fails closed when merge state cannot be read", async () => {
@@ -417,7 +470,7 @@ test("GET /api/review-state omits contributor fingerprints", async () => {
 test("GET /api/review-state serves a current materialized projection", async () => {
   const env = makeEnv();
   const projectedPayload = {
-    reviewStateSchemaVersion: 3,
+    reviewStateSchemaVersion: 4,
     groupCorrections: [],
     doneGroupIds: ["group-a"],
     resolvedGroupByXid: { A1: "group-a" },
@@ -439,7 +492,7 @@ test("GET /api/review-state serves a current materialized projection", async () 
   const request = makeRequest("/api/review-state", { method: "GET" });
   const response = await reviewStateOnRequest({ request, env });
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), projectedPayload);
+  assert.deepEqual(await response.json(), { ...projectedPayload, revision: 4 });
 });
 
 test("GET /api/review-state rebuilds a projection from an older state schema", async () => {
@@ -462,9 +515,10 @@ test("GET /api/review-state rebuilds a projection from an older state schema", a
 
   assert.equal(response.status, 200);
   const payload = await response.json();
-  assert.equal(payload.reviewStateSchemaVersion, 3);
+  assert.equal(payload.reviewStateSchemaVersion, 4);
   assert.notDeepEqual(payload.doneGroupIds, ["stale-group"]);
-  assert.equal(payload.resolvedGroupByXid.A1, "group-a");
+  assert.deepEqual(payload.resolvedGroupByXid, {});
+  assert.equal(payload.counts.knownXids, 3);
 });
 
 test("GET /api/review-state does not cache a rebuild that lost a revision race", async () => {
@@ -523,279 +577,12 @@ test("GET /api/review-state fails closed without a nonempty data version", async
   assert.equal(response.status, 503);
 });
 
-test("GET /api/community-candidates returns bounded authoritative group pages", async () => {
-  const features = [
-    {
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [14.4, 50.1] },
-      properties: { id: "A1", group_id: "group-a", signature: "A1" },
-    },
-    {
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [14.4, 50.1] },
-      properties: { id: "A2", group_id: "group-b", signature: "A2" },
-    },
-  ];
-  const env = makeEnv({ ASSETS: makeCommunityAssets(features) });
-  env.CORRECTIONS_DB.groupMembershipOverrides.set("A2", {
-    xid: "A2",
-    group_id: "group-a",
-    source_group_id: "group-b",
-    revision: 1,
+test("GET /api/community-candidates no longer builds the full catalog in a Function", async () => {
+  const response = communityCandidatesOnRequest({
+    request: makeRequest("/api/community-candidates?flow=location&limit=1", { method: "GET" }),
   });
-
-  const response = await communityCandidatesOnRequest({
-    request: makeRequest("/api/community-candidates?flow=group&limit=1", {
-      method: "GET",
-    }),
-    env,
-    waitUntil() {},
-  });
-  assert.equal(response.status, 200);
-  const payload = await response.json();
-  assert.equal(payload.items.length, 1);
-  assert.equal(payload.items[0].items.length, 2);
-  assert.equal(payload.items[0].id, "group-a");
-  assert.deepEqual(
-    payload.items[0].items[0].properties.original_coordinates,
-    [14.4, 50.1],
-  );
-});
-
-test("GET /api/community-candidates binds cursors to the state revision", async () => {
-  const features = [
-    {
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [14.4, 50.1] },
-      properties: { id: "A1", group_id: "group-a" },
-    },
-    {
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [14.5, 50.2] },
-      properties: { id: "A2", group_id: "group-b" },
-    },
-  ];
-  const env = makeEnv({ ASSETS: makeCommunityAssets(features) });
-  env.CORRECTIONS_DB.communityProjection = {
-    current_revision: 4,
-    computed_revision: 3,
-    data_version: "test-data-v1",
-    payload_json: null,
-  };
-  const first = await communityCandidatesOnRequest({
-    request: makeRequest(
-      "/api/community-candidates?flow=location&limit=1",
-      { method: "GET" },
-    ),
-    env,
-    waitUntil() {},
-  });
-  const firstPayload = await first.json();
-  assert.match(firstPayload.cursor, /^v[A-Za-z0-9_-]+:r4:0$/u);
-  assert.match(firstPayload.nextCursor, /^v[A-Za-z0-9_-]+:r4:1$/u);
-
-  env.CORRECTIONS_DB.communityProjection = {
-    current_revision: 5,
-    computed_revision: 4,
-    data_version: "test-data-v1",
-    payload_json: null,
-  };
-  const stale = await communityCandidatesOnRequest({
-    request: makeRequest(
-      `/api/community-candidates?flow=location&limit=1&cursor=${encodeURIComponent(firstPayload.nextCursor)}`,
-      { method: "GET" },
-    ),
-    env,
-    waitUntil() {},
-  });
-  assert.equal(stale.status, 409);
-});
-
-test("GET /api/community-candidates uses a current projection without history scans", async () => {
-  const features = [
-    {
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [14.4, 50.1] },
-      properties: { id: "A1", group_id: "group-a" },
-    },
-  ];
-  const env = makeEnv({ ASSETS: makeCommunityAssets(features) });
-  env.CORRECTIONS_DB.communityProjection = {
-    current_revision: 8,
-    computed_revision: 8,
-    data_version: "test-data-v1",
-    payload_json: JSON.stringify({
-      reviewStateSchemaVersion: 3,
-      resolvedGroupByXid: { A1: "group-a" },
-      groupRoots: { "group-a": "group-a" },
-      groupCorrections: [],
-      doneGroupIds: [],
-      mergeDecisions: [],
-    }),
-  };
-  env.CORRECTIONS_DB.failAllMatching(
-    "from corrections",
-    new Error("history should not be scanned"),
-  );
-
-  const response = await communityCandidatesOnRequest({
-    request: makeRequest(
-      "/api/community-candidates?flow=location&limit=1",
-      { method: "GET" },
-    ),
-    env,
-    waitUntil() {},
-  });
-  assert.equal(response.status, 200);
-  const payload = await response.json();
-  assert.match(payload.cursor, /^v[A-Za-z0-9_-]+:r8:0$/u);
-  assert.equal(payload.items[0].id, "group-a");
-});
-
-test("GET /api/community-candidates binds cursors to the static data version", async () => {
-  const env = makeEnv({
-    ASSETS: makeCommunityAssets([
-      candidateFeature("A1", "group-a"),
-      candidateFeature("A2", "group-b"),
-    ]),
-  });
-  const first = await communityCandidatesOnRequest({
-    request: makeRequest(
-      "/api/community-candidates?flow=location&limit=1",
-      { method: "GET" },
-    ),
-    env,
-    waitUntil() {},
-  });
-  const cursor = (await first.json()).nextCursor;
-  assert.ok(cursor);
-
-  env.COMMUNITY_DATA_VERSION = "test-data-v2";
-  const stale = await communityCandidatesOnRequest({
-    request: makeRequest(
-      `/api/community-candidates?flow=location&limit=1&cursor=${encodeURIComponent(cursor)}`,
-      { method: "GET" },
-    ),
-    env,
-    waitUntil() {},
-  });
-  assert.equal(stale.status, 409);
-});
-
-test("GET /api/community-candidates rejects unknown duplicate focus groups", async () => {
-  const env = makeEnv({
-    ASSETS: makeCommunityAssets([
-      candidateFeature("A1", "group-a"),
-      candidateFeature("A2", "group-b"),
-    ]),
-  });
-  const response = await communityCandidatesOnRequest({
-    request: makeRequest(
-      "/api/community-candidates?flow=duplicate&group_id=attacker-value",
-      { method: "GET" },
-    ),
-    env,
-    waitUntil() {},
-  });
-  assert.equal(response.status, 400);
-});
-
-test("GET /api/community-candidates focuses a location review on the exact current root", async () => {
-  const env = makeEnv({
-    ASSETS: makeCommunityAssets([
-      candidateFeature("A1", "group-a"),
-      candidateFeature("A2", "group-b"),
-    ]),
-  });
-  env.CORRECTIONS_DB.merges.push(
-    {
-      id: 1,
-      group_id_a: "group-a",
-      group_id_b: "group-b",
-      verdict: "same",
-      voter_key: "focus-voter-a",
-      created_at: "2026-01-01 09:00:00",
-    },
-    {
-      id: 2,
-      group_id_a: "group-a",
-      group_id_b: "group-b",
-      verdict: "same",
-      voter_key: "focus-voter-b",
-      created_at: "2026-01-01 09:01:00",
-    },
-  );
-
-  const response = await communityCandidatesOnRequest({
-    request: makeRequest(
-      "/api/community-candidates?flow=location&group_id=group-b",
-      { method: "GET" },
-    ),
-    env,
-    waitUntil() {},
-  });
-  assert.equal(response.status, 200);
-  const payload = await response.json();
-  assert.equal(payload.total, 1);
-  assert.equal(payload.items[0].id, "group-a");
-
-  const unknown = await communityCandidatesOnRequest({
-    request: makeRequest(
-      "/api/community-candidates?flow=location&group_id=ghost-group",
-      { method: "GET" },
-    ),
-    env,
-    waitUntil() {},
-  });
-  assert.equal(unknown.status, 400);
-});
-
-test("GET /api/community-candidates retries a transient required asset failure", async () => {
-  let photoAttempts = 0;
-  const features = [candidateFeature("A1", "group-a")];
-  const assets = {
-    fetch: async (request) => {
-      const path = new URL(request.url).pathname;
-      if (path.endsWith("/photos.geojson")) {
-        photoAttempts += 1;
-        if (photoAttempts === 1) {
-          return new Response("Temporary failure", { status: 503 });
-        }
-        return new Response(JSON.stringify({
-          type: "FeatureCollection",
-          features,
-        }), { headers: { "Content-Type": "application/json" } });
-      }
-      return new Response("Not found", { status: 404 });
-    },
-  };
-  const env = makeEnv({ ASSETS: assets });
-  env.CORRECTIONS_DB.communityProjection = {
-    current_revision: 0,
-    computed_revision: 0,
-    data_version: "test-data-v1",
-    payload_json: JSON.stringify({
-      reviewStateSchemaVersion: 3,
-      resolvedGroupByXid: { A1: "group-a" },
-      groupRoots: { "group-a": "group-a" },
-      groupCorrections: [],
-      doneGroupIds: [],
-      mergeDecisions: [],
-    }),
-  };
-  const request = () => makeRequest(
-    "/api/community-candidates?flow=location",
-    { method: "GET" },
-  );
-  const first = await communityCandidatesOnRequest({
-    request: request(), env, waitUntil() {},
-  });
-  const second = await communityCandidatesOnRequest({
-    request: request(), env, waitUntil() {},
-  });
-  assert.equal(first.status, 503);
-  assert.equal(second.status, 200);
-  assert.equal(photoAttempts, 2);
+  assert.equal(response.status, 410);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
 });
 
 test("GET /api/merges returns the authoritative anonymous consensus projection", async () => {
@@ -1003,7 +790,7 @@ test("POST /api/merges allows a voter to mark the exact consensus pair different
           group_id_a: "group-a",
           group_id_b: "group-b",
           verdict,
-          candidate_revision: 0,
+          candidate_revision: env.CORRECTIONS_DB.communityProjection.current_revision,
         },
       }),
       env,
@@ -1104,7 +891,7 @@ test("POST /api/merges rejects missing or stale candidate revisions before remap
     computed_revision: 7,
     data_version: "test-data-v1",
     payload_json: JSON.stringify({
-      reviewStateSchemaVersion: 3,
+      reviewStateSchemaVersion: 4,
       resolvedGroupByXid: {
         A1: "group-a",
         A2: "group-b",
@@ -1164,7 +951,7 @@ test("POST /api/merges rejects a revision that changes during the guarded insert
     computed_revision: 7,
     data_version: "test-data-v1",
     payload_json: JSON.stringify({
-      reviewStateSchemaVersion: 3,
+      reviewStateSchemaVersion: 4,
       resolvedGroupByXid: {
         A1: "group-a",
         A2: "group-b",
@@ -1209,7 +996,7 @@ test("POST /api/merges keeps the guarded legacy-column fallback", async () => {
     computed_revision: 7,
     data_version: "test-data-v1",
     payload_json: JSON.stringify({
-      reviewStateSchemaVersion: 3,
+      reviewStateSchemaVersion: 4,
       resolvedGroupByXid: {
         A1: "group-a",
         A2: "group-b",
@@ -1357,6 +1144,7 @@ test("POST /api/group-review-votes accepts same-origin with valid token", async 
     },
     jsonBody: {
       group_id: "group-a",
+      candidate_revision: 0,
       verdict: "ok",
       token: "ok",
     },
@@ -1405,6 +1193,7 @@ test("GET /api/group-review-votes aggregates ok votes and current user state", a
       },
       jsonBody: {
         group_id: "group-a",
+        candidate_revision: 0,
         verdict: "ok",
         token: "ok",
       },
@@ -1416,6 +1205,7 @@ test("GET /api/group-review-votes aggregates ok votes and current user state", a
       },
       jsonBody: {
         group_id: "group-a",
+        candidate_revision: 0,
         verdict: "ok",
         token: "ok",
       },
@@ -1563,6 +1353,7 @@ test("POST /api/group-review-votes stores the current merged root", async () => 
         headers: { Origin: "https://example.com" },
         jsonBody: {
           group_id: "group-b",
+          candidate_revision: 0,
           verdict: "ok",
           token: "ok",
         },
@@ -1607,6 +1398,7 @@ test("POST /api/group-review-votes rejects unknown group ids", async () => {
       headers: { Origin: "https://example.com" },
       jsonBody: {
         group_id: "ghost-group",
+        candidate_revision: 0,
         verdict: "ok",
         token: "ok",
       },
@@ -1619,6 +1411,30 @@ test("POST /api/group-review-votes rejects unknown group ids", async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("POST /api/group-review-votes rejects stale displayed groups before and during insert", async () => {
+  const env = makeEnv({ TURNSTILE_BYPASS: "1" });
+  const request = () => makeRequest("/api/group-review-votes", {
+    host: "localhost",
+    protocol: "http:",
+    jsonBody: {
+      group_id: "group-a",
+      candidate_revision: 0,
+      verdict: "split",
+    },
+  });
+
+  env.CORRECTIONS_DB.communityProjection.current_revision = 1;
+  assert.equal((await groupReviewVotesOnRequest({ request: request(), env })).status, 409);
+  assert.equal(env.CORRECTIONS_DB.groupReviewVotes.length, 0);
+
+  env.CORRECTIONS_DB.communityProjection.current_revision = 0;
+  env.CORRECTIONS_DB.beforeGroupVoteInsert = (db) => {
+    db.communityProjection.current_revision += 1;
+  };
+  assert.equal((await groupReviewVotesOnRequest({ request: request(), env })).status, 409);
+  assert.equal(env.CORRECTIONS_DB.groupReviewVotes.length, 0);
 });
 
 test("GET /api/admin/review exposes pending corrections", async () => {
@@ -2355,6 +2171,7 @@ test("GET /api/preview-url falls back to feature preview metadata", async () => 
     },
   });
 
+  addCatalogPhoto(env, { id: "X1", scan_previews: ["https://images.example/X1.jpg"] });
   const request = makeRequest("/api/preview-url?xid=X1", { method: "GET" });
   const response = await previewUrlOnRequest({ request, env });
   assert.equal(response.status, 200);
@@ -2385,6 +2202,7 @@ test("GET /api/preview-url skips archive URLs when archive fallback is disabled"
     },
   });
 
+  addCatalogPhoto(env, { id: "XA", scan_previews: ["https://images.ahmp.cz/preview/XA.jpg"], scan_zoomify_paths: ["https://images.ahmp.cz/zoomify/XA"] });
   const request = makeRequest("/api/preview-url?xid=XA&scanIndex=0", {
     method: "GET",
   });
@@ -2418,6 +2236,7 @@ test("GET /api/preview-url allows archive URLs when archive fallback is enabled"
     },
   });
 
+  addCatalogPhoto(env, { id: "XB", scan_previews: ["https://images.ahmp.cz/preview/XB.jpg"] });
   const request = makeRequest("/api/preview-url?xid=XB", { method: "GET" });
   const response = await previewUrlOnRequest({ request, env });
   assert.equal(response.status, 200);
@@ -2449,6 +2268,7 @@ test("GET /api/preview-url respects scanIndex for feature preview metadata", asy
     },
   });
 
+  addCatalogPhoto(env, { id: "X2", scan_previews: ["https://images.example/X2-scan1.jpg", "https://images.example/X2-scan2.jpg"] });
   const request = makeRequest("/api/preview-url?xid=X2&scanIndex=1", {
     method: "GET",
   });
@@ -2484,6 +2304,7 @@ test("GET /api/zoomify resolves scanIndex from feature metadata", async () => {
     },
   });
 
+  addCatalogPhoto(env, { id: "Z1", scan_zoomify_paths: ["https://images.example/z1-scan1", "https://images.example/z1-scan2"] });
   const request = makeRequest("/api/zoomify?xid=Z1&scanIndex=1", { method: "GET" });
   const originalFetch = globalThis.fetch;
   try {
@@ -2530,6 +2351,7 @@ test("GET /api/zoomify avoids archive requests when archive fallback is disabled
     },
   });
 
+  addCatalogPhoto(env, { id: "ZA", scan_zoomify_paths: ["https://images.ahmp.cz/zoomify/ZA"] });
   const request = makeRequest("/api/zoomify?xid=ZA&scanIndex=0", { method: "GET" });
   const originalFetch = globalThis.fetch;
   let archiveTouched = false;
@@ -2566,6 +2388,7 @@ test("GET /api/zoomify archive fallback resolves scan from permalink page", asyn
     },
   });
 
+  addCatalogPhoto(env, { id: "ZB", scan_zoomify_paths: [] });
   const request = makeRequest("/api/zoomify?xid=ZB&scanIndex=1", { method: "GET" });
   const originalFetch = globalThis.fetch;
   let zoomifyActionTouched = false;

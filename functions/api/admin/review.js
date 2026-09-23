@@ -1,11 +1,23 @@
-import {
-  buildReviewState,
-  loadPhotoFeatureMap,
-  loadXidGroupMap,
-} from "../_review_state.js";
+import { buildReviewState } from "../_review_state.js";
 import { authorizeAdmin } from "../_admin_auth.js";
+import {
+  catalogFeature,
+  requireCatalog,
+} from "../_catalog.js";
 import { isMissingColumnError } from "../_db.js";
 import { loadOperationalDiagnostics } from "../_operations.js";
+
+const MAX_REVIEW_EVENT_ROWS = 500;
+const MAX_SPLIT_CANDIDATES = 10;
+const MAX_SPLIT_GROUP_ALIASES = 100;
+const MAX_SPLIT_MEMBERS_PER_GROUP = 100;
+
+class ReviewReadLimitError extends Error {
+  constructor() {
+    super("Fronta kontroly je příliš rozsáhlá pro rychlé načtení. Zúžte ji nebo pokračujte po archivaci událostí.");
+    this.name = "ReviewReadLimitError";
+  }
+}
 
 function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
@@ -190,7 +202,7 @@ function buildMergeConflictPairs(mergeRows) {
   return conflictPairs;
 }
 
-function buildSplitCandidates(voteRows, resolvedGroupByXid, groupRoots) {
+function buildSplitCandidates(voteRows, groupRoots) {
   const latestByGroupVoter = new Map();
   (voteRows || []).forEach((row) => {
     const rawGroupId = normalizeId(row.group_id);
@@ -221,19 +233,12 @@ function buildSplitCandidates(voteRows, resolvedGroupByXid, groupRoots) {
       Number(splitVotesByGroup.get(row.group_id) || 0) + 1,
     );
   });
-  const membersByGroup = new Map();
-  Object.entries(resolvedGroupByXid || {}).forEach(([xid, groupId]) => {
-    if (!membersByGroup.has(groupId)) membersByGroup.set(groupId, []);
-    membersByGroup.get(groupId).push(xid);
-  });
-
   return Array.from(splitVotesByGroup.entries())
     .filter(([, splitVotes]) => splitVotes >= 2)
     .map(([groupId, splitVotes]) => ({
       group_id: groupId,
       split_votes: splitVotes,
       required_split_votes: 2,
-      xids: (membersByGroup.get(groupId) || []).sort(),
       vote_history: (voteHistoryByGroup.get(groupId) || [])
         .slice()
         .sort((left, right) => parseEventTime(right.created_at) - parseEventTime(left.created_at)),
@@ -282,12 +287,14 @@ function parseMembershipHistory(rows) {
   });
 }
 
-async function queryRows(env, query) {
+async function queryRows(env, query, limit = null) {
   const result = await env.CORRECTIONS_DB.prepare(query).all();
-  return result?.results || [];
+  const rows = result?.results || [];
+  if (limit !== null && rows.length > limit) throw new ReviewReadLimitError();
+  return rows;
 }
 
-async function loadMergeRows(env) {
+async function loadMergeRows(env, limit = MAX_REVIEW_EVENT_ROWS) {
   try {
     return await queryRows(
       env,
@@ -301,7 +308,10 @@ async function loadMergeRows(env) {
           user_agent,
           created_at
         FROM merge_decisions
+        ORDER BY id DESC
+        LIMIT ${limit + 1}
       `,
+      limit,
     );
   } catch (error) {
     if (!isMissingColumnError(error, ["voter_key", "user_agent"])) {
@@ -317,9 +327,76 @@ async function loadMergeRows(env) {
           verdict,
           created_at
         FROM merge_decisions
+        ORDER BY id DESC
+        LIMIT ${limit + 1}
       `,
+      limit,
     );
   }
+}
+
+async function loadCatalogGroupsForXids(env, xids) {
+  const ids = Array.from(new Set((xids || []).map(normalizeId).filter(Boolean)));
+  if (!ids.length) return new Map();
+  const placeholders = ids.map(() => "?").join(", ");
+  const result = await env.CORRECTIONS_DB.prepare(
+    `SELECT xid, base_group_id FROM catalog_photos WHERE xid IN (${placeholders})`,
+  )
+    .bind(...ids)
+    .all();
+  return new Map(
+    (result?.results || [])
+      .map((row) => [normalizeId(row.xid), normalizeId(row.base_group_id)])
+      .filter(([xid, groupId]) => xid && groupId),
+  );
+}
+
+function aliasesByRoot(groupRoots, candidates) {
+  const aliases = new Set();
+  const candidateRoots = new Set((candidates || []).map((item) => item.group_id));
+  candidateRoots.forEach((groupId) => aliases.add(groupId));
+  Object.entries(groupRoots || {}).forEach(([groupId, rootId]) => {
+    if (candidateRoots.has(normalizeId(rootId))) aliases.add(normalizeId(groupId));
+  });
+  return Array.from(aliases).filter(Boolean);
+}
+
+async function loadSplitEvidence(env, splitCandidates, groupRoots) {
+  if (!splitCandidates.length) return new Map();
+  const aliases = aliasesByRoot(groupRoots, splitCandidates);
+  if (aliases.length > MAX_SPLIT_GROUP_ALIASES) throw new ReviewReadLimitError();
+
+  const placeholders = aliases.map(() => "?").join(", ");
+  const result = await env.CORRECTIONS_DB.prepare(
+    `
+      SELECT
+        photos.xid,
+        photos.base_group_id,
+        photos.source_lon,
+        photos.source_lat,
+        photos.feature_json,
+        COALESCE(overrides.group_id, photos.base_group_id) AS current_group_id
+      FROM catalog_photos AS photos
+      LEFT JOIN group_membership_overrides AS overrides
+        ON overrides.xid = photos.xid
+      WHERE COALESCE(overrides.group_id, photos.base_group_id) IN (${placeholders})
+      ORDER BY photos.xid
+    `,
+  )
+    .bind(...aliases)
+    .all();
+
+  const membersByGroup = new Map();
+  (result?.results || []).forEach((row) => {
+    const currentGroup = normalizeId(row.current_group_id);
+    const groupId = normalizeId(groupRoots?.[currentGroup]) || currentGroup;
+    if (!membersByGroup.has(groupId)) membersByGroup.set(groupId, []);
+    membersByGroup.get(groupId).push(photoEvidence(catalogFeature(row), normalizeId(row.xid)));
+  });
+  membersByGroup.forEach((members) => {
+    if (members.length > MAX_SPLIT_MEMBERS_PER_GROUP) throw new ReviewReadLimitError();
+  });
+  return membersByGroup;
 }
 
 export async function onRequest({ request, env }) {
@@ -332,72 +409,99 @@ export async function onRequest({ request, env }) {
   const authResponse = await authorizeAdmin(request, env);
   if (authResponse) return authResponse;
 
-  const [
-    correctionRows,
-    mergeRows,
-    groupReviewVoteRows,
-    membershipRows,
-    xidGroupMap,
-    photoFeatureMap,
-    operationalDiagnostics,
-  ] = await Promise.all([
-    queryRows(
+  try {
+    await requireCatalog(request, env);
+  } catch (error) {
+    return jsonResponse({ detail: "Katalog fotografií není dočasně dostupný" }, 503);
+  }
+
+  let correctionRows;
+  let mergeRows;
+  let groupReviewVoteRows;
+  let membershipRows;
+  let operationalDiagnostics;
+  let xidGroupMap;
+  try {
+    [
+      correctionRows,
+      mergeRows,
+      groupReviewVoteRows,
+      membershipRows,
+      operationalDiagnostics,
+    ] = await Promise.all([
+      queryRows(
+        env,
+        `
+            SELECT
+              id,
+              xid,
+              group_id,
+              lat,
+              lon,
+              has_coordinates,
+              voter_key,
+              verdict,
+              location_revision,
+              proposal_id,
+              message,
+              email,
+              user_agent,
+              created_at
+            FROM corrections
+            ORDER BY id DESC
+            LIMIT ${MAX_REVIEW_EVENT_ROWS + 1}
+        `,
+        MAX_REVIEW_EVENT_ROWS,
+      ),
+      loadMergeRows(env),
+      queryRows(
+        env,
+        `
+            SELECT
+              votes.source_event_id AS id,
+              votes.group_id,
+              votes.verdict,
+              votes.voter_key,
+              votes.created_at
+            FROM current_group_review_votes AS votes
+            LEFT JOIN group_review_resolutions AS resolutions
+              ON resolutions.group_id = votes.group_id
+            WHERE votes.source_event_id > COALESCE(resolutions.through_event_id, 0)
+            ORDER BY votes.source_event_id DESC
+            LIMIT ${MAX_REVIEW_EVENT_ROWS + 1}
+        `,
+        MAX_REVIEW_EVENT_ROWS,
+      ),
+      queryRows(
+        env,
+        `
+            SELECT
+              id,
+              source_group_id,
+              target_group_id,
+              assignments_json,
+              reason,
+              curator,
+              created_at
+            FROM group_membership_events
+            ORDER BY id DESC
+            LIMIT 100
+        `,
+      ),
+      loadOperationalDiagnostics(request, env),
+    ]);
+    xidGroupMap = await loadCatalogGroupsForXids(
       env,
-      `
-          SELECT
-            id,
-            xid,
-            group_id,
-            lat,
-            lon,
-            has_coordinates,
-            voter_key,
-            verdict,
-            location_revision,
-            proposal_id,
-            message,
-            email,
-            user_agent,
-            created_at
-          FROM corrections
-      `,
-    ),
-    loadMergeRows(env),
-    queryRows(
-      env,
-      `
-          SELECT
-            votes.source_event_id AS id,
-            votes.group_id,
-            votes.verdict,
-            votes.voter_key,
-            votes.created_at
-          FROM current_group_review_votes AS votes
-          LEFT JOIN group_review_resolutions AS resolutions
-            ON resolutions.group_id = votes.group_id
-          WHERE votes.source_event_id > COALESCE(resolutions.through_event_id, 0)
-      `,
-    ),
-    queryRows(
-      env,
-      `
-          SELECT
-            id,
-            source_group_id,
-            target_group_id,
-            assignments_json,
-            reason,
-            curator,
-            created_at
-          FROM group_membership_events
-          ORDER BY id DESC
-          LIMIT 100
-      `,
-    ),
-    loadXidGroupMap(request, env),
-    loadPhotoFeatureMap(request, env),
-    loadOperationalDiagnostics(request, env),
-  ]);
+      correctionRows
+        .filter((row) => !normalizeId(row.group_id))
+        .map((row) => row.xid),
+    );
+  } catch (error) {
+    if (error instanceof ReviewReadLimitError) {
+      return jsonResponse({ detail: error.message }, 503);
+    }
+    return jsonResponse({ detail: "Kontrola příspěvků není dočasně dostupná" }, 503);
+  }
   const reviewState = buildReviewState({
     correctionRows,
     mergeRows,
@@ -423,16 +527,33 @@ export async function onRequest({ request, env }) {
     correctionRowsByGroup,
   );
   const mergeConflictPairs = buildMergeConflictPairs(mergeRows);
-  const splitCandidates = buildSplitCandidates(
+  let splitCandidates = buildSplitCandidates(
     groupReviewVoteRows,
-    reviewState.resolvedGroupByXid,
     reviewState.groupRoots,
-  ).map((candidate) => ({
-    ...candidate,
-    members: candidate.xids.map((xid) =>
-      photoEvidence(photoFeatureMap.get(xid), xid),
-    ),
-  }));
+  );
+  if (splitCandidates.length > MAX_SPLIT_CANDIDATES) {
+    return jsonResponse({ detail: new ReviewReadLimitError().message }, 503);
+  }
+  try {
+    const evidenceByGroup = await loadSplitEvidence(
+      env,
+      splitCandidates,
+      reviewState.groupRoots,
+    );
+    splitCandidates = splitCandidates.map((candidate) => {
+      const members = evidenceByGroup.get(candidate.group_id) || [];
+      return {
+        ...candidate,
+        xids: members.map((member) => member.xid),
+        members,
+      };
+    });
+  } catch (error) {
+    if (error instanceof ReviewReadLimitError) {
+      return jsonResponse({ detail: error.message }, 503);
+    }
+    return jsonResponse({ detail: "Důkazy ke kontrole nejsou dočasně dostupné" }, 503);
+  }
   const membershipHistory = parseMembershipHistory(membershipRows);
 
   const pendingCorrections = reviewState.groupCorrections

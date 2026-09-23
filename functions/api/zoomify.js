@@ -1,7 +1,10 @@
+import {
+  catalogFeature,
+  findCatalogPhoto,
+  requireCatalog,
+} from "./_catalog.js";
+
 const ARCHIVE_DEFAULT = "https://katalog.ahmp.cz/pragapublica";
-const PHOTO_CACHE_TTL_MS = 60 * 1000;
-let featureScanCache = new Map();
-let featureScanCacheExpiresAt = 0;
 
 function normalizeId(value) {
   return String(value || "").trim();
@@ -106,42 +109,6 @@ function parseImageProperties(propsXml) {
   };
 }
 
-async function fetchPhotosJson(request, env) {
-  if (!request || !env?.ASSETS) return null;
-  const url = new URL(request.url);
-  url.pathname = "/data/photos.geojson";
-  url.search = "";
-  const response = await env.ASSETS.fetch(new Request(url.toString()));
-  if (!response.ok) return null;
-  return response.json();
-}
-
-async function loadFeatureScanMap(request, env, options = {}) {
-  const { forceRefresh = false } = options;
-  const now = Date.now();
-  if (!forceRefresh && now < featureScanCacheExpiresAt) {
-    return featureScanCache;
-  }
-
-  const mapping = new Map();
-  try {
-    const photos = await fetchPhotosJson(request, env);
-    const features = Array.isArray(photos?.features) ? photos.features : [];
-    features.forEach((feature) => {
-      const props = feature?.properties || {};
-      const xid = normalizeId(props.id);
-      if (!xid) return;
-      mapping.set(xid, props);
-    });
-  } catch (error) {
-    // keep empty map on read failures
-  }
-
-  featureScanCache = mapping;
-  featureScanCacheExpiresAt = now + PHOTO_CACHE_TTL_MS;
-  return featureScanCache;
-}
-
 async function resolveFromR2({ r2BaseUrl, xid, scanIndex }) {
   const base = normalizeBaseUrl(r2BaseUrl);
   if (!base) return null;
@@ -162,18 +129,11 @@ async function resolveFromR2({ r2BaseUrl, xid, scanIndex }) {
 }
 
 async function resolveFromFeatureMetadata({
-  request,
-  env,
+  props,
   xid,
   scanIndex,
   allowArchiveFallback,
 }) {
-  let scanMap = await loadFeatureScanMap(request, env);
-  if (!scanMap.has(xid)) {
-    scanMap = await loadFeatureScanMap(request, env, { forceRefresh: true });
-  }
-
-  const props = scanMap.get(xid) || {};
   const scanZoomifyPaths = Array.isArray(props?.scan_zoomify_paths)
     ? props.scan_zoomify_paths
     : [];
@@ -201,8 +161,7 @@ async function resolveFromFeatureMetadata({
 }
 
 async function resolveZoomify({
-  request,
-  env,
+  featureProps,
   archiveBaseUrl,
   xid,
   scanIndex,
@@ -219,8 +178,7 @@ async function resolveZoomify({
     return r2Payload;
   }
   const featurePayload = await resolveFromFeatureMetadata({
-    request,
-    env,
+    props: featureProps,
     xid,
     scanIndex: scanParam,
     allowArchiveFallback,
@@ -275,14 +233,21 @@ export async function onRequest({ request, env }) {
     return jsonResponse({ detail: "Chybí xid" }, 400);
   }
 
+  let catalogRow;
+  try {
+    await requireCatalog(request, env);
+    catalogRow = await findCatalogPhoto(env, xid);
+  } catch (error) {
+    return jsonResponse({ detail: "Katalog fotografií není dočasně dostupný" }, 503);
+  }
+
   const archiveBaseUrl = normalizeBaseUrl(env.ARCHIVE_BASE_URL || ARCHIVE_DEFAULT);
   const r2BaseUrl = normalizeBaseUrl(env.R2_TILES_BASE || "");
   const allowArchiveFallback = parseBool(env.ALLOW_ARCHIVE_FALLBACK, false);
 
   try {
     const payload = await resolveZoomify({
-      request,
-      env,
+      featureProps: catalogFeature(catalogRow)?.properties || {},
       archiveBaseUrl,
       xid,
       scanIndex,
