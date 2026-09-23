@@ -7,6 +7,13 @@
     poi: "Bod zájmu",
   };
 
+  // Czech nominative: 1–4 take "fotografie", 0 and 5+ take "fotografií".
+  function formatPhotoCount(count) {
+    const n = Number(count) || 0;
+    const noun = n >= 1 && n <= 4 ? "fotografie" : "fotografií";
+    return `${n.toLocaleString("cs-CZ")} ${noun}`;
+  }
+
   function formatLabel(text) {
     return String(text)
       .toLowerCase()
@@ -75,7 +82,7 @@
     const communityGeolocation = getCommunityGeolocationLabel(correctionStatus);
 
     const items = [
-      ["Popis", props.description],
+      ["Popis", options.omitDescription ? "" : props.description],
       ["Datace", props.date_label],
       ["Autor", props.author],
       ["Signatura", props.signature],
@@ -127,7 +134,10 @@
       container.appendChild(wrapper);
     });
 
-    if (groupItems.length > 1) {
+    const showCorrectionScope = options.showCorrectionScope !== false;
+    const showGroupItems = options.showGroupItems !== false;
+
+    if (showCorrectionScope && groupItems.length > 1) {
       const wrapper = document.createElement("div");
       wrapper.className = "detail-item scope-hint";
 
@@ -137,14 +147,16 @@
 
       const valueEl = document.createElement("p");
       valueEl.className = "detail-value";
-      valueEl.textContent = `Opravujete polohu celé skupiny (${groupItems.length} fotografií).`;
+      valueEl.textContent = `Opravujete polohu celé skupiny (${formatPhotoCount(groupItems.length)}).`;
 
       wrapper.appendChild(labelEl);
       wrapper.appendChild(valueEl);
       container.appendChild(wrapper);
     }
 
-    if (versionClusters.length) {
+    if (!showGroupItems) {
+      // The page shows the group members itself.
+    } else if (versionClusters.length) {
       const wrapper = document.createElement("div");
       wrapper.className = "detail-item";
 
@@ -251,6 +263,7 @@
   }
 
   window.OldPragueMeta = {
+    formatPhotoCount,
     renderDetails,
   };
 })();

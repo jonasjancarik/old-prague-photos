@@ -1,9 +1,9 @@
-import{m as n}from"./loadLegacyScripts-DWvJq8h1.js";import{i as a}from"./leaflet-MNx99EVa.js";import{i as e}from"./openseadragon-CWtobWd5.js";const o=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-CCwIcKCm.js";import{i as e}from"./leaflet-Dp5Exmga.js";import{i as a}from"./openseadragon-CWtobWd5.js";const o=`  <div class="page page-help">
     <header class="topbar">
       <div>
         <p class="eyebrow">Komunitní kontrola</p>
         <h1>Pomozte zkontrolovat mapu</h1>
-        <p class="subtitle">
+        <p class="subtitle" data-mode-subtitle>
           Vyberte, co chcete zkontrolovat.
         </p>
         <div class="topbar-actions">
@@ -13,12 +13,8 @@ import{m as n}from"./loadLegacyScripts-DWvJq8h1.js";import{i as a}from"./leaflet
       </div>
       <div class="topbar-meta">
         <div class="stat">
-          <span class="stat-label">Zbývá ke kontrole</span>
-          <span class="stat-value" id="remaining-count">—</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Skupina</span>
-          <span class="stat-value" id="current-xid">—</span>
+          <span class="stat-label">Vaše kontroly</span>
+          <span class="stat-value" id="session-count">0</span>
         </div>
       </div>
     </header>
@@ -50,28 +46,59 @@ import{m as n}from"./loadLegacyScripts-DWvJq8h1.js";import{i as a}from"./leaflet
       </section>
 
       <section class="card help-card is-hidden" data-mode-flow="location">
-        <div class="help-controls">
-          <button class="secondary" type="button" id="prev-photo" disabled>
-            Předchozí
-          </button>
-          <button class="vote vote-up" type="button" id="vote-up">
-            Poloha sedí
-          </button>
-          <button class="vote vote-down" type="button" id="vote-down">
-            Poloha nesedí
-          </button>
-          <button class="secondary" type="button" id="skip-photo">
-            Přeskočit
-          </button>
+        <div class="help-question">
+          <h2>Sedí bod na mapě s místem na fotografii?</h2>
+          <p class="help-caption" id="help-caption"></p>
         </div>
 
-        <div class="help-submit help-wrong-actions is-hidden" id="help-wrong-actions">
-          <p class="helper">
-            Vyberte správné místo v mapě, nebo nahlaste, že ho neumíte určit.
+        <div class="help-grid">
+          <div class="help-preview">
+            <div class="preview-frame">
+              <div class="zoom-wrap">
+                <div id="help-zoom" class="zoom-viewer" aria-label="Náhled fotografie"></div>
+                <iframe id="help-iframe" title="Archivní záznam" loading="lazy" referrerpolicy="no-referrer"></iframe>
+              </div>
+            </div>
+          </div>
+
+          <div class="help-map">
+            <div id="help-map" aria-label="Mapa pro opravu polohy"></div>
+            <p class="helper location-review-note" id="location-review-note"></p>
+          </div>
+        </div>
+
+        <div class="help-answer-bar">
+          <div class="help-controls">
+            <button class="secondary" type="button" id="prev-photo" disabled>
+              Předchozí
+            </button>
+            <button class="vote vote-up" type="button" id="vote-up">
+              Poloha sedí
+            </button>
+            <button class="vote vote-down" type="button" id="vote-down">
+              Poloha nesedí
+            </button>
+            <button class="secondary" type="button" id="skip-photo">
+              Přeskočit
+            </button>
+          </div>
+
+          <div class="help-submit help-wrong-actions is-hidden" id="help-wrong-actions">
+            <p class="helper">
+              Klikněte do mapy na správné místo, nebo nahlaste, že ho neumíte určit.
+            </p>
+            <button class="secondary help-secondary" type="button" id="open-flag">
+              Nevím, kde to je
+            </button>
+          </div>
+
+          <div class="form-status-wrap">
+            <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+          </div>
+
+          <p class="help-shortcuts" aria-hidden="true">
+            Klávesy: <kbd>A</kbd> sedí · <kbd>N</kbd> nesedí · <kbd>→</kbd> přeskočit · <kbd>←</kbd> předchozí
           </p>
-          <button class="secondary help-secondary" type="button" id="open-flag">
-            Nevím, kde to je
-          </button>
         </div>
 
         <details class="workflow-help">
@@ -92,30 +119,10 @@ import{m as n}from"./loadLegacyScripts-DWvJq8h1.js";import{i as a}from"./leaflet
           </div>
         </details>
 
-        <div class="help-grid">
-          <div class="help-preview">
-            <div class="preview-frame">
-              <div class="zoom-wrap">
-                <div id="help-zoom" class="zoom-viewer" aria-label="Náhled fotografie"></div>
-                <iframe id="help-iframe" title="Archivní záznam" loading="lazy" referrerpolicy="no-referrer"></iframe>
-              </div>
-            </div>
-          </div>
-
-          <div class="help-map">
-            <div id="help-map" aria-label="Mapa pro opravu polohy"></div>
-            <p class="helper location-review-note" id="location-review-note"></p>
-          </div>
-        </div>
-
         <div class="help-meta-wrap" aria-label="Detaily fotografie">
           <div id="help-details" class="detail-list full-width"></div>
+          <p class="helper help-ref">ID skupiny: <span id="current-xid">—</span></p>
         </div>
-
-        <div class="form-status-wrap">
-          <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
-        </div>
-
       </section>
     </main>
   </div>
@@ -167,4 +174,4 @@ import{m as n}from"./loadLegacyScripts-DWvJq8h1.js";import{i as a}from"./leaflet
       </div>
     </div>
   </div>
-`;a();e();n(o,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./pomoc.js","./mode-picker.js"]).catch(console.error);
+`;e();a();n(o,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./pomoc.js","./mode-picker.js"]).catch(console.error);

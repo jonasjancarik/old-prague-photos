@@ -17,7 +17,8 @@ different storage.
 - `/pomoc.html`
   asks: "Is the map location correct?"
 - `/dup-review.html`
-  asks: "Are these two groups the same shot or series?"
+  asks: "Do these two groups belong together?" (the same photograph, or
+  different takes from the same shoot)
 - `/group-review.html`
   asks: "Does this one metadata-based group look internally coherent?"
 
@@ -293,12 +294,24 @@ between pages causes a current-page restart instead of an offset skip.
 
 Local browser-only state:
 - `/group-review.html` keeps a hide list in local storage after the current user
-  clicks "Série vypadá dobře".
+  votes ("Skupina je správně" or "Skupina míchá různé fotografie").
 - This only helps the current browser move forward through the queue.
 - Clearing the list does not delete backend votes.
 
 Current UI wording:
-- "Znovu ukázat moje série" resets only the browser-local hide list.
+- "Zobrazit znovu prošlé" (at the bottom of the page) resets only the
+  browser-local hide list.
+
+Shared UI conventions across the three pages:
+- The question and the photo caption come first, then the evidence.
+- Decisions sit in a sticky answer bar; on desktop `A` / `N` / `→` / `←` map to
+  yes / no / next / previous.
+- The header shows "Vaše kontroly", a per-visit count of saved decisions, not
+  the size of the backlog. Internal group IDs appear only in a small reference
+  line (`#current-xid`, `#current-group`), which the browser tests also use as a
+  readiness signal.
+- The group page shows a contact sheet of every member; the details panel
+  omits the location-scope line and version pills there.
 
 ## `review-state` Scope
 

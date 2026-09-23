@@ -114,7 +114,7 @@ const infoModal = document.getElementById("info-modal");
 const infoOpenBtn = document.getElementById("info-open");
 let infoModalPreviousFocus = null;
 
-const pragueFallback = [50.0755, 14.4378];
+const PRAGUE_CENTRE = [50.0850, 14.4200];
 const OSM_ATTR =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> přispěvatelé';
 const MAPY_ATTR = '&copy; <a href="https://www.mapy.cz">Mapy.cz</a>';
@@ -145,10 +145,10 @@ function updatePhotoCount(filteredCount) {
     ? filteredCount
     : totalCount;
   if (visibleCount === totalCount) {
-    photoCount.textContent = totalCount.toLocaleString();
+    photoCount.textContent = totalCount.toLocaleString("cs-CZ");
     return;
   }
-  photoCount.textContent = `${visibleCount.toLocaleString()} / ${totalCount.toLocaleString()}`;
+  photoCount.textContent = `${visibleCount.toLocaleString("cs-CZ")} / ${totalCount.toLocaleString("cs-CZ")}`;
 }
 
 function escapeHtml(value) {
@@ -214,7 +214,7 @@ function getGroupSubtitle(group) {
   const parts = [];
   if (primary.author) parts.push(primary.author);
   if (primary.date_label) parts.push(primary.date_label);
-  if (group?.items?.length > 1) parts.push(`${group.items.length} fotografií`);
+  if (group?.items?.length > 1) parts.push(window.OldPragueMeta.formatPhotoCount(group.items.length));
   return parts.join(" · ");
 }
 
@@ -389,13 +389,9 @@ function updateYearSliderTrack() {
   const end = endRatio * 100;
   yearSliderWrap.style.setProperty("--range-start", `${start}%`);
   yearSliderWrap.style.setProperty("--range-end", `${end}%`);
-
-  const wrapRect = yearSliderWrap.getBoundingClientRect();
-  const usableWidth = Math.max(0, wrapRect.width - YEAR_SLIDER_EDGE_PX * 2);
-  const startPx = YEAR_SLIDER_EDGE_PX + usableWidth * startRatio;
-  const endPx = YEAR_SLIDER_EDGE_PX + usableWidth * endRatio;
-  yearSliderWrap.style.setProperty("--range-start-px", `${startPx}px`);
-  yearSliderWrap.style.setProperty("--range-end-px", `${endPx}px`);
+  // Ratios, not measured pixels: the slider may be hidden or still laying out.
+  yearSliderWrap.style.setProperty("--range-start-ratio", String(startRatio));
+  yearSliderWrap.style.setProperty("--range-end-ratio", String(endRatio));
 }
 
 function updateYearSliderZ() {
@@ -481,8 +477,36 @@ function applyYearFilter(options = {}) {
   state.filteredGroups = filtered;
   addMarkers(filtered, { fitBounds });
   updatePhotoCount(filtered.length);
+  updateFiltersIndicator();
   renderPhotoGrid({ reset: true });
   updateNearbyNavigation();
+}
+
+function updateFiltersIndicator() {
+  const dot = document.getElementById("filters-active");
+  if (!dot) return;
+  const yearNarrowed =
+    (Number.isFinite(state.yearMin) && state.yearFilterMin > state.yearMin) ||
+    (Number.isFinite(state.yearMax) && state.yearFilterMax < state.yearMax);
+  dot.hidden = !(
+    yearNarrowed ||
+    (!state.yearIncludeUnknown && !yearUnknownToggle?.disabled) ||
+    (!state.yearIncludeImprecise && !yearImpreciseToggle?.disabled) ||
+    !state.clusteringEnabled
+  );
+}
+
+function initFiltersToggle() {
+  const toggle = document.getElementById("filters-toggle");
+  const panel = document.getElementById("map-controls");
+  if (!toggle || !panel) return;
+  toggle.addEventListener("click", () => {
+    const open = panel.hidden;
+    panel.hidden = !open;
+    toggle.setAttribute("aria-expanded", String(open));
+    // The map shrinks or grows with the panel; let Leaflet re-measure.
+    requestAnimationFrame(() => state.map?.invalidateSize());
+  });
 }
 
 let yearFilterTimer = null;
@@ -552,7 +576,7 @@ function initYearFilter() {
   state.yearFilteredGroups = state.groups;
   const stats = computeGroupYearStats(state.groups);
   if (!yearMinInput || !yearMaxInput || !stats) {
-    applyYearFilter({ fitBounds: true });
+    applyYearFilter({ fitBounds: false });
     return;
   }
 
@@ -585,7 +609,7 @@ function initYearFilter() {
   }
   if (yearUnknownCount) {
     yearUnknownCount.textContent = stats.unknownGroups
-      ? `(${stats.unknownGroups.toLocaleString()})`
+      ? `(${stats.unknownGroups.toLocaleString("cs-CZ")})`
       : "";
   }
   if (yearImpreciseToggle) {
@@ -599,7 +623,7 @@ function initYearFilter() {
   }
   if (yearImpreciseCount) {
     yearImpreciseCount.textContent = stats.impreciseGroups
-      ? `(${stats.impreciseGroups.toLocaleString()})`
+      ? `(${stats.impreciseGroups.toLocaleString("cs-CZ")})`
       : "";
   }
 
@@ -670,7 +694,7 @@ function initYearFilter() {
     });
   }
 
-  applyYearFilter({ fitBounds: true });
+  applyYearFilter({ fitBounds: false });
 }
 
 let zoomViewer = null;
@@ -1477,7 +1501,7 @@ function renderCorrectionScopeHint() {
     ? state.selectedGroup.items.length
     : 0;
   if (versionCount > 1) {
-    correctionScopeHint.textContent = `Opravujete polohu celé skupiny (${versionCount} fotografií).`;
+    correctionScopeHint.textContent = `Opravujete polohu celé skupiny (${window.OldPragueMeta.formatPhotoCount(versionCount)}).`;
     correctionScopeHint.classList.remove("is-hidden");
     return;
   }
@@ -1589,7 +1613,9 @@ function updateNearbyNavigation(options = {}) {
   nearbyPrevBtn.disabled = currentIndex <= 0;
   nearbyNextBtn.disabled = currentIndex < 0 || currentIndex >= total - 1;
   nearbyState.textContent =
-    currentIndex >= 0 && total > 0 ? `${currentIndex + 1}/${total}` : "—";
+    currentIndex >= 0 && total > 0
+      ? `${(currentIndex + 1).toLocaleString("cs-CZ")} / ${total.toLocaleString("cs-CZ")}`
+      : "—";
 }
 
 function goToNearbyGroup(delta) {
@@ -1669,7 +1695,7 @@ function renderPhotoGrid(options = {}) {
     .join("");
 
   if (photoGridCount) {
-    photoGridCount.textContent = `Zobrazeno ${visibleCount.toLocaleString()} z ${groups.length.toLocaleString()}`;
+    photoGridCount.textContent = `Zobrazeno ${visibleCount.toLocaleString("cs-CZ")} z ${groups.length.toLocaleString("cs-CZ")}`;
   }
 
   const hasMore = visibleCount < groups.length;
@@ -2206,10 +2232,13 @@ function handleMarkerHover(group, latlng) {
 }
 
 function initMap() {
+  // Open on the historic centre, where most photographs are. Fitting every
+  // marker would zoom out to the whole region because of a few outliers.
+  const narrowScreen = window.matchMedia("(max-width: 640px)").matches;
   state.map = L.map("map", {
     zoomControl: true,
     scrollWheelZoom: true,
-  }).setView(pragueFallback, 12);
+  }).setView(PRAGUE_CENTRE, narrowScreen ? 13 : 14);
   attachBaseTiles(state.map, { showAttribution: true, logPrefix: "Main map" });
 
   const clusterToggle = document.getElementById("cluster-toggle");
@@ -2305,6 +2334,7 @@ function hideClusterWarning() {
 function toggleClustering(enabled) {
 
   state.clusteringEnabled = enabled;
+  updateFiltersIndicator();
   state.previewProximityActiveGroupId = "";
   if (!state.map) return;
 
@@ -2434,7 +2464,10 @@ function updateVerifiedCount(reviewState = null) {
     Number(reviewState?.counts?.doneGroups) ||
     Number(state.reviewCounts?.doneGroups) ||
     0;
-  verifiedCount.textContent = value.toLocaleString();
+  verifiedCount.textContent = value.toLocaleString("cs-CZ");
+  // A zero reads as an abandoned project; show the stat once there is progress.
+  const stat = verifiedCount.closest(".stat");
+  if (stat) stat.hidden = value === 0;
 }
 
 async function refreshReviewState(options = {}) {
@@ -2551,6 +2584,7 @@ async function bootstrap() {
   }
 
   initMap();
+  initFiltersToggle();
 
   const features = photos.features || [];
   state.features = features;

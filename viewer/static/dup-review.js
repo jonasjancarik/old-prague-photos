@@ -19,10 +19,10 @@ const state = {
   candidateRevision: null,
   loadingCandidates: false,
   reviewedPairKeys: new Set(),
+  sessionDecisions: 0,
 };
 
-const candidateCountEl = document.getElementById("candidate-count");
-const remainingCountEl = document.getElementById("remaining-count");
+const sessionCountEl = document.getElementById("session-count");
 const prevBtn = document.getElementById("prev-pair");
 const skipBtn = document.getElementById("skip-pair");
 const sameBtn = document.getElementById("mark-same");
@@ -81,17 +81,9 @@ function pairKey(a, b) {
 }
 
 function updateCounts() {
-  if (candidateCountEl) {
-    candidateCountEl.textContent = state.candidateTotal
-      ? state.candidateTotal.toLocaleString()
-      : "0";
-  }
-  if (remainingCountEl) {
-    const reviewedThisSession = state.history.length + (state.currentPair ? 1 : 0);
-    remainingCountEl.textContent = Math.max(
-      0,
-      state.candidateTotal - reviewedThisSession,
-    ).toLocaleString();
+  // Show what the visitor has done, not the size of the whole backlog.
+  if (sessionCountEl) {
+    sessionCountEl.textContent = state.sessionDecisions.toLocaleString("cs-CZ");
   }
   if (prevBtn) {
     prevBtn.disabled =
@@ -236,6 +228,10 @@ async function loadZoomifyInto(target, xid, scanIndex) {
   if (target.lastKey === key) return;
   target.lastKey = key;
   target.wrapEl.classList.remove("is-fallback");
+  target.wrapEl.classList.add("is-loading");
+  const reveal = () => {
+    if (target.lastKey === key) target.wrapEl.classList.remove("is-loading");
+  };
 
   try {
     if (!window.OpenSeadragon) {
@@ -260,10 +256,13 @@ async function loadZoomifyInto(target, xid, scanIndex) {
       throw new Error("Chybí helper pro Zoomify");
     }
     if (target.lastKey !== key) return;
+    target.viewer.addOnceHandler("tile-drawn", reveal);
+    target.viewer.addOnceHandler("open-failed", reveal);
     target.viewer.open(window.OldPragueZoomify.createTileSource(meta));
   } catch (error) {
     if (target.lastKey !== key) return;
     console.warn("Zoom náhled selhal", error);
+    reveal();
     target.wrapEl.classList.add("is-fallback");
   }
 }
@@ -275,6 +274,7 @@ function renderSideDetails(side, group, feature) {
   const selectedScanIndex = getScanIndex(xid);
   window.OldPragueMeta.renderDetails(container, feature, state.archiveBaseUrl, {
     groupItems: group?.items || [],
+    showCorrectionScope: false,
     selectedId: feature?.properties?.id || "",
     onSelectVersion: (xid) => {
       const nextFeature = group?.items?.find(
@@ -310,7 +310,8 @@ function renderFocusFilter() {
     pairFilterEl.textContent = "";
     return;
   }
-  pairFilterEl.textContent = `Jen páry ze skupiny ${shortId(focusId)}`;
+  pairFilterEl.textContent = "Jen páry s vybranou skupinou";
+  pairFilterEl.title = focusId;
   pairFilterEl.classList.remove("is-hidden");
 }
 
@@ -469,6 +470,7 @@ async function submitDecision(verdict) {
   try {
     const result = await submitMergePayload(payload);
     state.lastSubmittedPair = result.decision;
+    state.sessionDecisions += 1;
     if (result.refreshError) {
       state.reviewStateReady = false;
       clearPairEvidence();
@@ -556,6 +558,7 @@ async function undoLastDecision() {
       verdict: "undo",
     });
     state.lastSubmittedPair = null;
+    state.sessionDecisions = Math.max(0, state.sessionDecisions - 1);
     if (result.refreshError) {
       state.reviewStateReady = false;
       clearPairEvidence();
@@ -597,6 +600,27 @@ async function bootstrap() {
       "Při prvním hlasu se může zobrazit ověření.";
   }
 }
+
+const REVIEW_SHORTCUTS = {
+  a: sameBtn,
+  n: differentBtn,
+  ArrowRight: skipBtn,
+  ArrowLeft: prevBtn,
+};
+
+document.addEventListener("keydown", (event) => {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+  if (event.target.closest?.("input, textarea, select, [contenteditable], .openseadragon-container")) {
+    return;
+  }
+  const flow = document.querySelector('[data-mode-flow="dedupe"]');
+  if (!flow || flow.classList.contains("is-hidden")) return;
+  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  const button = REVIEW_SHORTCUTS[key];
+  if (!button || button.disabled) return;
+  event.preventDefault();
+  button.click();
+});
 
 if (skipBtn) skipBtn.addEventListener("click", () => pickNext());
 if (prevBtn) prevBtn.addEventListener("click", () => pickPrev());

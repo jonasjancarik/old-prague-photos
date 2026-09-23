@@ -16,13 +16,17 @@ const state = {
   candidateTotal: 0,
   candidateNextCursor: "0",
   loadingCandidates: false,
+  r2TilesBase: "",
+  stripGroupId: "",
+  sessionVotes: 0,
 };
 
 const REVIEWED_GROUPS_STORAGE_KEY = "old-prague-group-review-reviewed";
 const REQUIRED_OK_VOTES = 2;
 
-const groupCountEl = document.getElementById("group-count");
-const remainingCountEl = document.getElementById("remaining-count");
+const sessionCountEl = document.getElementById("session-count");
+const captionEl = document.getElementById("group-caption");
+const groupStripEl = document.getElementById("group-strip");
 const currentGroupEl = document.getElementById("current-group");
 const groupSummaryEl = document.getElementById("group-summary");
 const statusEl = document.getElementById("group-status");
@@ -58,6 +62,12 @@ function clearGroupEvidence() {
   zoomState.wrapEl?.classList.remove("is-fallback", "is-loading", "is-unavailable");
   if (previewImgEl) previewImgEl.removeAttribute("src");
   detailsEl?.replaceChildren();
+  if (captionEl) captionEl.textContent = "";
+  if (groupStripEl) {
+    groupStripEl.replaceChildren();
+    groupStripEl.hidden = true;
+  }
+  state.stripGroupId = "";
   if (groupSummaryEl) {
     groupSummaryEl.textContent = "Skupina: —";
     groupSummaryEl.title = "";
@@ -121,23 +131,10 @@ function buildDedupeUrl(groupId) {
 }
 
 function updateCounts() {
-  const total = state.candidateTotal;
-  const communityDone = Array.from(state.voteStateByGroup.values()).filter(
-    (item) => item?.done,
-  ).length;
-  const locallyReviewed = Array.from(state.reviewedGroupIds).filter(
-    (groupId) => !isGroupDone(groupId),
-  ).length;
-  const remaining = Math.max(
-    0,
-    total - communityDone - locallyReviewed - (state.currentGroup ? 1 : 0),
-  );
   const currentVoteState = getVoteState(state.currentGroup?.id || "");
-  if (groupCountEl) {
-    groupCountEl.textContent = total ? total.toLocaleString() : "0";
-  }
-  if (remainingCountEl) {
-    remainingCountEl.textContent = remaining ? remaining.toLocaleString() : "0";
+  // Show what the visitor has done, not the size of the whole backlog.
+  if (sessionCountEl) {
+    sessionCountEl.textContent = state.sessionVotes.toLocaleString("cs-CZ");
   }
   if (currentGroupEl) {
     currentGroupEl.textContent = state.currentGroup?.id
@@ -287,8 +284,12 @@ async function loadZoomifyInto(target, xid, scanIndex) {
   if (target.lastKey === key) return;
   target.lastKey = key;
   target.wrapEl.classList.remove("is-fallback");
+  target.wrapEl.classList.add("is-loading");
+  const reveal = () => {
+    if (target.lastKey === key) target.wrapEl.classList.remove("is-loading");
+  };
   if (target.previewImgEl) {
-    target.previewImgEl.src = "";
+    target.previewImgEl.removeAttribute("src");
   }
 
   try {
@@ -314,10 +315,13 @@ async function loadZoomifyInto(target, xid, scanIndex) {
       throw new Error("Chybí helper pro Zoomify");
     }
     if (target.lastKey !== key) return;
+    target.viewer.addOnceHandler("tile-drawn", reveal);
+    target.viewer.addOnceHandler("open-failed", reveal);
     target.viewer.open(window.OldPragueZoomify.createTileSource(meta));
   } catch (error) {
     if (target.lastKey !== key) return;
     console.warn("Zoom náhled selhal", error);
+    reveal();
     if (target.previewImgEl) {
       try {
         const previewUrl = await loadPreviewUrl(xid);
@@ -439,6 +443,10 @@ function renderDetails(group, feature) {
   const scanIndex = getScanIndex(selectedId);
   window.OldPragueMeta.renderDetails(detailsEl, feature, state.archiveBaseUrl, {
     groupItems: group?.items || [],
+    // The caption and the contact sheet above already cover these.
+    omitDescription: Boolean(captionEl),
+    showGroupItems: !groupStripEl,
+    showCorrectionScope: false,
     selectedId,
     versionClusters,
     selectedVersionId: activeCluster?.version_id || "",
@@ -471,7 +479,7 @@ function setScanIndex(xid, scanIndex) {
 function renderActionHint(group) {
   if (!actionTextEl) return;
   if (!group?.id) {
-    actionTextEl.textContent = "Projděte fotografie ve skupině.";
+    actionTextEl.textContent = "";
     return;
   }
   const voteState = getVoteState(group.id);
@@ -482,9 +490,85 @@ function renderActionHint(group) {
     actionTextEl.textContent = `U této skupiny už máte uložený hlas ${choice}.`;
     return;
   }
-  actionTextEl.textContent = `Pokud skupina míchá různé záběry, otevřete párové porovnání jen pro skupinu ${shortId(
-    group.id,
-  )}.`;
+  actionTextEl.textContent = "Nejste si jistí?";
+}
+
+function getThumbnailSources(feature) {
+  const props = feature?.properties || {};
+  const xid = String(props.id || "").trim();
+  const sources = [];
+  if (state.r2TilesBase && xid) {
+    const base = `${state.r2TilesBase}/${encodeURIComponent(xid)}/scan_0/TileGroup0`;
+    sources.push(`${base}/1-0-0.jpg`, `${base}/0-0-0.jpg`);
+  }
+  const zoomifyPath = Array.isArray(props.scan_zoomify_paths)
+    ? props.scan_zoomify_paths.find((item) => typeof item === "string" && item.trim())
+    : "";
+  if (zoomifyPath) {
+    sources.push(`${zoomifyPath.trim().replace(/\/$/, "")}/TileGroup0/1-0-0.jpg`);
+  }
+  if (Array.isArray(props.scan_previews) && props.scan_previews[0]) {
+    sources.push(String(props.scan_previews[0]));
+  }
+  return sources;
+}
+
+function renderGroupStrip(group) {
+  if (!groupStripEl) return;
+  const items = Array.isArray(group?.items) ? group.items : [];
+  if (state.stripGroupId === group?.id) return;
+  state.stripGroupId = group?.id || "";
+  groupStripEl.replaceChildren();
+  groupStripEl.hidden = items.length < 2;
+
+  items.forEach((item, index) => {
+    const props = item?.properties || {};
+    const xid = String(props.id || "");
+    if (!xid) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "group-thumb";
+    button.dataset.xid = xid;
+    button.title = props.description || "";
+
+    const media = document.createElement("span");
+    media.className = "group-thumb-media";
+    const image = document.createElement("img");
+    image.alt = `Fotografie ${index + 1}`;
+    image.loading = "lazy";
+    const sources = getThumbnailSources(item);
+    let sourceIndex = 0;
+    const tryNextSource = () => {
+      if (sourceIndex < sources.length) {
+        image.src = sources[sourceIndex];
+        sourceIndex += 1;
+        return;
+      }
+      image.remove();
+      media.textContent = "Bez náhledu";
+    };
+    image.addEventListener("error", tryNextSource);
+    media.appendChild(image);
+    tryNextSource();
+
+    const label = document.createElement("span");
+    label.className = "group-thumb-label";
+    label.textContent =
+      [props.date_label, props.signature].filter(Boolean).join(" · ") ||
+      `Fotografie ${index + 1}`;
+
+    button.append(media, label);
+    button.addEventListener("click", () => setFeature(group, item));
+    groupStripEl.appendChild(button);
+  });
+}
+
+function markActiveThumb(xid) {
+  groupStripEl?.querySelectorAll(".group-thumb").forEach((button) => {
+    const active = button.dataset.xid === xid;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
 }
 
 function setFeature(group, feature) {
@@ -501,36 +585,32 @@ function setFeature(group, feature) {
     archiveLinkEl.classList.toggle("is-disabled", !url);
   }
   loadZoomifyInto(zoomState, xid, scanIndex);
+  renderGroupStrip(group);
+  markActiveThumb(xid);
+  if (captionEl) {
+    const props = feature.properties || {};
+    const context = [props.date_label, props.author].filter(Boolean).join(" · ");
+    captionEl.textContent = [props.description || "Bez popisu", context]
+      .filter(Boolean)
+      .join(" — ");
+  }
   renderDetails(group, feature);
 
   if (groupSummaryEl) {
     const count = group?.items?.length || 0;
-    const versions = state.versionClustersBySeries.get(group.id) || [];
     const voteState = getVoteState(group.id);
-    const versionLabel = versions.length && versions.length !== count
-      ? ` · ${versions.length} automatických verzí`
-      : "";
-    const scanCount = Math.max(
-      0,
-      ...group.items.map((item) => {
-        const props = item?.properties || {};
-        const count = Number(props.scan_count) || 0;
-        const previews = Array.isArray(props.scan_previews)
-          ? props.scan_previews.length
-          : 0;
-        return Math.max(count, previews);
-      }),
-    );
-    const scanLabel = scanCount > 1 ? ` · ${scanCount} skeny` : "";
     const okVotes = voteState?.ok_votes || 0;
     const requiredVotes = voteState?.required_ok_votes || REQUIRED_OK_VOTES;
-    const voteLabel = ` · ${okVotes}/${requiredVotes} hlasů`;
-    const splitLabel = voteState?.split_votes
-      ? ` · ${voteState.split_votes} hlasů pro rozdělení`
-      : "";
-    groupSummaryEl.textContent = `Skupina ${shortId(
-      group.id,
-    )} · ${count} fotografií${versionLabel}${scanLabel}${voteLabel}${splitLabel}`;
+    const parts = [
+      `Ve skupině ${count === 1 ? "je" : "jsou"} ${window.OldPragueMeta.formatPhotoCount(count)}`,
+    ];
+    parts.push(
+      okVotes ? `potvrzení ${okVotes} z ${requiredVotes}` : "zatím bez potvrzení",
+    );
+    if (voteState?.split_votes) {
+      parts.push(`návrhy na rozdělení: ${voteState.split_votes}`);
+    }
+    groupSummaryEl.textContent = parts.join(" · ");
     groupSummaryEl.title = group.id;
   }
 
@@ -547,7 +627,7 @@ function showGroup(index) {
           ? "Žádné skupiny s více fotografiemi."
           : countCommunityPendingGroups() === 0
             ? "Pro tuto chvíli už jsou všechny skupiny odhlasované."
-            : "V tomto prohlížeči už nic nezbývá. Tlačítko nahoře znovu ukáže dříve prošlé skupiny.",
+            : "V tomto prohlížeči už nic nezbývá. Dříve prošlé skupiny ukáže tlačítko „Zobrazit znovu prošlé“ dole.",
         "success",
       );
     }
@@ -579,6 +659,7 @@ async function submitCurrentGroupVote(verdict) {
       verdict,
     });
     state.reviewedGroupIds.add(submittedGroupId);
+    state.sessionVotes += 1;
     saveReviewedGroupIds();
     try {
       await refreshGroupReviewVoteState();
@@ -662,6 +743,7 @@ async function showNextGroup() {
 async function bootstrap() {
   const config = await fetchJson("/api/config").catch(() => ({}));
   state.archiveBaseUrl = config.archiveBaseUrl || "";
+  state.r2TilesBase = String(config.r2TilesBase || "").trim().replace(/\/$/, "");
 
   state.reviewedGroupIds = loadReviewedGroupIds();
   await refreshGroupReviewVoteState();
@@ -669,6 +751,25 @@ async function bootstrap() {
 
   showGroup(0);
 }
+
+const REVIEW_SHORTCUTS = {
+  a: markOkBtn,
+  n: markSplitBtn,
+  ArrowRight: nextBtn,
+  ArrowLeft: prevBtn,
+};
+
+document.addEventListener("keydown", (event) => {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+  if (event.target.closest?.("input, textarea, select, [contenteditable], .openseadragon-container")) {
+    return;
+  }
+  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  const button = REVIEW_SHORTCUTS[key];
+  if (!button || button.disabled) return;
+  event.preventDefault();
+  button.click();
+});
 
 if (prevBtn) prevBtn.addEventListener("click", () => showGroup(state.currentIndex - 1));
 if (nextBtn) nextBtn.addEventListener("click", showNextGroup);

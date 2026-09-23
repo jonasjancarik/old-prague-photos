@@ -473,7 +473,8 @@ Notes for preview-only runs:
 
 R2 hosting (optional):
 - Upload `downloads/archive/zoomify/` to an R2 bucket prefix (e.g. `tiles/`).
-- Set `R2_TILES_BASE=https://<r2-public-domain>/tiles`.
+- For production, connect an R2 custom domain, verify it serves the tiles,
+  then set `R2_TILES_BASE=https://tiles.davnapraha.cz/tiles`.
 - The app uses R2/own infra first.
 - Archive hosts are disabled by default in API routes; enable only if needed with `ALLOW_ARCHIVE_FALLBACK=1`.
 - Sync helper: `scripts/r2_sync.sh` (requires `aws` CLI).

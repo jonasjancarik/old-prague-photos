@@ -106,6 +106,72 @@ correction, duplicate decision with undo, and group-split vote. Use a second
 anonymous session for the confirming split vote, then complete the move in the
 curator workbench. Confirm the audit/history and operational-health screens.
 
+## First production release (davnapraha.cz)
+
+Do this once, before the first `npm run deploy:pages`. The production D1
+database `old-prague-photos` already exists but has no tables; the deploy
+script applies every migration. There are no contributions yet, so the first
+release does not need staging. Provision staging before the first release that
+follows real contributions.
+
+This login can see several Cloudflare accounts, so export the account that holds
+the `old-prague-photos` database before running any command:
+
+```bash
+export CLOUDFLARE_ACCOUNT_ID=...
+```
+
+1. **Zone.** Confirm `davnapraha.cz` is in that same account (dashboard →
+   Websites). Pages attaches custom domains automatically only within one
+   account.
+2. **Pages project.**
+   `npx wrangler pages project create old-prague-photos-viewer --production-branch main`
+3. **Keys.**
+   - Turnstile widget for `davnapraha.cz` and `www.davnapraha.cz` → site key and
+     secret key.
+   - Mapy.cz API key restricted to the `davnapraha.cz` referrer.
+   - Three random secrets, for example `openssl rand -base64 48`, for
+     `ADMIN_API_TOKEN`, `TURNSTILE_SESSION_SECRET` and `API_RATE_LIMIT_SECRET`.
+4. **Project secrets.** Each command prompts for the value, which keeps it out
+   of shell history. Without `--env` they apply to production only.
+
+   ```bash
+   for name in TURNSTILE_SITE_KEY TURNSTILE_SECRET_KEY TURNSTILE_SESSION_SECRET \
+     TURNSTILE_ALLOWED_HOSTNAMES MAPY_CZ_API_KEY ADMIN_API_TOKEN \
+     API_RATE_LIMIT_SECRET; do
+     npx wrangler pages secret put "$name" --project-name old-prague-photos-viewer
+   done
+   ```
+
+   `TURNSTILE_ALLOWED_HOSTNAMES` is `davnapraha.cz,www.davnapraha.cz`.
+   The local `.env` may still use the development-only `r2.dev` address;
+   do not copy that value to production. Never set `TURNSTILE_BYPASS` remotely.
+5. **Domains and tiles.** In the R2 bucket that holds the `tiles/` objects,
+   connect `tiles.davnapraha.cz` under **Settings → Custom Domains**. The R2
+   bucket and `davnapraha.cz` zone must be in the same Cloudflare account.
+   Wait until the custom domain is active, then request a known
+   `/tiles/<xid>/scan_0/ImageProperties.xml` object on the new hostname and
+   confirm it returns the expected XML. Then run
+   `npx wrangler pages secret put R2_TILES_BASE --project-name old-prague-photos-viewer`
+   and enter `https://tiles.davnapraha.cz/tiles` at the prompt. Do not point
+   a CNAME at the `r2.dev` URL. Remove the existing apex `A`/`AAAA` records for `davnapraha.cz`
+   (the domain currently times out), then add `davnapraha.cz` under the Pages project's
+   Custom domains. Redirect `www.davnapraha.cz` to the apex with a Redirect
+   Rule.
+6. **Access.** In Zero Trust, add a self-hosted application covering
+   `davnapraha.cz/admin*` and `davnapraha.cz/api/admin/*`. Add an Allow policy
+   for your e-mail and a Service Auth policy for a new service token; keep its
+   client ID and secret as `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET`.
+7. **Release credentials.** The deploy script can verify the Pages production
+   branch using the authenticated `cf` CLI. Alternatively, set an account API
+   token with *Cloudflare Pages: Edit* and *D1: Edit*. When
+   `CLOUDFLARE_API_TOKEN` is set, Wrangler uses it instead of the OAuth login,
+   so it needs both permissions, not only Pages read.
+8. **Release.** Verify the cache baseline (see above), then run the production
+   release below with `PAGES_PRODUCTION_URL=https://davnapraha.cz`.
+9. **Check by hand.** In a private window, confirm one location in the
+   "Chcete pomoct?" flow, then find it in `/admin`.
+
 ## Production release
 
 Choose a retained directory on encrypted storage for D1 exports. Exports contain
@@ -116,7 +182,6 @@ D1_BACKUP_DIR=/secure/retained/old-prague-photos \
 PAGES_PRODUCTION_URL=https://example.com \
 PAGES_PRODUCTION_BRANCH=main \
 CLOUDFLARE_ACCOUNT_ID=... \
-CLOUDFLARE_API_TOKEN=... \
 ADMIN_API_TOKEN=... \
 CF_ACCESS_CLIENT_ID=... \
 CF_ACCESS_CLIENT_SECRET=... \
@@ -127,7 +192,8 @@ npm run deploy:pages
 The release refuses to run from a branch other than
 `PAGES_PRODUCTION_BRANCH` (default `main`) and passes that branch explicitly to
 Pages. Before migrations, it also queries the current Pages project setting
-with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, then fails closed if
+with `CLOUDFLARE_ACCOUNT_ID` and either the `cf` login or
+`CLOUDFLARE_API_TOKEN`, then fails closed if
 the configured production branch differs. This prevents a migrated production
 database from being paired accidentally with a
 preview upload. The checkpoint is written before migrations and contains

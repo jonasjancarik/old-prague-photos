@@ -1,24 +1,14 @@
-import{m as a}from"./loadLegacyScripts-DWvJq8h1.js";import{i as n,a as e}from"./leaflet-MNx99EVa.js";import{i}from"./openseadragon-CWtobWd5.js";const o=`  <div class="page">
+import{m as a}from"./loadLegacyScripts-CCwIcKCm.js";import{i as n,a as e}from"./leaflet-Dp5Exmga.js";import{i}from"./openseadragon-CWtobWd5.js";const o=`  <div class="page page-map">
     <header class="topbar">
-      <div>
+      <div class="topbar-title">
         <h1>Staré fotografie Prahy</h1>
         <p class="subtitle">
           Mapa fotografií z Archivu hl. m. Prahy. Neoficiální komunitní projekt.
         </p>
-        <div class="topbar-actions">
-          <button class="secondary" type="button" id="info-open">Jak mapa vznikla</button>
-          <a class="action-link" href="./pomoc.html">Chcete pomoct?</a>
-        </div>
       </div>
-      <div class="topbar-meta">
-        <div class="stat">
-          <span class="stat-label">Fotografií na mapě</span>
-          <span class="stat-value" id="photo-count">—</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Ověřeno komunitou</span>
-          <span class="stat-value" id="verified-count">—</span>
-        </div>
+      <div class="topbar-actions">
+        <button class="secondary" type="button" id="info-open">Jak mapa vznikla</button>
+        <a class="action-link action-link-strong" href="./pomoc.html?mode=location">Chcete pomoct?</a>
       </div>
     </header>
 
@@ -37,7 +27,22 @@ import{m as a}from"./loadLegacyScripts-DWvJq8h1.js";import{i as n,a as e}from"./
           </div>
           <div id="search-results" class="search-results is-hidden"></div>
         </div>
-        <div class="map-controls">
+        <button class="filters-toggle" type="button" id="filters-toggle" aria-expanded="false"
+          aria-controls="map-controls">
+          Filtry
+          <span class="filters-toggle-dot" id="filters-active" hidden></span>
+        </button>
+        <div class="topbar-meta" aria-live="polite">
+          <div class="stat">
+            <span class="stat-value" id="photo-count">—</span>
+            <span class="stat-label">fotografií na mapě</span>
+          </div>
+          <div class="stat" hidden>
+            <span class="stat-value" id="verified-count">—</span>
+            <span class="stat-label">ověřeno komunitou</span>
+          </div>
+        </div>
+        <div class="map-controls" id="map-controls" hidden>
           <div class="year-filter" aria-label="Filtr podle roku">
             <span class="year-filter-label">Rok</span>
             <div class="year-slider-wrap" id="year-slider-wrap">
@@ -101,28 +106,30 @@ import{m as a}from"./loadLegacyScripts-DWvJq8h1.js";import{i as n,a as e}from"./
           </div>
         </div>
       </div>
-      <section class="map-panel">
-        <div id="map" aria-label="Mapa s polohami fotografií"></div>
-        <div class="map-overlay">
-          <div class="chip">Kliknutím otevřete fotografii</div>
-        </div>
-      </section>
+      <div class="map-layout">
+        <section class="map-panel">
+          <div id="map" aria-label="Mapa s polohami fotografií"></div>
+          <div class="map-overlay">
+            <div class="chip">Kliknutím otevřete fotografii</div>
+          </div>
+        </section>
 
-      <section class="card photo-grid-section" aria-label="Galerie fotografií">
-        <div class="photo-grid-head">
-          <p class="eyebrow">Fotografie ve výřezu</p>
-          <p class="helper photo-grid-count" id="photo-grid-count">—</p>
-        </div>
-        <div class="photo-grid" id="photo-grid"></div>
-        <p class="helper photo-grid-empty is-hidden" id="photo-grid-empty">
-          V tomto výřezu nejsou žádné fotografie.
-        </p>
-        <div class="photo-grid-actions">
-          <button class="secondary" type="button" id="photo-grid-load-more">
-            Načíst další
-          </button>
-        </div>
-      </section>
+        <section class="card photo-grid-section" aria-label="Galerie fotografií">
+          <div class="photo-grid-head">
+            <p class="eyebrow">Fotografie ve výřezu</p>
+            <p class="helper photo-grid-count" id="photo-grid-count">—</p>
+          </div>
+          <div class="photo-grid" id="photo-grid"></div>
+          <p class="helper photo-grid-empty is-hidden" id="photo-grid-empty">
+            V tomto výřezu nejsou žádné fotografie.
+          </p>
+          <div class="photo-grid-actions">
+            <button class="secondary" type="button" id="photo-grid-load-more">
+              Načíst další
+            </button>
+          </div>
+        </section>
+      </div>
     </main>
   </div>
 

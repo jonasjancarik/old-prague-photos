@@ -47,7 +47,7 @@ Duplicate title,Porovnání podobných záběrů,page title,Podobné fotografie,
 Duplicate subtitle,"Dvojice skupin se shodnou polohou nebo vizuálně podobné snímky. Označte, zda jde o stejný záběr (jiný sken, ořez, barevnost, náklon) nebo různé záběry.",task intro,"Porovnejte dvě skupiny. Jsou to stejné fotografie, nebo různé záběry?",
 Duplicate stat,Kandidáti ke kontrole,count label,Párů ke kontrole,
 Duplicate actions,Vrátit poslední hlas,undo,Vrátit hlas,Zpět
-Duplicate actions,Stejný záběr / Různé záběry,decisions,Keep,
+Duplicate actions,Stejný záběr / Různé záběry,decisions,Sloučit skupiny / Ponechat skupiny zvlášť,"Groups can hold different takes from one shoot, so ""same shot"" is too narrow"
 Duplicate source,Zdroj páru: vizuální podobnost / shodná poloha,provenance,Vybráno podle podobnosti / Vybráno podle stejné polohy,Vybráno podle vizuální podobnosti nebo stejné polohy
 Duplicate empty,Žádné další páry k porovnání,empty state,Už tu nejsou žádné páry.,
 Group title,"Série podle obsahu, autora a datace",page title,Kontrola skupin,

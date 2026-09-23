@@ -132,6 +132,16 @@ Group review progress:
   start a new round without old votes resurfacing after a projection rebuild.
 - The reset button on the page only clears the browser-local hide list; it does not delete backend votes.
 
+Index page layout:
+- The map is the page: a compact header and toolbar sit above it. On screens at
+  least 1180px wide the photos in the current map view run in a scrolling column
+  beside the map; narrower screens show them below.
+- The map opens on the historic centre instead of fitting every marker.
+- Year and date filters plus the clustering switch sit behind the "Filtry"
+  button; a dot on the button marks an active filter.
+- "Ověřeno komunitou" stays hidden while the count is zero.
+- "Chcete pomoct?" opens the location task directly (`pomoc.html?mode=location`).
+
 Index page filtering behavior:
 - Year slider + toggles filter the active dataset.
 - Metadata search (`Hledat v metadatech fotek…`) further filters the same active dataset.
@@ -384,7 +394,8 @@ For Pages (set in the Cloudflare dashboard or `wrangler.toml`):
   deployment-bound version and fail closed if it is missing, so an asset-only
   Pages deployment cannot reuse a projection built for older group/XID data.
 - `ARCHIVE_BASE_URL` (optional)
-- `R2_TILES_BASE` (optional; points to public R2 prefix with tiles)
+- `R2_TILES_BASE` (optional; production value `https://tiles.davnapraha.cz/tiles`
+  after connecting that custom domain to the R2 bucket)
 - `MAPY_CZ_API_KEY` (optional public browser tile key; restrict it to the
   production/local origins in Mapy.cz and rotate any previously committed key)
 - `ALLOW_ARCHIVE_FALLBACK` (optional; default `0`. When `1`, `/api/preview-url` and `/api/zoomify` may use archive-host URLs as a last resort)

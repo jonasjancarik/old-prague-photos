@@ -27,17 +27,26 @@ if [ "$CURRENT_BRANCH" != "$PRODUCTION_BRANCH" ]; then
   exit 2
 fi
 
-if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ] || [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-  echo "Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN to verify the Pages production branch." >&2
+if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+  echo "Set CLOUDFLARE_ACCOUNT_ID to verify the Pages production branch." >&2
   exit 2
 fi
 
-PROJECT_CONFIG="$(
-  curl --fail --silent --show-error \
-    --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-    "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME"
-)"
-REMOTE_PRODUCTION_BRANCH="$(printf '%s' "$PROJECT_CONFIG" | jq -r '.result.production_branch // empty')"
+if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+  PROJECT_CONFIG="$(
+    curl --fail --silent --show-error \
+      --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME"
+  )"
+  REMOTE_PRODUCTION_BRANCH="$(printf '%s' "$PROJECT_CONFIG" | jq -r '.result.production_branch // empty')"
+else
+  if ! command -v cf >/dev/null 2>&1; then
+    echo "Install the Cloudflare cf CLI or set CLOUDFLARE_API_TOKEN to verify the Pages production branch." >&2
+    exit 2
+  fi
+  PROJECT_CONFIG="$(cf pages projects get "$PROJECT_NAME")"
+  REMOTE_PRODUCTION_BRANCH="$(printf '%s' "$PROJECT_CONFIG" | jq -r '.production_branch // empty')"
+fi
 if [ -z "$REMOTE_PRODUCTION_BRANCH" ]; then
   echo "Could not determine the Pages production branch for '$PROJECT_NAME'." >&2
   exit 2

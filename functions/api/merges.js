@@ -289,9 +289,12 @@ async function handlePost(request, env) {
     }
   }
 
+  // D1 counts rows written by the AFTER INSERT trigger (current_merge_decisions
+  // and the projection revision) in meta.changes, so a successful insert
+  // reports more than one change. A stale revision inserts nothing: zero.
   if (
     verdict !== "undo" &&
-    Number(insertResult?.meta?.changes || 0) !== 1
+    Number(insertResult?.meta?.changes || 0) < 1
   ) {
     return jsonResponse(
       { detail: "Dvojice se mezitím změnila. Načtěte ji znovu." },

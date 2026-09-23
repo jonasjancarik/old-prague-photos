@@ -1,7 +1,7 @@
-import{m as e}from"./loadLegacyScripts-DWvJq8h1.js";import{i as n}from"./openseadragon-CWtobWd5.js";const a=`  <div class="page">
+import{m as e}from"./loadLegacyScripts-CCwIcKCm.js";import{i as n}from"./openseadragon-CWtobWd5.js";const a=`  <div class="page page-help">
     <header class="topbar">
       <div>
-        <p class="eyebrow">Kontrola podobných záběrů</p>
+        <p class="eyebrow">Komunitní kontrola</p>
         <h1>Podobné fotografie</h1>
         <p class="subtitle">
           Porovnejte dvě skupiny. Jsou to stejné fotografie, nebo různé záběry?
@@ -11,14 +11,10 @@ import{m as e}from"./loadLegacyScripts-DWvJq8h1.js";import{i as n}from"./opensea
           <a class="action-link" href="./index.html">Zpět na mapu</a>
         </div>
       </div>
-        <div class="topbar-meta">
-          <div class="stat">
-          <span class="stat-label">Párů ke kontrole</span>
-          <span class="stat-value" id="candidate-count">—</span>
-        </div>
+      <div class="topbar-meta">
         <div class="stat">
-          <span class="stat-label">Zbývá</span>
-          <span class="stat-value" id="remaining-count">—</span>
+          <span class="stat-label">Vaše kontroly</span>
+          <span class="stat-value" id="session-count">0</span>
         </div>
       </div>
     </header>
@@ -50,43 +46,15 @@ import{m as e}from"./loadLegacyScripts-DWvJq8h1.js";import{i as n}from"./opensea
       </section>
 
       <section class="card review-card is-hidden" data-mode-flow="dedupe">
-        <div class="review-controls">
-          <button class="secondary" type="button" id="prev-pair" disabled>
-            Předchozí pár
-          </button>
-          <button class="secondary" type="button" id="undo-last" disabled>
-            Zpět
-          </button>
-          <button class="vote vote-up" type="button" id="mark-same" disabled>
-            Sloučit skupiny
-          </button>
-          <button class="vote vote-down" type="button" id="mark-different" disabled>
-            Ponechat skupiny zvlášť
-          </button>
-          <button class="secondary" type="button" id="skip-pair" disabled>
-            Další pár
-          </button>
+        <div class="help-question">
+          <h2>Patří obě skupiny k sobě?</h2>
+          <p class="help-caption">
+            Sloučit můžete stejnou fotografii (jiný sken, ořez nebo barevnost) i různé záběry ze stejného
+            focení. Jiné místo nebo jiná událost znamená ponechat zvlášť.
+          </p>
+          <p class="helper review-source" id="pair-source">Vybráno podle: —</p>
+          <p class="helper review-source is-hidden" id="pair-filter"></p>
         </div>
-        <p class="helper review-source" id="pair-source">Vybráno podle: —</p>
-        <p class="helper review-source is-hidden" id="pair-filter"></p>
-
-        <details class="workflow-help">
-          <summary>Co hodnotím?</summary>
-          <div class="workflow-help-body">
-            <div class="workflow-help-item">
-              <strong>Sloučit skupiny</strong>
-              <span>Obě skupiny ukazují tutéž fotografii, její sken, ořez nebo sérii.</span>
-            </div>
-            <div class="workflow-help-item">
-              <strong>Ponechat skupiny zvlášť</strong>
-              <span>Jde o jiné místo, jiný úhel, jinou událost nebo jinou fotografii.</span>
-            </div>
-            <div class="workflow-help-item">
-              <strong>Další pár</strong>
-              <span>Přeskočí nejistý pár bez uložení rozhodnutí.</span>
-            </div>
-          </div>
-        </details>
 
         <div class="review-grid duplicate-review-grid">
           <div class="review-column" data-review-section="preview-a">
@@ -120,13 +88,55 @@ import{m as e}from"./loadLegacyScripts-DWvJq8h1.js";import{i as n}from"./opensea
           </div>
         </div>
 
-        <div class="turnstile-wrap">
-          <p class="helper" id="turnstile-note"></p>
+        <div class="help-answer-bar">
+          <div class="help-controls">
+            <button class="secondary" type="button" id="prev-pair" disabled>
+              Předchozí pár
+            </button>
+            <button class="vote vote-up" type="button" id="mark-same" disabled>
+              Sloučit skupiny
+            </button>
+            <button class="vote vote-down" type="button" id="mark-different" disabled>
+              Ponechat skupiny zvlášť
+            </button>
+            <button class="secondary" type="button" id="skip-pair" disabled>
+              Další pár
+            </button>
+          </div>
+
+          <div class="help-answer-extra">
+            <button class="linklike help-undo" type="button" id="undo-last" disabled>
+              Zpět
+            </button>
+            <p class="helper" id="turnstile-note"></p>
+          </div>
+
+          <div class="form-status-wrap">
+            <p class="form-status" id="review-status" role="status" aria-live="polite"></p>
+          </div>
+
+          <p class="help-shortcuts" aria-hidden="true">
+            Klávesy: <kbd>A</kbd> sloučit · <kbd>N</kbd> ponechat zvlášť · <kbd>→</kbd> další pár · <kbd>←</kbd> předchozí
+          </p>
         </div>
 
-        <div class="form-status-wrap">
-          <p class="form-status" id="review-status" role="status" aria-live="polite"></p>
-        </div>
+        <details class="workflow-help">
+          <summary>Co hodnotím?</summary>
+          <div class="workflow-help-body">
+            <div class="workflow-help-item">
+              <strong>Sloučit skupiny</strong>
+              <span>Obě skupiny ukazují tutéž fotografii (její sken nebo ořez), nebo jde o záběry ze stejného focení.</span>
+            </div>
+            <div class="workflow-help-item">
+              <strong>Ponechat skupiny zvlášť</strong>
+              <span>Jde o jiné místo nebo jinou událost, případně o fotografie z různých focení.</span>
+            </div>
+            <div class="workflow-help-item">
+              <strong>Další pár</strong>
+              <span>Přeskočí nejistý pár bez uložení rozhodnutí.</span>
+            </div>
+          </div>
+        </details>
       </section>
     </main>
   </div>

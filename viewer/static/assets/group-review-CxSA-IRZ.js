@@ -1,4 +1,4 @@
-  <div class="page page-help">
+import{m as n}from"./loadLegacyScripts-CCwIcKCm.js";import{i as s}from"./openseadragon-CWtobWd5.js";const o=`  <div class="page page-help">
     <header class="topbar">
       <div>
         <p class="eyebrow">Komunitní kontrola</p>
@@ -107,3 +107,4 @@
       </section>
     </main>
   </div>
+`;s();n(o,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./group-review.js"]).catch(console.error);

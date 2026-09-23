@@ -29,7 +29,8 @@ const state = {
 const iframe = document.getElementById("help-iframe");
 const zoomWrap = iframe?.closest(".zoom-wrap");
 const zoomViewerEl = document.getElementById("help-zoom");
-const remainingEl = document.getElementById("remaining-count");
+const sessionCountEl = document.getElementById("session-count");
+const captionEl = document.getElementById("help-caption");
 const currentXidEl = document.getElementById("current-xid");
 const detailsEl = document.getElementById("help-details");
 const submitCorrectionBtn = document.getElementById("submit-correction");
@@ -211,14 +212,9 @@ function clearLegacyStoredEmail() {
 }
 
 function updateCounts() {
-  if (remainingEl) {
-    const remainingCount = Math.max(
-      0,
-      state.candidateTotal - state.submittedGroupIds.size,
-    );
-    remainingEl.textContent = state.reviewStateReady
-      ? remainingCount.toLocaleString()
-      : "—";
+  // Show what the visitor has done, not the size of the whole backlog.
+  if (sessionCountEl) {
+    sessionCountEl.textContent = state.submittedGroupIds.size.toLocaleString("cs-CZ");
   }
   const groupId = state.currentGroup?.id || "";
   if (currentXidEl) {
@@ -488,6 +484,10 @@ async function loadZoomifyInto(xid) {
   if (zoomLastXid === xid) return;
   zoomLastXid = xid;
   zoomWrap.classList.remove("is-fallback");
+  zoomWrap.classList.add("is-loading");
+  const reveal = () => {
+    if (zoomLastXid === xid) zoomWrap.classList.remove("is-loading");
+  };
 
   try {
     if (!window.OpenSeadragon) {
@@ -512,10 +512,13 @@ async function loadZoomifyInto(xid) {
       throw new Error("Chybí helper pro Zoomify");
     }
     if (zoomLastXid !== xid) return;
+    zoomViewer.addOnceHandler("tile-drawn", reveal);
+    zoomViewer.addOnceHandler("open-failed", reveal);
     zoomViewer.open(window.OldPragueZoomify.createTileSource(meta));
   } catch (error) {
     if (zoomLastXid !== xid) return;
     console.warn("Zoom náhled selhal", error);
+    reveal();
     zoomWrap.classList.add("is-fallback");
   }
 }
@@ -529,7 +532,7 @@ function buildMarkerIcon(markerState = "") {
   return L.divIcon({
     className,
     html: "<span></span>",
-    iconSize: [18, 18],
+    iconSize: [34, 34],
   });
 }
 
@@ -602,6 +605,7 @@ function clearCurrentEvidence() {
   zoomLastXid = null;
   zoomWrap?.classList.remove("is-fallback", "is-loading", "is-unavailable");
   detailsEl?.replaceChildren();
+  if (captionEl) captionEl.textContent = "";
   if (state.map && state.originalMarker) {
     state.map.removeLayer(state.originalMarker);
     state.originalMarker = null;
@@ -618,8 +622,17 @@ function setCurrentFeature(feature) {
   if (!feature) return;
   state.currentFeature = feature;
 
+  if (captionEl) {
+    const props = feature.properties || {};
+    const context = [props.date_label, props.author].filter(Boolean).join(" · ");
+    captionEl.textContent = [props.description || "Bez popisu", context]
+      .filter(Boolean)
+      .join(" — ");
+  }
+
   if (window.OldPragueMeta?.renderDetails) {
     window.OldPragueMeta.renderDetails(detailsEl, feature, state.archiveBaseUrl, {
+      omitDescription: Boolean(captionEl),
       groupItems: state.currentGroup?.items || [],
       selectedId: feature.properties?.id || "",
       onSelectVersion: (xid) => {
@@ -1032,6 +1045,28 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
   cancelCorrection();
 });
+const REVIEW_SHORTCUTS = {
+  a: voteUpBtn,
+  n: voteDownBtn,
+  ArrowRight: skipBtn,
+  ArrowLeft: prevBtn,
+};
+
+document.addEventListener("keydown", (event) => {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+  if (helpCorrectionModal?.classList.contains("is-open")) return;
+  if (event.target.closest?.("input, textarea, select, [contenteditable], .leaflet-container, .openseadragon-container")) {
+    return;
+  }
+  const flow = document.querySelector('[data-mode-flow="location"]');
+  if (!flow || flow.classList.contains("is-hidden")) return;
+  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  const button = REVIEW_SHORTCUTS[key];
+  if (!button || button.disabled) return;
+  event.preventDefault();
+  button.click();
+});
+
 skipBtn.addEventListener("click", () => pickRandom());
 if (prevBtn) prevBtn.addEventListener("click", () => pickPrev());
 voteUpBtn.addEventListener("click", () => setMode("ok"));

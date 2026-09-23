@@ -10,7 +10,17 @@
     if (mode) flowByMode.set(mode, node);
   });
 
+  const subtitle = document.querySelector("[data-mode-subtitle]");
+  const SUBTITLES = {
+    "": "Vyberte, co chcete zkontrolovat.",
+    location:
+      "Porovnejte fotografii s bodem na mapě. Každá kontrola trvá pár vteřin.",
+  };
+
   function setMode(mode, updateUrl = true) {
+    if (subtitle && SUBTITLES[mode || ""]) {
+      subtitle.textContent = SUBTITLES[mode || ""];
+    }
     flowNodes.forEach((node) => {
       node.classList.toggle("is-hidden", node.dataset.modeFlow !== mode);
     });

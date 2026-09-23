@@ -32,6 +32,9 @@ test.describe.serial("community contribution flows", () => {
 
     await openPage(page, "/");
     await expect(page.locator("#photo-count")).not.toHaveText("—");
+    await expect(page.locator("#map-controls")).toBeHidden();
+    await page.locator("#filters-toggle").click();
+    await expect(page.locator("#filters-toggle")).toHaveAttribute("aria-expanded", "true");
     await page.locator(".cluster-toggle-container .toggle-switch").click();
 
     await expect(page.locator("#cluster-warning")).toBeVisible();
@@ -547,5 +550,19 @@ test.describe.serial("community contribution flows", () => {
     await expect.poll(() => page.locator("#current-group").innerText()).not.toBe(
       firstGroup,
     );
+  });
+
+  test("opens the duplicate comparison focused on one group", async ({ page, request }) => {
+    const candidates = await request.get(
+      "/api/community-candidates?flow=duplicate&cursor=0&limit=1",
+    );
+    expect(candidates.ok()).toBeTruthy();
+    const groupId = (await candidates.json()).items[0].groupA.id;
+
+    await openPage(page, `/dup-review.html?mode=dedupe&group_id=${groupId}`);
+    await expect(page.locator("#pair-filter")).toHaveText("Jen páry s vybranou skupinou");
+    await expect(page.locator("#pair-source")).not.toHaveText("Vybráno podle: —");
+    await expect(page.locator("#review-status")).not.toContainText("Nepodařilo se načíst");
+    await waitForEnabled(page, "#mark-same");
   });
 });

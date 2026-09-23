@@ -17,6 +17,7 @@ def test_pages_headers_protect_the_viewer_without_blocking_required_services() -
         "https://api.mapy.cz",
         "https://tile.openstreetmap.org",
         "https://katalog.ahmp.cz",
+        "https://tiles.davnapraha.cz",
         "https://*.r2.dev",
         "https://*.r2.cloudflarestorage.com",
         "X-Content-Type-Options: nosniff",
@@ -25,6 +26,7 @@ def test_pages_headers_protect_the_viewer_without_blocking_required_services() -
         assert directive in headers
 
     assert "https://unpkg.com" not in headers
+    assert headers.count("https://tiles.davnapraha.cz") == 2
 
 
 def test_viewer_libraries_are_bundled_without_runtime_unpkg_dependencies() -> None:
