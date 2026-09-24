@@ -6,6 +6,7 @@ import time
 import hmac
 import hashlib
 import secrets
+from uuid import UUID
 from io import BytesIO
 from urllib.parse import urljoin
 from datetime import datetime, timezone
@@ -48,6 +49,7 @@ SIMILARITY_CANDIDATES_PATH = STATIC_DATA_DIR / "similarity_candidates.json"
 SERIES_VERSION_CLUSTERS_PATH = STATIC_DATA_DIR / "series_version_clusters.json"
 COMMUNITY_DATA_VERSION_PATH = STATIC_DATA_DIR / "community-data-version.json"
 FEEDBACK_PATH = DATA_DIR / "feedback.jsonl"
+FEEDBACK_STATUS_PATH = DATA_DIR / "feedback_status.jsonl"
 CORRECTIONS_PATH = DATA_DIR / "corrections.jsonl"
 MERGES_PATH = DATA_DIR / "merges.jsonl"
 GROUP_REVIEW_VOTES_PATH = DATA_DIR / "group_review_votes.jsonl"
@@ -87,11 +89,17 @@ _feature_preview_cache: dict[str, str] | None = None
 
 
 class FeedbackPayload(BaseModel):
-    xid: str = Field(min_length=1)
-    issue: str = Field(min_length=1, max_length=40)
-    message: str = Field(min_length=5, max_length=2000)
+    submission_id: str
+    xid: str
+    issue: str | None = None
+    message: str
     email: str | None = None
     token: str | None = None
+
+
+class FeedbackStatusPayload(BaseModel):
+    id: str
+    status: str
 
 
 class CorrectionPayload(BaseModel):
@@ -1836,7 +1844,7 @@ def submit_correction(payload: CorrectionPayload, request: Request) -> JSONRespo
             handle.write(json.dumps(record, ensure_ascii=False))
             handle.write("\n")
 
-    response = JSONResponse({"ok": True, "accepted_group_id": resolved_group_id})
+    response = JSONResponse({"ok": True, "accepted_group_id": resolved_group_id, "correction_id": record["id"]})
     _set_voter_cookie(response, request, voter_cookie)
     return response
 
@@ -2738,36 +2746,111 @@ def get_admin_export(request: Request) -> Response:
     )
 
 
+def _feedback_rows() -> list[dict[str, Any]]:
+    if not FEEDBACK_PATH.exists():
+        return []
+    return [json.loads(line) for line in FEEDBACK_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _feedback_statuses() -> dict[str, dict[str, Any]]:
+    if not FEEDBACK_STATUS_PATH.exists():
+        return {}
+    events = [json.loads(line) for line in FEEDBACK_STATUS_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return {str(event["id"]): event for event in events}
+
+
 @app.post("/api/feedback")
-def submit_feedback(payload: FeedbackPayload, request: Request) -> JSONResponse:
+async def submit_feedback(payload: FeedbackPayload, request: Request) -> JSONResponse:
     _assert_same_origin(request)
+    if len(await request.body()) > 8192:
+        raise HTTPException(status_code=413, detail="Připomínka je příliš dlouhá")
+    try:
+        canonical_id = str(UUID(payload.submission_id))
+        if canonical_id != payload.submission_id.lower():
+            raise ValueError("non-canonical UUID")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Neplatné ID odeslání") from None
+    xid = payload.xid.strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", xid):
+        raise HTTPException(status_code=400, detail="Neplatné xid")
+    message = payload.message.strip()
+    if not 5 <= len(message) <= 2000:
+        raise HTTPException(status_code=400, detail="Připomínka musí mít 5 až 2000 znaků")
     email = (payload.email or "").strip()
-    if email and not is_valid_email(email):
+    if email and (len(email) > 254 or not is_valid_email(email)):
         raise HTTPException(status_code=400, detail="Neplatný e-mail")
 
-    if not _is_local_bypass_allowed(request):
+    if not _has_valid_session(request) and not _is_local_bypass_allowed(request):
         if not payload.token:
             raise HTTPException(status_code=400, detail="Turnstile je povinný")
         verify_turnstile(payload.token, request, "feedback_submit")
 
+    if xid not in build_xid_group_cache():
+        raise HTTPException(status_code=400, detail="Neznámé xid")
+
     record = {
         "id": f"fb_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
-        "xid": payload.xid,
-        "issue": payload.issue,
-        "message": payload.message.strip(),
+        "submission_id": canonical_id,
+        "xid": xid,
+        "message": message,
         "email": email or None,
-        "newsletter_opt_in": bool(email),
         "user_agent": request.headers.get("user-agent", ""),
-        "received_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with _feedback_lock:
+        for prior in _feedback_rows():
+            if prior.get("submission_id") == canonical_id:
+                if (prior.get("xid"), prior.get("message"), prior.get("email")) != (xid, message, email or None):
+                    raise HTTPException(status_code=409, detail="Toto odeslání už obsahuje jinou připomínku")
+                return JSONResponse({"ok": True, "id": str(prior["id"])})
         with FEEDBACK_PATH.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, ensure_ascii=False))
             handle.write("\n")
 
-    return JSONResponse({"ok": True})
+    return JSONResponse({"ok": True, "id": record["id"]})
+
+
+@app.get("/api/admin/feedback")
+def get_admin_feedback(request: Request, status: str = "new", limit: int = 30, before_id: str | None = None) -> JSONResponse:
+    _assert_admin(request)
+    if status not in {"new", "resolved"} or not 1 <= limit <= 100:
+        raise HTTPException(status_code=400, detail="Neplatné stránkování")
+    with _feedback_lock:
+        rows = _feedback_rows()
+        statuses = _feedback_statuses()
+    for row in rows:
+        event = statuses.get(str(row["id"]), {})
+        row["status"] = event.get("status", row.get("status", "new"))
+        row["resolved_at"] = event.get("resolved_at", row.get("resolved_at"))
+        row["created_at"] = row.get("created_at", row.get("received_at"))
+    rows = [row for row in rows if row["status"] == status and (before_id is None or str(row["id"]) < before_id)]
+    rows.sort(key=lambda row: str(row["id"]), reverse=True)
+    items = rows[:limit]
+    return JSONResponse({"items": items, "next_before_id": str(items[-1]["id"]) if len(rows) > limit else None}, headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/admin/feedback")
+def update_admin_feedback(payload: FeedbackStatusPayload, request: Request) -> JSONResponse:
+    _assert_admin(request)
+    _assert_same_origin(request)
+    if payload.status not in {"new", "resolved"}:
+        raise HTTPException(status_code=400, detail="Neplatná změna stavu")
+    with _feedback_lock:
+        if not any(str(row.get("id")) == payload.id for row in _feedback_rows()):
+            raise HTTPException(status_code=404, detail="Připomínka neexistuje")
+        statuses = _feedback_statuses()
+        previous = statuses.get(payload.id, {})
+        event = {
+            "id": payload.id,
+            "status": payload.status,
+            "resolved_at": previous.get("resolved_at") or datetime.now(timezone.utc).isoformat() if payload.status == "resolved" else None,
+        }
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        with FEEDBACK_STATUS_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+    return JSONResponse({"ok": True, "id": payload.id, "status": payload.status}, headers={"Cache-Control": "no-store"})
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

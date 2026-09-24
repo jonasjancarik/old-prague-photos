@@ -289,6 +289,7 @@ async function handlePost(request, env) {
   const response = jsonResponse({
     ok: true,
     accepted_group_id: resolvedGroupId,
+    correction_id: String(insertResult.meta.last_row_id),
   });
   if (voterIdentity.cookie) {
     response.headers.append("Set-Cookie", voterIdentity.cookie);

@@ -16,6 +16,23 @@ CREATE TABLE smoke_assertions (
   value INTEGER NOT NULL CHECK (value = 1)
 );
 
+INSERT INTO photo_feedback (submission_id, xid, message)
+VALUES ('10000000-0000-4000-8000-000000000001', 'SMOKE_X1', 'Popis fotografie je nepřesný.');
+
+INSERT INTO smoke_assertions
+SELECT CASE WHEN (
+  SELECT current_revision FROM community_state_projection WHERE id = 1
+) = 2 THEN 1 ELSE 0 END;
+
+UPDATE photo_feedback SET status = 'resolved', resolved_at = datetime('now') WHERE id = 1;
+UPDATE photo_feedback SET status = 'new', resolved_at = NULL WHERE id = 1;
+
+INSERT INTO smoke_assertions
+SELECT CASE WHEN EXISTS (
+  SELECT 1 FROM photo_feedback WHERE submission_id = '10000000-0000-4000-8000-000000000001'
+    AND xid = 'SMOKE_X1' AND status = 'new' AND resolved_at IS NULL
+) THEN 1 ELSE 0 END;
+
 INSERT INTO smoke_assertions
 SELECT CASE WHEN (
   SELECT current_revision FROM community_state_projection WHERE id = 1

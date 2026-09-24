@@ -68,6 +68,7 @@ export class FakeD1 {
   constructor() {
     this.rateRows = new Map();
     this.corrections = [];
+    this.photoFeedback = [];
     this.merges = [];
     this.groupReviewVotes = [];
     this.groupMembershipOverrides = new Map();
@@ -100,6 +101,23 @@ export class FakeD1 {
 
   exec(sql, args) {
     const query = String(sql || "").toLowerCase();
+
+    if (query.includes("insert into photo_feedback")) {
+      const [submissionId, xid, message, email] = args;
+      if (this.photoFeedback.some((row) => row.submission_id === submissionId)) throw new Error("UNIQUE constraint failed");
+      const id = this.photoFeedback.length + 1;
+      this.photoFeedback.push({ id, submission_id: submissionId, xid, message, email,
+        status: "new", created_at: "2026-01-01 00:00:00", resolved_at: null });
+      return { success: true, meta: { changes: 1, last_row_id: id } };
+    }
+    if (query.includes("update photo_feedback")) {
+      const [status, , id] = args;
+      const row = this.photoFeedback.find((item) => item.id === Number(id));
+      if (!row) return { success: true, meta: { changes: 0 } };
+      row.status = status;
+      row.resolved_at = status === "resolved" ? row.resolved_at || "2026-01-02 00:00:00" : null;
+      return { success: true, meta: { changes: 1 } };
+    }
 
     if (query.includes("update community_state_projection")) {
       const projection = this.communityProjection;
@@ -227,7 +245,7 @@ export class FakeD1 {
       if (this.communityProjection) {
         this.communityProjection.current_revision += 1;
       }
-      return { success: true, meta: { changes: 1 } };
+      return { success: true, meta: { changes: 1, last_row_id: this.corrections.length } };
     }
 
     if (query.includes("insert into merge_decisions")) {
@@ -398,6 +416,9 @@ export class FakeD1 {
 
   first(sql, args) {
     const query = String(sql || "").toLowerCase();
+    if (query.includes("from photo_feedback")) {
+      return this.photoFeedback.find((row) => row.submission_id === args[0]) || null;
+    }
 
     if (query.includes("count(*) as member_count") && query.includes("from catalog_photos as photos")) {
       const aliases = new Set(JSON.parse(String(args[0] || "[]")));
@@ -486,6 +507,11 @@ export class FakeD1 {
 
   all(sql, args = []) {
     const query = String(sql || "").toLowerCase();
+    if (query.includes("from photo_feedback")) {
+      const [status, before, limit] = args;
+      return { results: this.photoFeedback.filter((row) => row.status === status && row.id < before)
+        .sort((a, b) => b.id - a.id).slice(0, limit) };
+    }
     const failure = this.allFailures.find(({ fragment }) =>
       query.includes(fragment),
     );
