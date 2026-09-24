@@ -1,5 +1,7 @@
 # Web App (Viewer)
 
+Read when: changing the photo detail, private feedback, correction receipts, or the admin inbox.
+
 The production architecture is a static Vite frontend on Cloudflare Pages with
 Pages Functions and D1 for community state. FastAPI remains a compatibility
 runtime for the server-side full-resolution image stitcher and the quick local
@@ -8,6 +10,37 @@ preview loop; Pages + D1 is the canonical contribution runtime.
 Community help docs:
 - maintainer reference: [Community Help Workflows](./community-voting.md)
 - Czech user-facing guide: [Komunitní pomoc](./komunitni-pomoc.md)
+
+## Private photo feedback
+
+The photo detail offers **Poslat připomínku** for a description or other
+problem that does not require moving the map point. `POST /api/feedback` accepts
+`submission_id` (a UUID reused for retries), `xid`, a trimmed 5–2000 character
+`message`, and an optional `email` of at most 254 characters. It returns only
+`{ ok, id }`. The text and email are visible only through authenticated
+`GET /api/admin/feedback?status=new|resolved&limit=...&before_id=...`.
+`POST /api/admin/feedback` changes an item to `new` or `resolved`; returning it
+to `new` clears `resolved_at`. The admin list is paginated in descending ID
+order. The public endpoint uses the existing origin, session or Turnstile, and
+write rate-limit checks. Duplicate UUIDs with identical contents return the
+original ID; altered contents return 409.
+
+Pages stores these notes in `photo_feedback` in `CORRECTIONS_DB`. The table has
+no correction revision trigger. Notes stay attached to the XID across group
+membership changes and never appear in `review-state` or public static data.
+FastAPI keeps its separate local `feedback.jsonl` and append-only
+`feedback_status.jsonl`; existing notes without a status appear as new. No
+legacy notes are imported into Pages. The optional email is for clarification
+only and does not set newsletter consent or send a message.
+
+After a location correction, both backends return `correction_id` from that
+specific inserted record. The browser keeps only XID and receipt ID in
+`sessionStorage`, with a page-memory fallback. It compares the receipt with
+the current `proposed_id` across versions of the group to show the author's
+waiting state. This is a browser-session aid, not proof of identity on another
+device. The server still requires an independent voter. If saving succeeds but
+refreshing the state fails, the form says the proposal was saved and asks the
+visitor to refresh; it does not retry the POST.
 
 ## Frontend source + build
 

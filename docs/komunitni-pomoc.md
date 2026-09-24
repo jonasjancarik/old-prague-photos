@@ -23,6 +23,16 @@ samostatné režimy.
 
 ## Rychlý přehled režimů
 
+Pokud nesedí popis fotografie nebo chcete upozornit na jiný problém, otevřete
+detail fotografie a zvolte **Poslat připomínku**. Stačí napsat zprávu; polohu
+na mapě měnit nemusíte a e-mail je nepovinný. Připomínku uvidí pouze správce.
+Nepočítá se jako hlas o poloze.
+
+Po odeslání opravy polohy se zobrazí potvrzení, že návrh čeká na dalšího
+člověka. V témže prohlížeči vám kontrola nenabízí potvrdit vlastní aktuální
+návrh. Po zavření prohlížečové relace nebo na jiném zařízení vás web nemusí
+poznat, ale server váš vlastní hlas stále nezapočítá jako nezávislé potvrzení.
+
 Na mapě vede do komunitní kontroly tlačítko "Chcete pomoct?". Otevře rovnou
 opravu polohy, protože je nejjednodušší. Ostatní režimy najdete pod odkazem
 "Vybrat jiný úkol".

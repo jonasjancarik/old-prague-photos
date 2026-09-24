@@ -16,7 +16,9 @@ async function bootstrap() {
     './grouping.js',
     './media-filter.js',
     './session-verify.js',
+    './own-proposals.js',
     './correction-ui.js',
+    './feedback-ui.js',
     './app.js',
   ]);
 }

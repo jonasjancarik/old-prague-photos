@@ -1,4 +1,4 @@
-import{m as n}from"./loadLegacyScripts-CCwIcKCm.js";import{i as e}from"./leaflet-Dp5Exmga.js";import{i as a}from"./openseadragon-CWtobWd5.js";const o=`  <div class="page page-help">
+import{m as n}from"./loadLegacyScripts-QtUAv0ZZ.js";import{i as e}from"./leaflet-Dp5Exmga.js";import{i as a}from"./openseadragon-CWtobWd5.js";const o=`  <div class="page page-help">
     <header class="topbar">
       <div>
         <p class="eyebrow">Komunitní kontrola</p>
@@ -63,6 +63,10 @@ import{m as n}from"./loadLegacyScripts-CCwIcKCm.js";import{i as e}from"./leaflet
 
           <div class="help-map">
             <div id="help-map" aria-label="Mapa pro opravu polohy"></div>
+            <div id="help-map-legend" class="help-map-legend" aria-label="Legenda mapy">
+              <span><i class="legend-current" aria-hidden="true"></i>Současná poloha</span>
+              <span id="help-proposed-legend" hidden><i class="legend-proposed" aria-hidden="true"></i>Navržená poloha</span>
+            </div>
             <p class="helper location-review-note" id="location-review-note"></p>
           </div>
         </div>
@@ -87,6 +91,7 @@ import{m as n}from"./loadLegacyScripts-CCwIcKCm.js";import{i as e}from"./leaflet
             <p class="helper">
               Klikněte do mapy na správné místo, nebo nahlaste, že ho neumíte určit.
             </p>
+            <p class="helper" id="help-selection-hint">Nejdřív vyberte správné místo na mapě.</p>
             <button class="secondary help-secondary" type="button" id="open-flag">
               Nevím, kde to je
             </button>
@@ -158,6 +163,7 @@ import{m as n}from"./loadLegacyScripts-CCwIcKCm.js";import{i as e}from"./leaflet
             </p>
           </div>
           <p class="helper" id="turnstile-note"></p>
+          <p class="helper" id="help-point-hint">Nejdřív vyberte správné místo na mapě.</p>
           <div class="help-submit">
             <button class="secondary help-secondary" type="button" id="cancel-correction">
               Zrušit
@@ -174,4 +180,4 @@ import{m as n}from"./loadLegacyScripts-CCwIcKCm.js";import{i as e}from"./leaflet
       </div>
     </div>
   </div>
-`;e();a();n(o,["./zoomify.js","./photo-meta.js","./grouping.js","./candidate-client.js","./media-filter.js","./session-verify.js","./correction-ui.js","./pomoc.js","./mode-picker.js"]).catch(console.error);
+`;e();a();n(o,["./zoomify.js","./photo-meta.js","./grouping.js","./candidate-client.js","./media-filter.js","./session-verify.js","./own-proposals.js","./correction-ui.js","./pomoc.js","./mode-picker.js"]).catch(console.error);

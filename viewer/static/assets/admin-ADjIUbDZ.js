@@ -1,4 +1,4 @@
-import{m as n}from"./loadLegacyScripts-CCwIcKCm.js";const s=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-QtUAv0ZZ.js";const s=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Admin</p>
@@ -79,6 +79,20 @@ import{m as n}from"./loadLegacyScripts-CCwIcKCm.js";const s=`  <div class="page"
           <h2>Čekající opravy polohy</h2>
         </div>
         <div id="list-pending" class="detail-list full-width"></div>
+      </section>
+
+      <section class="card" aria-labelledby="feedback-heading">
+        <div class="card-header">
+          <h2 id="feedback-heading">Připomínky</h2>
+          <p class="card-subtitle">Soukromé zprávy k fotografiím. Změna stavu nemění hlasování ani polohu.</p>
+        </div>
+        <div class="review-controls" role="group" aria-label="Stav připomínek">
+          <button class="secondary" type="button" id="feedback-new" aria-pressed="true">Nové</button>
+          <button class="secondary" type="button" id="feedback-resolved" aria-pressed="false">Vyřízené</button>
+        </div>
+        <p class="helper" id="feedback-admin-status" role="status" aria-live="polite"></p>
+        <div id="feedback-admin-list" class="feedback-admin-list"></div>
+        <button class="secondary" type="button" id="feedback-more" hidden>Načíst další</button>
       </section>
 
       <section class="card">

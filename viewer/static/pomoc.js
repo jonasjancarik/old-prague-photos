@@ -24,6 +24,9 @@ const state = {
   loadingCandidates: false,
   lastReviewState: null,
   focusGroupId: "",
+  mapEvidenceKey: "",
+  mapFitPoints: null,
+  focusMapShown: false,
 };
 
 const iframe = document.getElementById("help-iframe");
@@ -46,6 +49,9 @@ const helpForm = document.getElementById("help-form");
 const helpCorrectionModal = document.getElementById("help-correction-modal");
 const helpMapNote = document.getElementById("help-map-note");
 const locationReviewNote = document.getElementById("location-review-note");
+const proposedLegend = document.getElementById("help-proposed-legend");
+const helpPointHint = document.getElementById("help-point-hint");
+const helpSelectionHint = document.getElementById("help-selection-hint");
 const messageEl = document.getElementById("help-message");
 const emailEl = document.getElementById("help-email");
 const formStatus = document.getElementById("form-status");
@@ -129,6 +135,10 @@ function setControlsEnabled(enabled) {
     if (!btn) return;
     btn.disabled = !effectiveEnabled;
   });
+  const current = state.currentFeature?.properties || {};
+  if (voteUpBtn && window.OldPragueOwnProposals?.isCurrentInGroup(state.currentGroup?.items, current.proposed_id)) {
+    voteUpBtn.disabled = true;
+  }
   if (prevBtn) {
     prevBtn.disabled = !effectiveEnabled || state.history.length === 0;
   }
@@ -277,6 +287,8 @@ function updateSubmitState() {
     submitCorrectionBtn.disabled =
       !state.reviewStateReady || state.submitting || !isWrong || !hasProposed;
   }
+  if (helpPointHint) helpPointHint.hidden = hasProposed || !isWrong;
+  if (helpSelectionHint) helpSelectionHint.hidden = hasProposed || !isWrong;
 }
 
 async function fetchJson(url) {
@@ -541,6 +553,19 @@ function initMap() {
     zoomControl: true,
     scrollWheelZoom: true,
   }).setView(pragueFallback, 13);
+  const mapElement = document.getElementById("help-map");
+  let previousWidth = 0;
+  let previousHeight = 0;
+  new ResizeObserver(() => {
+    const { width, height } = mapElement.getBoundingClientRect();
+    if (!width || !height || (width === previousWidth && height === previousHeight)) return;
+    previousWidth = width;
+    previousHeight = height;
+    requestAnimationFrame(() => {
+      state.map.invalidateSize();
+      fitCurrentEvidence();
+    });
+  }).observe(mapElement);
 
   const osmAttr = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> přispěvatelé';
   const mapyAttr = '&copy; <a href="https://www.mapy.cz">Mapy.cz</a>';
@@ -657,7 +682,7 @@ function setCurrentFeature(feature) {
   const point = [lat, lon];
 
   if (!state.originalMarker) {
-    state.originalMarker = L.marker(point, { icon: buildMarkerIcon() }).addTo(
+    state.originalMarker = L.marker(point, { icon: buildMarkerIcon(), title: "Současná poloha" }).addTo(
       state.map,
     );
   } else {
@@ -683,6 +708,7 @@ function setCurrentFeature(feature) {
     if (!state.proposedMarker) {
       state.proposedMarker = L.marker(proposedPoint, {
         icon: buildMarkerIcon("pending"),
+        title: "Navržená poloha",
       }).addTo(state.map);
     } else {
       state.proposedMarker.setLatLng(proposedPoint);
@@ -690,26 +716,45 @@ function setCurrentFeature(feature) {
     }
     state.proposedMarker.unbindTooltip();
     state.proposedMarker.bindTooltip("Navržená poloha");
-    state.map.fitBounds([point, proposedPoint], {
-      animate: true,
-      maxZoom: 17,
-      padding: [36, 36],
-    });
   } else {
     if (state.proposedMarker) {
       state.map.removeLayer(state.proposedMarker);
       state.proposedMarker = null;
     }
-    state.map.setView(point, Math.max(state.map.getZoom(), 15), { animate: true });
   }
 
+  if (proposedLegend) proposedLegend.hidden = !hasProposal;
+  const evidenceKey = JSON.stringify([xid, point, hasProposal ? [props.proposed_id, proposedLat, proposedLon] : null]);
+  state.mapFitPoints = hasProposal ? [point, [proposedLat, proposedLon]] : [point];
+  if (state.mapEvidenceKey !== evidenceKey) {
+    state.mapEvidenceKey = evidenceKey;
+    requestAnimationFrame(() => {
+      state.map.invalidateSize();
+      fitCurrentEvidence();
+    });
+  }
+
+  const ownProposal = hasProposal && window.OldPragueOwnProposals?.isCurrentInGroup(state.currentGroup?.items, props.proposed_id);
+
   if (voteUpBtn) {
-    voteUpBtn.textContent = hasProposal ? "Potvrdit návrh" : "Poloha sedí";
+    voteUpBtn.textContent = ownProposal ? "Čeká na dalšího člověka" : hasProposal ? "Potvrdit návrh" : "Poloha sedí";
+    voteUpBtn.disabled = Boolean(ownProposal);
   }
   if (locationReviewNote) {
-    locationReviewNote.textContent = hasProposal
+    locationReviewNote.textContent = ownProposal
+      ? "Děkujeme, váš návrh je uložený a čeká na potvrzení dalšího člověka. Současná i navržená poloha jsou v mapě."
+      : hasProposal
       ? "Mapa ukazuje současnou polohu a bod „Navržená poloha“. Potvrzením schválíte navržený bod pro celou sérii."
       : "Bod na mapě ukazuje současnou polohu celé série.";
+  }
+}
+
+function fitCurrentEvidence() {
+  if (!state.mapFitPoints?.length) return;
+  if (state.mapFitPoints.length > 1) {
+    state.map.fitBounds(state.mapFitPoints, { animate: false, maxZoom: 17, padding: [36, 36] });
+  } else {
+    state.map.setView(state.mapFitPoints[0], Math.max(state.map.getZoom(), 15), { animate: false });
   }
 }
 
@@ -745,9 +790,14 @@ function showGroup(group, options = {}) {
     state.proposedMarker = null;
   }
   setCurrentFeature(feature);
+  if (state.focusGroupId === group?.id && !state.focusMapShown) {
+    state.focusMapShown = true;
+    requestAnimationFrame(() => document.querySelector(".help-map")?.scrollIntoView({ block: "center" }));
+  }
 }
 
 function setMode(mode) {
+  if (mode === "ok" && voteUpBtn?.disabled) return;
   state.mode = mode;
   clearStatus({ force: true });
 
@@ -885,17 +935,23 @@ async function submitCorrection() {
 
   let saved = false;
   try {
-    await submitCorrectionRequest(payload);
+    const receipt = await submitCorrectionRequest(payload);
+    window.OldPragueOwnProposals?.remember(submittedXid, receipt.correction_id);
     saved = true;
     if (emailEl) emailEl.value = "";
     state.submittedGroupIds.add(submittedGroupId);
     syncRemainingPool();
 
-    setStatus("Oprava polohy je uložená. Načítám další skupinu.", "success", {
-      clearAfter: 2600,
-    });
+    setStatus("Děkujeme, návrh jsme uložili. Čeká na potvrzení dalšího člověka.", "success");
     closeCorrectionModal();
-    setTimeout(() => pickRandom(), 400);
+    setTimeout(async () => {
+      await pickRandom();
+      if (state.currentGroup) {
+        setStatus("Děkujeme, návrh jsme uložili. Čeká na potvrzení dalšího člověka.", "success", {
+          clearAfter: 6000,
+        });
+      }
+    }, 400);
   } catch (error) {
     setStatus(error.message || "Odeslání selhalo", "error");
   } finally {

@@ -185,6 +185,8 @@ let MAPY_CZ_API_KEY = "";
             if (this.submitBtn) {
                 this.submitBtn.disabled = !hasProposed || this.submitting || this.saved;
             }
+            const pointHint = document.getElementById("correction-point-hint");
+            if (pointHint) pointHint.hidden = hasProposed || this.saved;
         },
 
         setStatus(message, type) {
@@ -248,10 +250,12 @@ let MAPY_CZ_API_KEY = "";
                     throw new Error(error.detail || "Odeslání selhalo");
                 }
 
+                const receipt = await response.json();
                 this.saved = true;
-                this.setStatus("Díky! Oprava byla uložena.", "success");
+                window.OldPragueOwnProposals?.remember(payload.xid, receipt.correction_id);
+                this.setStatus("Děkujeme, návrh jsme uložili. Čeká na potvrzení dalšího člověka.", "success");
                 try {
-                    await Promise.resolve(this.onSubmit(submittedFeature, submittedCoords));
+                    await Promise.resolve(this.onSubmit(submittedFeature, submittedCoords, receipt));
                 } catch (refreshError) {
                     this.setStatus(
                         "Oprava je uložená, ale aktuální stav se nepodařilo obnovit. Obnovte stránku.",
@@ -259,7 +263,6 @@ let MAPY_CZ_API_KEY = "";
                     );
                     return;
                 }
-                setTimeout(() => this.close(), 500);
             } catch (error) {
                 this.setStatus(error.message || "Odeslání selhalo", "error");
             } finally {

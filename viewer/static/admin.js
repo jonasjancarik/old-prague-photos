@@ -17,6 +17,85 @@ const adminTokenInput = document.getElementById("admin-token");
 const saveAdminTokenBtn = document.getElementById("save-admin-token");
 const logoutAdminBtn = document.getElementById("logout-admin");
 const operationsListEl = document.getElementById("admin-operations");
+const feedbackListEl = document.getElementById("feedback-admin-list");
+const feedbackStatusEl = document.getElementById("feedback-admin-status");
+const feedbackMoreBtn = document.getElementById("feedback-more");
+const feedbackNewBtn = document.getElementById("feedback-new");
+const feedbackResolvedBtn = document.getElementById("feedback-resolved");
+let feedbackStatus = "new";
+let feedbackBeforeId = null;
+let feedbackLoading = false;
+
+async function loadFeedback({ append = false } = {}) {
+  if (feedbackLoading || !feedbackListEl) return;
+  feedbackLoading = true;
+  feedbackStatusEl.textContent = "Načítám připomínky…";
+  try {
+    const params = new URLSearchParams({ status: feedbackStatus, limit: "30" });
+    if (append && feedbackBeforeId) params.set("before_id", feedbackBeforeId);
+    const response = await fetch(`/api/admin/feedback?${params}`, { credentials: "same-origin" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || "Připomínky se nepodařilo načíst.");
+    if (!append) feedbackListEl.replaceChildren();
+    for (const item of data.items || []) {
+      const card = document.createElement("article");
+      card.className = "feedback-admin-item";
+      const link = document.createElement("a");
+      link.href = `./index.html?xid=${encodeURIComponent(item.xid)}`;
+      link.textContent = `Fotografie ${item.xid}`;
+      const date = document.createElement("p");
+      date.className = "helper";
+      date.textContent = formatDate(item.created_at);
+      const message = document.createElement("p");
+      message.className = "feedback-admin-message";
+      message.textContent = item.message;
+      card.append(link, date, message);
+      if (item.email) card.append(createDetailItem("E-mail pro upřesnění", item.email));
+      const action = document.createElement("button");
+      action.type = "button";
+      action.className = "secondary";
+      action.textContent = feedbackStatus === "new" ? "Označit jako vyřízené" : "Vrátit mezi nové";
+      action.addEventListener("click", async () => {
+        action.disabled = true;
+        try {
+          const nextStatus = feedbackStatus === "new" ? "resolved" : "new";
+          const updated = await fetch("/api/admin/feedback", {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: String(item.id), status: nextStatus }),
+          });
+          const payload = await updated.json().catch(() => ({}));
+          if (!updated.ok) throw new Error(payload.detail || "Stav se nepodařilo změnit.");
+          card.remove();
+          feedbackStatusEl.textContent = nextStatus === "resolved" ? "Připomínka je vyřízená." : "Připomínka je opět mezi novými.";
+        } catch (error) {
+          feedbackStatusEl.textContent = error.message;
+          action.disabled = false;
+        }
+      });
+      card.append(action);
+      feedbackListEl.append(card);
+    }
+    feedbackBeforeId = data.next_before_id == null ? null : String(data.next_before_id);
+    feedbackMoreBtn.hidden = !feedbackBeforeId;
+    feedbackStatusEl.textContent = feedbackListEl.childElementCount ? "" : "Žádné připomínky v tomto stavu.";
+  } catch (error) {
+    feedbackStatusEl.textContent = error.message || "Připomínky se nepodařilo načíst.";
+  } finally {
+    feedbackLoading = false;
+  }
+}
+
+function switchFeedback(status) {
+  feedbackStatus = status;
+  feedbackBeforeId = null;
+  feedbackNewBtn.setAttribute("aria-pressed", String(status === "new"));
+  feedbackResolvedBtn.setAttribute("aria-pressed", String(status === "resolved"));
+  loadFeedback();
+}
+feedbackNewBtn?.addEventListener("click", () => switchFeedback("new"));
+feedbackResolvedBtn?.addEventListener("click", () => switchFeedback("resolved"));
+feedbackMoreBtn?.addEventListener("click", () => loadFeedback({ append: true }));
 
 function shortId(value) {
   const text = String(value || "").trim();
@@ -622,3 +701,4 @@ if (exportCsvBtn) {
 refresh().catch((error) => {
   setStatus(error.message || "Načtení selhalo", "error");
 });
+loadFeedback();

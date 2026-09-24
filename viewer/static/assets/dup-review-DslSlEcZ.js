@@ -1,4 +1,4 @@
-import{m as e}from"./loadLegacyScripts-CCwIcKCm.js";import{i as n}from"./openseadragon-CWtobWd5.js";const a=`  <div class="page page-help">
+import{m as e}from"./loadLegacyScripts-QtUAv0ZZ.js";import{i as n}from"./openseadragon-CWtobWd5.js";const a=`  <div class="page page-help">
     <header class="topbar">
       <div>
         <p class="eyebrow">Komunitní kontrola</p>

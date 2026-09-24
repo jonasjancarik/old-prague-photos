@@ -1,4 +1,4 @@
-import{m as a}from"./loadLegacyScripts-CCwIcKCm.js";import{i as n,a as e}from"./leaflet-Dp5Exmga.js";import{i}from"./openseadragon-CWtobWd5.js";const o=`  <div class="page page-map">
+import{m as a}from"./loadLegacyScripts-QtUAv0ZZ.js";import{i as n,a as e}from"./leaflet-Dp5Exmga.js";import{i as o}from"./openseadragon-CWtobWd5.js";const i=`  <div class="page page-map">
     <header class="topbar">
       <div class="topbar-title">
         <h1>Staré fotografie Prahy</h1>
@@ -202,6 +202,31 @@ import{m as a}from"./loadLegacyScripts-CCwIcKCm.js";import{i as n,a as e}from"./
               </div>
 
               <!-- Correction view -->
+              <div class="modal-correction is-hidden" id="modal-photo-feedback-view">
+                <div class="modal-meta-head">
+                  <p class="modal-meta-eyebrow">Připomínka</p>
+                  <h3 class="modal-meta-title">Poslat připomínku</h3>
+                  <p class="helper">Nesedí popis nebo jste narazili na jiný problém? Napište nám.</p>
+                </div>
+                <form id="photo-feedback-form">
+                  <label class="field" for="photo-feedback-message">
+                    <span>Vaše připomínka</span>
+                    <textarea id="photo-feedback-message" rows="5" minlength="5" maxlength="2000" required></textarea>
+                  </label>
+                  <label class="field" for="photo-feedback-email">
+                    <span>E-mail (volitelné)</span>
+                    <input id="photo-feedback-email" type="email" maxlength="254" autocomplete="email" />
+                  </label>
+                  <p class="helper">Připomínku uvidí pouze správce.</p>
+                  <div class="form-actions">
+                    <button class="primary" type="submit" disabled>Odeslat připomínku</button>
+                    <button class="secondary" type="button" id="cancel-photo-feedback">Zpět</button>
+                  </div>
+                  <p class="form-status" id="photo-feedback-status" role="status" aria-live="polite"></p>
+                </form>
+              </div>
+
+              <!-- Correction view -->
               <div class="modal-correction is-hidden" id="modal-correction-view">
                 <div class="modal-meta-head">
                   <p class="modal-meta-eyebrow">Oprava polohy</p>
@@ -246,6 +271,7 @@ import{m as a}from"./loadLegacyScripts-CCwIcKCm.js";import{i as n,a as e}from"./
                       Zrušit
                     </button>
                   </div>
+                  <p class="helper" id="correction-point-hint">Nejdřív vyberte správné místo na mapě.</p>
                   <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
                 </form>
               </div>
@@ -283,6 +309,9 @@ import{m as a}from"./loadLegacyScripts-CCwIcKCm.js";import{i as n,a as e}from"./
                   <button class="secondary report-button report-flag-button" type="button" id="report-flag">
                     Nesedí, ale nevím, kde to je
                   </button>
+                  <button class="secondary report-button" type="button" id="photo-feedback-cta">
+                    Poslat připomínku
+                  </button>
                 </div>
               </div>
             </div>
@@ -302,4 +331,4 @@ import{m as a}from"./loadLegacyScripts-CCwIcKCm.js";import{i as n,a as e}from"./
       </div>
     </div>
   </div>
-`;async function s(){n(),i(),await e(),await a(o,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./correction-ui.js","./app.js"])}s().catch(console.error);
+`;async function s(){n(),o(),await e(),await a(i,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./own-proposals.js","./correction-ui.js","./feedback-ui.js","./app.js"])}s().catch(console.error);

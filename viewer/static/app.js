@@ -73,6 +73,8 @@ const downloadFullResStatus = document.getElementById("download-fullres-status")
 const zoomWrap = archiveIframe?.closest(".zoom-wrap");
 const zoomViewerEl = document.getElementById("zoom-viewer");
 const reportCta = document.getElementById("report-cta");
+const photoFeedbackCta = document.getElementById("photo-feedback-cta");
+const photoFeedbackView = document.getElementById("modal-photo-feedback-view");
 const reportCtaWrap = document.getElementById("report-cta-container");
 const reportFlagBtn = document.getElementById("report-flag");
 const consensusBanner = document.getElementById("consensus-banner");
@@ -1348,6 +1350,7 @@ function openArchiveModal(url, xid, options = {}) {
   archiveModal.querySelector('button[data-modal-close]')?.focus();
   if (metaView) metaView.classList.remove("is-hidden");
   if (correctionView) correctionView.classList.add("is-hidden");
+  window.OldPraguePhotoFeedback?.close();
 
   if (feedbackForm) {
     feedbackForm.classList.remove("is-open");
@@ -1403,6 +1406,7 @@ function closeArchiveModal(options = {}) {
   }
   if (metaView) metaView.classList.remove("is-hidden");
   if (correctionView) correctionView.classList.add("is-hidden");
+  window.OldPraguePhotoFeedback?.close();
   if (feedbackForm) feedbackForm.classList.remove("is-open");
 
   if (archiveModalPreviousFocus?.isConnected) archiveModalPreviousFocus.focus();
@@ -1451,8 +1455,13 @@ function renderConsensusStatus(feature) {
   let showProposalReview = false;
 
   if (correctionState === "pending" && anchorType === "correction") {
-    text = "Někdo navrhl jinou polohu. V kontrole uvidíte současný i navržený bod.";
-    showProposalReview = true;
+    const group = state.groupByXid.get(String(feature?.properties?.id || "").trim());
+    if (window.OldPragueOwnProposals?.isCurrentInGroup(group?.items || [feature], correction.proposed_id)) {
+      text = "Děkujeme, návrh jsme uložili. Čeká na potvrzení dalšího člověka.";
+    } else {
+      text = "Někdo navrhl jinou polohu. V kontrole uvidíte současný i navržený bod.";
+      showProposalReview = true;
+    }
   } else if (correctionState === "approved") {
     text = "Poloha potvrzena komunitou.";
   } else if (anchorType === "flag") {
@@ -2630,12 +2639,14 @@ async function bootstrap() {
       statusEl: formStatus,
       turnstileContainerEl: document.getElementById("turnstile"),
       turnstileNoteEl: turnstileNote,
-      onSubmit: async () => {
+      onSubmit: async (submittedFeature) => {
+        await refreshReviewState({ fresh: true });
+        if (state.selectedFeature?.properties?.id !== submittedFeature.properties.id) return;
         if (metaView) metaView.classList.remove("is-hidden");
         if (correctionView) correctionView.classList.add("is-hidden");
         if (reportCtaWrap) reportCtaWrap.classList.remove("is-hidden");
         invalidateDetailMiniMap();
-        await refreshReviewState({ fresh: true });
+        renderConsensusStatus(submittedFeature);
       },
       onCancel: () => {
         if (metaView) metaView.classList.remove("is-hidden");
@@ -2914,6 +2925,18 @@ if (reportCta) {
   });
 }
 
+photoFeedbackCta?.addEventListener("click", () => {
+  if (!state.selectedFeature) return;
+  metaView?.classList.add("is-hidden");
+  correctionView?.classList.add("is-hidden");
+  reportCtaWrap?.classList.add("is-hidden");
+  window.OldPraguePhotoFeedback?.open(state.selectedFeature, () => {
+    if (!archiveModal?.classList.contains("is-open")) return;
+    metaView?.classList.remove("is-hidden");
+    reportCtaWrap?.classList.remove("is-hidden");
+  });
+});
+
 if (reportFlagBtn) {
   reportFlagBtn.addEventListener("click", async () => {
     try {
@@ -3025,6 +3048,21 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeArchiveModal({ updateHistory: true });
     return;
+  }
+  if (event.key === "Tab") {
+    const visible = [...archiveModal.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled])')]
+      .filter((element) => element.getClientRects().length > 0);
+    if (visible.length) {
+      const first = visible[0];
+      const last = visible.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
   }
   if (shouldIgnoreModalArrowNavigation(event)) return;
 

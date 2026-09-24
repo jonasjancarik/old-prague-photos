@@ -13,6 +13,7 @@ mountPage(template, [
   './candidate-client.js',
   './media-filter.js',
   './session-verify.js',
+  './own-proposals.js',
   './correction-ui.js',
   './pomoc.js',
   './mode-picker.js',

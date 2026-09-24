@@ -4,6 +4,7 @@ Read this when:
 - you need to understand what the community help pages are asking users to decide
 - you need to debug why a group is or is not marked reviewed, merged, corrected, or done
 - you are changing `/pomoc.html`, `/dup-review.html`, `/group-review.html`, `review-state`, or any community vote API
+- you are changing private photo feedback or correction receipt behavior
 
 This is the maintainer-facing reference. For user-facing Czech instructions, see
 [Komunitní pomoc](./komunitni-pomoc.md).
@@ -27,6 +28,11 @@ location confirmation, and a location `ok` vote is not a duplicate/merge
 decision.
 
 ## Workflow 1: Location Review
+
+The detail's **Poslat připomínku** is a separate private workflow. Its
+`photo_feedback` rows attach to an XID and never enter `corrections`, votes,
+location projections, or consensus. Admins work through the paginated
+`/api/admin/feedback` inbox, independently of the location review queues.
 
 UI:
 - `/pomoc.html`
@@ -83,6 +89,11 @@ Consensus rules:
 - If there is no anchor event, plain `ok` votes can still mark the location
   workflow done after two independent votes.
 - The correction author's own later `ok` vote does not confirm their correction.
+- A successful `wrong` response includes `correction_id`. The UI remembers
+  only the photo XID and this ID for the browser session. When the current
+  `proposed_id` matches, the author sees a waiting message and cannot confirm
+  the same proposal in the review UI. Other browsers and later proposals are
+  treated normally; the server rule above remains authoritative.
 - Every new `ok` submission names the exact `location_revision` shown to the
   voter and, for a coordinate proposal, its immutable `proposal_id`. The API
   rejects a stale or mismatched target with `409`.
