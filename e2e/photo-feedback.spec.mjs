@@ -58,3 +58,32 @@ test("feedback form keeps the text after an unavailable API and restores focus",
   await page.locator("#cancel-photo-feedback").click();
   await expect(opener).toBeFocused();
 });
+
+test("local D1 inbox pagination has no duplicates and preserves status changes", async ({ request }) => {
+  const catalog = await (await request.get("/data/photos.geojson")).json();
+  const xid = catalog.features[3].properties.id;
+  const ids = [];
+  for (let index = 1; index <= 3; index += 1) {
+    const response = await request.post("/api/feedback", { data: {
+      submission_id: `20000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      xid,
+      message: `Připomínka pro stránkování ${index}`,
+    } });
+    expect(response.status()).toBe(200);
+    ids.push((await response.json()).id);
+  }
+  const first = await (await request.get("/api/admin/feedback?status=new&limit=2")).json();
+  expect(first.items.map((item) => String(item.id))).toEqual(ids.slice().reverse().slice(0, 2));
+  const second = await (await request.get(`/api/admin/feedback?status=new&limit=2&before_id=${first.next_before_id}`)).json();
+  const secondIds = second.items.map((item) => String(item.id));
+  expect(secondIds).toContain(ids[0]);
+  expect(secondIds.filter((id) => first.items.some((item) => String(item.id) === id))).toEqual([]);
+  const changed = await request.post("/api/admin/feedback", { data: { id: ids[0], status: "resolved" } });
+  expect(changed.status()).toBe(200);
+  const resolved = await (await request.get("/api/admin/feedback?status=resolved")).json();
+  expect(resolved.items.some((item) => String(item.id) === ids[0])).toBe(true);
+  const restored = await request.post("/api/admin/feedback", { data: { id: ids[0], status: "new" } });
+  expect(restored.status()).toBe(200);
+  const again = await (await request.get("/api/admin/feedback?status=new")).json();
+  expect(again.items.find((item) => String(item.id) === ids[0]).resolved_at).toBeNull();
+});
