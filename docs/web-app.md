@@ -513,3 +513,7 @@ Adresy používají [Mapy.com Suggest](https://developer.mapy.com/rest-api-mapy-
 Úspěch mapových dlaždic nepotvrzuje oprávnění Suggest ani zbývající denní kvótu. Live hostname omezení a kvóta účtu pro Suggest zatím nejsou ověřené; testovací klíč v izolované D1 preview není produkční klíč. Před nasazením ověřit povolené hostname v existujícím účtu a odpověď Suggest z cílového hostname, bez zapnutí placené spotřeby. UI zůstává použitelné i bez provideru.
 
 Cílené ověření: `node --test functions/api/__tests__/search-ui.test.mjs` a `e2e/search-omnibox.spec.mjs`. Test skutečných míst a autorů vyžaduje export 003 a nesmí být nahrazen fixture výsledky. Pro souběžné worktrees lze dočasným Playwright configem změnit `webServer.cwd`, URL a `PLAYWRIGHT_PORT`; server vždy používá vlastní `PLAYWRIGHT_D1_STATE_DIR` a bind `0.0.0.0`.
+
+## Archive search metadata
+
+Published place terms, normalized places and authors use the [archive search data contract](archive-search-data.md). The CSV, GeoJSON and D1 source payload preserve the same arrays; archive places are separate from geocoder estimates. The search helper indexes unique published XIDs and updates current group membership without rebuilding metadata.
