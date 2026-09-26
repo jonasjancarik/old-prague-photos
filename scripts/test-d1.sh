@@ -11,3 +11,8 @@ CI=1 npx wrangler d1 execute CORRECTIONS_DB \
   --local \
   --persist-to "$STATE_DIR" \
   --file scripts/d1-smoke.sql
+
+CI=1 npx wrangler d1 execute CORRECTIONS_DB \
+  --local \
+  --persist-to "$STATE_DIR" \
+  --file scripts/d1-annotations-smoke.sql

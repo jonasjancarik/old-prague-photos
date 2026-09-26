@@ -2853,4 +2853,16 @@ def update_admin_feedback(payload: FeedbackStatusPayload, request: Request) -> J
     return JSONResponse({"ok": True, "id": payload.id, "status": payload.status}, headers={"Cache-Control": "no-store"})
 
 
+# Curator metadata remains separate from all community review files.
+from viewer.annotations import install_annotation_routes
+
+
+def _annotation_photo(xid):
+    return next((feature.get("properties", {}) for feature in load_photos().get("features", [])
+                 if feature.get("properties", {}).get("id") == xid), None)
+
+
+install_annotation_routes(app, lambda: DATA_DIR, _assert_admin, _assert_same_origin, _annotation_photo)
+
+
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
