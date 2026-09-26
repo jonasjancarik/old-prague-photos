@@ -4,7 +4,7 @@ Read when: editing curator metadata, integrating search overlays, or reviewing a
 
 Kurátorské upřesnění je samostatný záznam po XID. Nemění archivní text, souřadnice, členství ve skupině ani komunitní hlasy. Připomínku lze vyřídit bez zveřejnění upřesnění; formulář její text ani e-mail automaticky nepřebírá.
 
-Správce načte fotografii přes její ID nebo z fronty připomínek, napíše veřejné vysvětlení a soukromý doklad ověření. Náhled ukazuje pouze veřejný text. Uložení rozpracovaného textu zachová dosavadní publikovanou verzi. Zveřejnění vyžaduje neprázdné vysvětlení a doklad ověření. Stažení odstraní veřejnou verzi, nikoli historii nebo archivní metadata. Soukromý doklad se nikdy neposílá veřejnému API.
+Správce načte fotografii přes její ID nebo z fronty připomínek, napíše veřejné vysvětlení a soukromý doklad ověření. Náhled ukazuje pouze veřejný text. Při změně ID se starý formulář skryje a zápisy zůstanou uzamčené až do úplného načtení nové fotografie i seznamu míst. Rozepsané údaje se uchovají v tomto okně po XID; po návratu k fotografii je lze tlačítkem výslovně obnovit. Zavření nebo obnovení okna tento neuložený text odstraní. Uložení rozpracovaného textu zachová dosavadní publikovanou verzi. Zveřejnění vyžaduje neprázdné vysvětlení a doklad ověření. Stažení odstraní veřejnou verzi, nikoli historii nebo archivní metadata. Soukromý doklad se nikdy neposílá veřejnému API.
 
 ## API
 
@@ -20,7 +20,7 @@ Správce načte fotografii přes její ID nebo z fronty připomínek, napíše v
 
 Migrace 0017 vytváří `catalog_place_members` s klíčem `(place_id, xid)`. Jednorázově jej naplní z publikovaného katalogu a triggery jej aktualizují při importu změněného `feature_json`. Zápis správce provede indexovaný lookup pouze vybraných ID; neznámé místo vrátí 400. FastAPI používá mapu míst uloženou v paměti podle verze lokálního GeoJSON. Výběr správce ukazuje názvy, čtvrti a typy míst. Veřejné `places` obsahují ověřené entity se `source: curator` a původními archivními source terms; tyto údaje nejsou odvozené ze souřadnic.
 
-Při načtení stránky se získá jeden veřejný snapshot ještě před sestavením indexu. Změna aplikuje vztahy do `properties.places` a přegeneruje index, počty, filtr i detail v jednom synchronním kroku. Původní popis a archivní hesla zůstávají zachovaná a textové hledání zahrnuje také veřejné upřesnění. Detail odlišuje „Popis z archivu“ a „Upřesnění správce“. Změna skupiny nepřenáší anotaci na jiný XID.
+Při načtení stránky se získá jeden veřejný snapshot ještě před sestavením indexu. Změna aplikuje vztahy do `properties.places` a přegeneruje index, počty, filtr i detail v jednom synchronním kroku. Původní popis a archivní hesla zůstávají zachovaná a obecný textový filtr zahrnuje také veřejné upřesnění. Popisové návrhy vyžadují všechny tokeny dotazu uvnitř jediného pole (archivní popis nebo veřejné upřesnění), nikoli rozdělené mezi obě pole; index vrací skutečný zdroj shody, ze kterého UI vytváří snippet a jeho označení. Detail odlišuje „Popis z archivu“ a „Upřesnění správce“. Změna skupiny nepřenáší anotaci na jiný XID.
 
 Otevřená stránka obnovuje snapshot při návratu do okna, zprávě z admin formuláře přes BroadcastChannel a každých 30 sekund, pokud je viditelná. Jde o maximálně 30sekundové zpoždění pro změnu z jiného prohlížeče; v jedné vykreslené revizi však detail, vztahy i index vždy používají stejný snapshot. Při selhání se aktivní místa vyřadí a detail sdělí nedostupnost aktuálních upřesnění. Původní text zůstává dostupný. Obnova API obnoví správné vztahy.
 

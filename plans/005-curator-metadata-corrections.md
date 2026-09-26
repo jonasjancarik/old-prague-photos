@@ -43,3 +43,9 @@ Ověřeno: `npm run release:verify` exit 0 (206 Python testů, 121 API testů, l
 Admin a veřejný detail ověřeny v integrovaném prohlížeči na desktopu a mobilu, pouze proti dočasné FastAPI databázi s testovacím vysvětlením. Doklad i originál se zobrazují ve správných soukromých/veřejných částech. Detail a index mají ověřenou shodnou metadata revizi; stažení obnovuje archivní vztahy a neovlivňuje komunitní revision. Při stejné revizi se overlay znovu neagreguje. Změny z jiného prohlížeče mohou mít až 30 sekund zpoždění, uvnitř jedné vykreslené revize je zobrazení konzistentní.
 
 Live API a Mapy hostname/key/kvóta nebyly ověřeny. Push, deployment ani merge do lokálního main nejsou součástí tohoto kandidátního předání. Merge slot řídí koordinátor po review.
+
+### Opravy po frontend review
+
+Popisové návrhy nyní používají zdroj shody vrácený helperem (`descriptionSource`, `descriptionValue`). Všechny tokeny musí být uvnitř archivu nebo uvnitř upřesnění; rozdělené tokeny mohou odpovídat obecnému textovému filtru, ale nevytvoří nepravdivý popisový snippet. Admin při změně ID a neúspěšném načtení skryje předchozí formulář a zamkne zápisy, celý načtený záznam potvrdí až po získání fotografie i katalogu míst. Rozepsané údaje po XID uchová v okně a nabídne jejich výslovnou obnovu po návratu k fotografii.
+
+Cílené ověření: 6 index/overlay testů, 2 regresní admin e2e (A → B/503 bez jakéhokoli zápisu a obnovení A; úspěšné B zapisuje jen B; katalog míst/503 nezanechá částečně potvrzený záznam), Vite build a diff check prošly. Celkem je nyní ověřeno 26 různých cílených e2e případů. Backend nebyl změněn a drahý společný gate nebyl po těchto dvou frontend opravách opakován podle pokynu koordinátora.

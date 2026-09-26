@@ -2725,15 +2725,14 @@ function localSearchResults(query) {
   // Only the data helper decides which XID explains a description match.
   const descriptions = state.searchApi.searchDescriptions(membership, query, { limit: 100 })
     .map((match) => {
-      const props = state.featuresById.get(match.matchedXid)?.properties || {};
-      const archiveMatches = state.searchApi.normalizeSearchText(props.description).includes(state.searchApi.normalizeSearchText(query));
-      const text = String(archiveMatches ? props.description : props.annotation?.public_text || props.description || '');
+      const archiveMatches = match.descriptionSource === 'archive';
+      const text = String(match.descriptionValue || '');
       const searchable = state.searchApi.normalizeSearchText(text);
       const firstToken = state.searchApi.normalizeSearchText(query).split(' ')[0];
       const position = Math.max(0, searchable.indexOf(firstToken) - 40);
       return { kind: 'description', xid: match.matchedXid, groupId: match.groupId,
         label: `${position ? '…' : ''}${text.slice(position, position + 150)}${text.length > position + 150 ? '…' : ''}`,
-        detail: `Otevřít fotografii · ${archiveMatches ? 'Popis z archivu' : props.annotation ? 'Upřesnění správce' : 'Popis z archivu'}` };
+        detail: `Otevřít fotografii · ${archiveMatches ? 'Popis z archivu' : 'Upřesnění správce'}` };
     }).sort((a, b) => a.label.localeCompare(b.label, 'cs') || a.xid.localeCompare(b.xid));
   return { places: found.places.map((entity) => entityResult(entity, 'place')),
     authors: found.authors.map((entity) => entityResult(entity, 'author')),

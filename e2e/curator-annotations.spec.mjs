@@ -69,3 +69,68 @@ test('published annotation stays with its XID when a curator changes the group',
   expect((await request.post('/api/admin/group-membership',{data:{source_group_id:target.properties.group_id,target_group_id:feature.properties.group_id,xids:[xid],reason:'Vrácení lokální testovací změny'}})).status()).toBe(200);
   expect((await request.post('/api/admin/photo-annotations',{data:{xid,expected_revision:1,action:'withdraw'}})).status()).toBe(200);
 });
+
+test('failed A to B load locks writes and retains an explicitly restorable draft', async ({page}) => {
+  const writes=[];
+  let failB=true;
+  const photos=[{properties:{id:'review-A',description:'Archiv A',places:[]}},{properties:{id:'review-B',description:'Archiv B',places:[]}}];
+  await page.route('**/data/photos.geojson',route=>route.fulfill({json:{features:photos}}));
+  await page.route('**/api/admin/photo-annotations**',route=>{
+    if(route.request().method()==='POST') {
+      writes.push(route.request().postDataJSON());
+      return route.fulfill({json:{ok:true,revision:1}});
+    }
+    const xid=new URL(route.request().url()).searchParams.get('xid');
+    if(xid==='review-B' && failB) return route.fulfill({status:503,json:{detail:'Načtení B selhalo'}});
+    return route.fulfill({json:{photo:photos.find(p=>p.properties.id===xid).properties,annotation:null,history:[]}});
+  });
+  await page.goto('/admin.html');
+  await page.locator('#annotation-xid').fill('review-A');
+  await page.locator('#annotation-load').click();
+  await expect(page.locator('#annotation-loaded')).toHaveText('Načtená fotografie: review-A');
+  await page.locator('#annotation-text').fill('Rozepsané vysvětlení A');
+  await page.locator('#annotation-xid').fill('review-B');
+  for(const name of ['draft','publish','withdraw']) await expect(page.locator(`#annotation-${name}`)).toBeDisabled();
+  await page.locator('#annotation-load').click();
+  await expect(page.locator('#annotation-status')).toHaveText('Načtení B selhalo');
+  await expect(page.locator('#annotation-content')).toBeHidden();
+  for(const name of ['draft','publish','withdraw']) await expect(page.locator(`#annotation-${name}`)).toBeDisabled();
+  // A programmatically dispatched stale click must also fail the action guard.
+  await page.locator('#annotation-publish').dispatchEvent('click');
+  await page.locator('#annotation-withdraw').dispatchEvent('click');
+  expect(writes).toEqual([]);
+  await page.locator('#annotation-xid').fill('review-A');
+  await page.locator('#annotation-load').click();
+  await expect(page.locator('#annotation-restore')).toBeVisible();
+  await page.locator('#annotation-restore').click();
+  await expect(page.locator('#annotation-text')).toHaveValue('Rozepsané vysvětlení A');
+  failB=false;
+  await page.locator('#annotation-xid').fill('review-B');
+  await page.locator('#annotation-load').click();
+  await expect(page.locator('#annotation-loaded')).toHaveText('Načtená fotografie: review-B');
+  await expect(page.locator('#annotation-text')).toHaveValue('');
+  await page.locator('#annotation-text').fill('Ověřené vysvětlení B');
+  await page.locator('#annotation-evidence').fill('Doklad B');
+  await page.locator('#annotation-publish').click();
+  await expect.poll(()=>writes.length).toBe(1);
+  expect(writes[0].xid).toBe('review-B');
+  expect(writes[0].expected_revision).toBe(0);
+});
+
+test('place catalog failure commits no partial loaded record', async ({page}) => {
+  let fail=true;
+  await page.route('**/api/admin/photo-annotations**',route=>route.fulfill({json:{photo:{id:'review-C',description:'Archiv C',places:[]},annotation:null,history:[]}}));
+  await page.route('**/data/photos.geojson',route=> fail ? route.fulfill({status:503}) : route.fulfill({json:{features:[]}}));
+  await page.goto('/admin.html');
+  await page.locator('#annotation-xid').fill('review-C');
+  await page.locator('#annotation-load').click();
+  await expect(page.locator('#annotation-status')).toContainText('Seznam míst se nepodařilo načíst');
+  await expect(page.locator('#annotation-content')).toBeHidden();
+  await expect(page.locator('#annotation-loaded')).toHaveText('');
+  await expect(page.locator('#annotation-archive')).toHaveText('');
+  await expect(page.locator('#annotation-publish')).toBeDisabled();
+  fail=false;
+  await page.locator('#annotation-load').click();
+  await expect(page.locator('#annotation-loaded')).toHaveText('Načtená fotografie: review-C');
+  await expect(page.locator('#annotation-publish')).toBeEnabled();
+});

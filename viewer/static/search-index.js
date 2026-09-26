@@ -5,6 +5,15 @@ export function normalizeSearchText(value) {
 const searchable = (entity) => normalizeSearchText([entity.label, entity.district, ...(entity.aliases || []), ...(entity.source_terms || [])].join(' '));
 const matches = (text, query) => query.split(' ').every((token) => text.includes(token));
 
+// Description suggestions match every query token within one source field.
+function descriptionMatch(photo, query) {
+  const props = photo.feature.properties;
+  for (const [descriptionSource, descriptionValue] of [['archive', props.description], ['annotation', props.annotation?.public_text]]) {
+    if (descriptionValue && matches(normalizeSearchText(descriptionValue), query)) return {descriptionSource, descriptionValue};
+  }
+  return null;
+}
+
 export function buildSearchIndex(features) {
   const photos = new Map();
   const places = new Map();
@@ -54,9 +63,10 @@ export function searchIndex(state, query, { limit = 14, field = 'all' } = {}) {
   }).filter((entity) => entity.photoCount).sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label, 'cs') || a.id.localeCompare(b.id)).slice(0, limit);
   const groups = new Map();
   for (const photo of index.photos.values()) {
-    if (!membership.has(photo.xid) || !matches(field === 'description' ? photo.descriptionText : photo.text, text)) continue;
+    const description = field === 'description' ? descriptionMatch(photo, text) : null;
+    if (!membership.has(photo.xid) || !(field === 'description' ? description : matches(photo.text, text))) continue;
     const groupId = membership.get(photo.xid);
-    if (!groups.has(groupId)) groups.set(groupId, { groupId, matchedXid: photo.xid, xids: [] });
+    if (!groups.has(groupId)) groups.set(groupId, { groupId, matchedXid: photo.xid, xids: [], ...(description || {}) });
     groups.get(groupId).xids.push(photo.xid);
   }
   return { places: entities(index.places), authors: entities(index.authors), photos: Array.from(groups.values()).slice(0, limit) };

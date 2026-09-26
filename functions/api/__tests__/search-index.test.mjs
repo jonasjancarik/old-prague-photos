@@ -40,3 +40,14 @@ test('canonical relevance wins over population and mentions search only descript
  assert.deepEqual(searchDescriptions(state,'novak'),[]);
  assert.equal(searchDescriptions(state,'pruhled')[0].matchedXid,'a');
 });
+
+test('description provenance uses the same all-token rule within each source field', async()=>{
+ const {searchDescriptions}=await import('../../../viewer/static/search-index.js');
+ const feature=photo('source','group','Pohled z věže na Prahu.');
+ feature.properties.annotation={public_text:'Upřesněná datace snímku.'};
+ const state=updateSearchMembership(buildSearchIndex([feature]));
+ assert.deepEqual(searchDescriptions(state,'pohled prahu').map(r=>[r.descriptionSource,r.descriptionValue]),[['archive','Pohled z věže na Prahu.']]);
+ assert.deepEqual(searchDescriptions(state,'upresnena snimku').map(r=>[r.descriptionSource,r.descriptionValue]),[['annotation','Upřesněná datace snímku.']]);
+ assert.deepEqual(searchDescriptions(state,'pohled datace'),[]);
+ assert.equal(searchIndex(state,'pohled datace').photos.length,1);
+});
