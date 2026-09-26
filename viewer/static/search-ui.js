@@ -11,6 +11,7 @@
     let generation = 0;
     let controller;
     let timer;
+    let announceTimer;
     let composing = false;
     let active = -1;
     let choices = [];
@@ -20,6 +21,7 @@
     const close = () => {
       generation += 1;
       clearTimeout(timer);
+      clearTimeout(announceTimer);
       controller?.abort();
       popup.classList.add('is-hidden');
       input.setAttribute('aria-expanded', 'false');
@@ -117,7 +119,10 @@
       input.setAttribute('aria-expanded', 'true');
       input.setAttribute('aria-controls', Array.from(popup.querySelectorAll('[role=listbox]')).map((list) => list.id).join(' ') || popup.id);
       if (previousChoice) activate(choices.indexOf(previousChoice));
-      status.textContent = `${choices.length} návrhů. Šipkami vyberte výsledek, Enterem hledejte text.`;
+      clearTimeout(announceTimer);
+      announceTimer = setTimeout(() => {
+        status.textContent = `Počet návrhů: ${choices.length}. Šipkami vyberte výsledek, Enterem hledejte text.`;
+      }, 250);
     };
     const update = () => {
       close();
@@ -197,7 +202,10 @@
     if (!apiKey) throw new Error('Address search is not configured');
     const url = new URL('https://api.mapy.com/v1/suggest');
     url.search = new URLSearchParams({ query: query.slice(0, 150), lang: 'cs', limit: '5',
-      type: 'regional.address,regional.street', locality: 'BOX(14.22,49.94,14.71,50.18)', apikey: apiKey });
+      locality: 'BOX(14.22,49.94,14.71,50.18)', apikey: apiKey });
+    // OpenAPI defines type as a query array (form/explode), not a comma string.
+    url.searchParams.append('type', 'regional.address');
+    url.searchParams.append('type', 'regional.street');
     const response = await fetch(url, { signal });
     if (!response.ok) throw new Error(`Suggest HTTP ${response.status}`);
     const payload = await response.json();

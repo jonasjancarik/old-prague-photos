@@ -2685,7 +2685,7 @@ function localSearchResults(query) {
   const entityResult = (entity, kind) => ({
     ...entity, kind,
     label: [entity.label, entity.district].filter(Boolean).join(' — '),
-    detail: `Podle údajů archivu · ${entity.photoCount} fotografií · ${entity.groupCount} skupin · ${kind === 'place' ? 'Zobrazit fotografie tohoto místa' : 'Zobrazit fotografie autora'}`,
+    detail: `Podle údajů archivu · ${window.OldPragueMeta.formatPhotoCount(entity.photoCount)} · ${entity.groupCount} ${entity.groupCount === 1 ? 'skupina' : entity.groupCount < 5 ? 'skupiny' : 'skupin'} · ${kind === 'place' ? 'Zobrazit fotografie tohoto místa' : 'Zobrazit fotografie autora'}`,
   });
   // Only the data helper decides which XID explains a description match.
   const descriptions = state.searchApi.searchDescriptions(membership, query, { limit: 100 })
@@ -2697,7 +2697,7 @@ function localSearchResults(query) {
       return { kind: 'description', xid: match.matchedXid, groupId: match.groupId,
         label: `${position ? '…' : ''}${text.slice(position, position + 150)}${text.length > position + 150 ? '…' : ''}`,
         detail: 'Otevřít fotografii · Shoda v popisu' };
-    });
+    }).sort((a, b) => a.label.localeCompare(b.label, 'cs') || a.xid.localeCompare(b.xid));
   return { places: found.places.map((entity) => entityResult(entity, 'place')),
     authors: found.authors.map((entity) => entityResult(entity, 'author')),
     descriptions: descriptions.slice(0, 100) };
@@ -2725,8 +2725,10 @@ function restoreSearchFilter() {
   const params = new URLSearchParams(location.search);
   const type = params.get('search');
   let filter = null;
-  if (type === 'text' && params.get('search_text')?.trim()) {
+  if (type === 'text' && normalizeSearchText(params.get('search_text')).split(' ').some((token) => token.length >= 2)) {
     filter = { type, label: params.get('search_text').trim() };
+  } else if (type === 'text') {
+    document.getElementById('search-link-status').textContent = 'Text v odkazu je příliš krátký. Zadejte alespoň dva znaky.';
   } else if (type === 'place' || type === 'author') {
     const id = params.get('search_id');
     const entity = state.searchIndex?.[type === 'place' ? 'places' : 'authors'].get(id);
@@ -2745,7 +2747,13 @@ function initSearch() {
     chip: document.getElementById('search-filter'), status: document.getElementById('search-status'),
     getResults: localSearchResults,
     suggest: (query, signal) => window.OldPragueSearchUI.suggest(query, MAPY_CZ_API_KEY, signal),
-    onText: (label) => commitSearchFilter({ type: 'text', label }),
+    onText: (label) => {
+      if (!normalizeSearchText(label).split(' ').some((token) => token.length >= 2)) {
+        document.getElementById('search-link-status').textContent = 'Pro hledání textu napište alespoň dva znaky za sebou.';
+        return;
+      }
+      commitSearchFilter({ type: 'text', label });
+    },
     onClear: () => commitSearchFilter(null),
     onSelect: (item) => {
       if (item.kind === 'address') {
@@ -2759,6 +2767,7 @@ function initSearch() {
     },
   });
   restoreSearchFilter();
+  input.disabled = false;
 }
 
 feedbackForm.addEventListener("submit", async (event) => {

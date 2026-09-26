@@ -20,6 +20,7 @@ test('Suggest uses the documented host, constrained locality, and max five safe 
   assert.equal(request.url.pathname, '/v1/suggest');
   assert.equal(request.url.searchParams.get('locality'), 'BOX(14.22,49.94,14.71,50.18)');
   assert.equal(request.url.searchParams.get('limit'), '5');
+  assert.deepEqual(request.url.searchParams.getAll('type'), ['regional.address', 'regional.street']);
   assert.equal(request.options.signal, signal);
   assert.equal(items.length, 1);
   assert.equal(items[0].label, '<img>, Praha');
