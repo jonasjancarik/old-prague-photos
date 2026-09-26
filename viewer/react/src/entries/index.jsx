@@ -19,6 +19,7 @@ async function bootstrap() {
     './own-proposals.js',
     './correction-ui.js',
     './feedback-ui.js',
+    './search-ui.js',
     './app.js',
   ]);
 }

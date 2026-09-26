@@ -3195,3 +3195,28 @@ a.linklike.is-disabled {
     justify-self: flex-start;
   }
 }
+
+/* The confirmed filter remains visible while a new query is being drafted. */
+.search-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: var(--card-bg);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.search-filter[hidden] { display: none; }
+.search-filter button { flex-shrink: 0; padding: 4px 9px; }
+.search-item[aria-selected="true"] { background: #f4e8dd; outline: 2px solid var(--accent); outline-offset: -2px; }
+.search-item { cursor: pointer; overflow-wrap: anywhere; }
+.search-more { display: block; margin: 8px 16px; }
+.search-attribution { display: block; padding: 6px 16px; font-size: 0.75rem; color: var(--ink-soft); }
+.page-map .search-input-row { grid-template-columns: minmax(0, 1fr); }
+.page-map .search-results { max-height: min(55vh, 460px); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.search-link-status:not(:empty) { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); }
+
+.search-link-status:empty { display: none; }

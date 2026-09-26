@@ -1,4 +1,4 @@
-import{m as n}from"./loadLegacyScripts-QtUAv0ZZ.js";const s=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-CTEPpsh0.js";const s=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Admin</p>

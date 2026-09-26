@@ -19,6 +19,10 @@ const state = {
   groups: [],
   yearFilteredGroups: [],
   filteredGroups: [],
+  searchFilter: null,
+  searchIndex: null,
+  searchApi: null,
+  searchUI: null,
   searchQuery: "",
   searchQueryNormalized: "",
   yearMin: null,
@@ -472,16 +476,19 @@ function applyYearFilter(options = {}) {
   const maxYear = state.yearFilterMax;
   const yearFiltered = filterGroupsByYear(state.groups, minYear, maxYear);
   state.yearFilteredGroups = yearFiltered;
-  const filtered = filterGroupsByMetadataQuery(
-    yearFiltered,
-    state.searchQueryNormalized,
-  );
+  const filter = state.searchFilter;
+  const filtered = filter?.type === 'place' || filter?.type === 'author'
+    ? yearFiltered.filter((group) => group.items.some((feature) =>
+      (feature.properties?.[filter.type === 'place' ? 'places' : 'authors'] || [])
+        .some((entity) => entity.id === filter.id)))
+    : filterGroupsByMetadataQuery(yearFiltered, state.searchQueryNormalized);
   state.filteredGroups = filtered;
   addMarkers(filtered, { fitBounds });
   updatePhotoCount(filtered.length);
   updateFiltersIndicator();
   renderPhotoGrid({ reset: true });
   updateNearbyNavigation();
+  state.searchUI?.refresh();
 }
 
 function updateFiltersIndicator() {
@@ -1569,6 +1576,7 @@ function renderDetails(feature) {
 }
 
 function prepareGroupSearchIndex() {
+  if (state.searchApi && !state.searchIndex) state.searchIndex = state.searchApi.buildSearchIndex(state.features);
   state.groups.forEach((group) => {
     group.searchDocument = buildGroupSearchDocument(group);
   });
@@ -2600,6 +2608,9 @@ async function bootstrap() {
     photos = await mediaFilter.filterPhotoCollection(photos);
   }
 
+  // The metadata index is owned by stage 003; curator overlays can be applied
+  // to features before this one-time index construction.
+  state.searchApi = await import('./search-index.js').catch(() => null);
   initMap();
   initFiltersToggle();
 
@@ -2660,247 +2671,94 @@ async function bootstrap() {
   initSearch();
 }
 
+function searchMembership() {
+  if (!state.searchApi || !state.searchIndex) return null;
+  const visible = new Set(getSearchBaseGroups().flatMap((group) =>
+    group.items.map((feature) => String(feature.properties.id))));
+  return state.searchApi.updateSearchMembership(state.searchIndex, state.groupByXid, visible);
+}
+
+function localSearchResults(query) {
+  const membership = searchMembership();
+  if (!membership) return {};
+  const found = state.searchApi.searchIndex(membership, query, { limit: 100 });
+  const entityResult = (entity, kind) => ({
+    ...entity, kind,
+    label: [entity.label, entity.district].filter(Boolean).join(' — '),
+    detail: `Podle údajů archivu · ${entity.photoCount} fotografií · ${entity.groupCount} skupin · ${kind === 'place' ? 'Zobrazit fotografie tohoto místa' : 'Zobrazit fotografie autora'}`,
+  });
+  // Only the data helper decides which XID explains a description match.
+  const descriptions = state.searchApi.searchDescriptions(membership, query, { limit: 100 })
+    .map((match) => {
+      const text = String(state.featuresById.get(match.matchedXid)?.properties.description || '');
+      const searchable = state.searchApi.normalizeSearchText(text);
+      const firstToken = state.searchApi.normalizeSearchText(query).split(' ')[0];
+      const position = Math.max(0, searchable.indexOf(firstToken) - 40);
+      return { kind: 'description', xid: match.matchedXid, groupId: match.groupId,
+        label: `${position ? '…' : ''}${text.slice(position, position + 150)}${text.length > position + 150 ? '…' : ''}`,
+        detail: 'Otevřít fotografii · Shoda v popisu' };
+    });
+  return { places: found.places.map((entity) => entityResult(entity, 'place')),
+    authors: found.authors.map((entity) => entityResult(entity, 'author')),
+    descriptions: descriptions.slice(0, 100) };
+}
+
+function commitSearchFilter(filter, { historyMode = 'push', fitBounds = false } = {}) {
+  state.searchFilter = filter;
+  setSearchFilter(filter?.type === 'text' ? filter.label : '', { enabled: filter?.type === 'text' });
+  state.searchUI?.setFilter(filter);
+  if (historyMode) {
+    document.getElementById('search-link-status').textContent = '';
+    const url = new URL(location.href);
+    for (const key of ['search', 'search_id', 'search_text']) url.searchParams.delete(key);
+    if (filter) {
+      url.searchParams.set('search', filter.type);
+      url.searchParams.set(filter.type === 'text' ? 'search_text' : 'search_id', filter.type === 'text' ? filter.label : filter.id);
+    }
+    if (url.href !== location.href) history[historyMode === 'replace' ? 'replaceState' : 'pushState']({}, '', url);
+  }
+  applyYearFilter({ fitBounds });
+}
+
+function restoreSearchFilter() {
+  document.getElementById('search-link-status').textContent = '';
+  const params = new URLSearchParams(location.search);
+  const type = params.get('search');
+  let filter = null;
+  if (type === 'text' && params.get('search_text')?.trim()) {
+    filter = { type, label: params.get('search_text').trim() };
+  } else if (type === 'place' || type === 'author') {
+    const id = params.get('search_id');
+    const entity = state.searchIndex?.[type === 'place' ? 'places' : 'authors'].get(id);
+    if (entity) filter = { type, id, label: [entity.label, entity.district].filter(Boolean).join(' — ') };
+    else document.getElementById('search-link-status').textContent = 'Místo nebo autor z odkazu není v katalogu. Filtr hledání nebyl použit.';
+  } else if (type) {
+    document.getElementById('search-link-status').textContent = 'Filtr v odkazu není rozpoznán. Můžete zadat nové hledání.';
+  }
+  commitSearchFilter(filter, { historyMode: false });
+}
+
 function initSearch() {
-  const searchInput = document.getElementById("map-search");
-  const searchResults = document.getElementById("search-results");
-  const searchAddressToggle = document.getElementById("search-address-toggle");
-  if (!searchInput || !searchResults) return;
-
-  let debounceTimer;
-  let searchToken = 0;
-  const syncSearchModeLabel = () => {
-    const addressMode = Boolean(searchAddressToggle?.checked);
-    searchInput.placeholder = addressMode
-      ? "Hledat adresu v Praze…"
-      : "Hledat v popisech, autorech…";
-  };
-
-  const triggerSearch = () => {
-    clearTimeout(debounceTimer);
-    const query = searchInput.value.trim();
-    const addressMode = Boolean(searchAddressToggle?.checked);
-    const filtersChanged = setSearchFilter(query, { enabled: !addressMode });
-    if (filtersChanged) {
-      applyYearFilter({ fitBounds: false });
-    }
-    if (query.length < 2) {
-      searchResults.classList.add("is-hidden");
-      searchResults.innerHTML = "";
-      return;
-    }
-
-    const currentToken = ++searchToken;
-    debounceTimer = setTimeout(async () => {
-      try {
-        const addressMode = Boolean(searchAddressToggle?.checked);
-        let metadataResults = [];
-        let addressResults = [];
-        if (addressMode) {
-          if (query.length < 3) {
-            if (currentToken !== searchToken) return;
-            renderSearchResults(
-              {
-                query,
-                metadataResults: [],
-                addressResults: [],
-                addressMode: true,
-              },
-              searchResults,
-              searchInput,
-            );
-            return;
-          }
-          try {
-            addressResults = await fetchGeocode(query);
-          } catch (error) {
-            addressResults = [];
-          }
-        } else {
-          metadataResults = findMetadataMatches(query, 14);
-        }
-        if (currentToken !== searchToken) return;
-        renderSearchResults(
-          {
-            query,
-            metadataResults,
-            addressResults,
-            addressMode,
-          },
-          searchResults,
-          searchInput,
-        );
-      } catch (err) {
-        console.error("Vyhledávání selhalo", err);
-      }
-    }, 260);
-  };
-
-  searchInput.addEventListener("input", triggerSearch);
-  if (searchAddressToggle) {
-    syncSearchModeLabel();
-    searchAddressToggle.addEventListener("change", () => {
-      syncSearchModeLabel();
-      triggerSearch();
-    });
-  } else {
-    syncSearchModeLabel();
-  }
-
-  document.addEventListener("click", (e) => {
-    if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
-      searchResults.classList.add("is-hidden");
-    }
-  });
-}
-
-async function fetchGeocode(query) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ", Praha")}&limit=6`;
-  const response = await fetch(url, {
-    headers: { "Accept-Language": "cs-CZ" }
-  });
-  if (!response.ok) throw new Error("Chyba při hledání");
-  return response.json();
-}
-
-function findMetadataMatches(query, limit = 12) {
-  const normalizedQuery = normalizeSearchText(query);
-  const tokens = normalizedQuery.split(/\s+/).filter((token) => token.length >= 2);
-  if (!tokens.length) return [];
-
-  const groups = getSearchBaseGroups();
-  const ranked = [];
-
-  groups.forEach((group) => {
-    const document = String(group?.searchDocument || "");
-    if (!document) return;
-
-    let score = 0;
-    for (const token of tokens) {
-      if (!document.includes(token)) return;
-      score += 10;
-    }
-
-    const phraseIndex = document.indexOf(normalizedQuery);
-    if (phraseIndex >= 0) {
-      score += 40 - Math.min(30, phraseIndex / 15);
-    }
-
-    const groupId = normalizeSearchText(group?.id || "");
-    if (groupId && groupId.includes(normalizedQuery)) score += 25;
-
-    const title = normalizeSearchText(getGroupTitle(group));
-    if (title && title.includes(normalizedQuery)) score += 15;
-
-    ranked.push({ group, score, phraseIndex });
-  });
-
-  ranked.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    const aIndex = a.phraseIndex >= 0 ? a.phraseIndex : Number.MAX_SAFE_INTEGER;
-    const bIndex = b.phraseIndex >= 0 ? b.phraseIndex : Number.MAX_SAFE_INTEGER;
-    if (aIndex !== bIndex) return aIndex - bIndex;
-    return String(a.group?.id || "").localeCompare(String(b.group?.id || ""), "cs");
-  });
-
-  return ranked.slice(0, limit).map((entry) => entry.group);
-}
-
-function renderSearchResults(payload, container, searchInput) {
-  const metadataResults = Array.isArray(payload?.metadataResults)
-    ? payload.metadataResults
-    : [];
-  const addressResults = Array.isArray(payload?.addressResults)
-    ? payload.addressResults
-    : [];
-  const addressMode = Boolean(payload?.addressMode);
-
-  if (!metadataResults.length && !addressResults.length) {
-    const emptyText = addressMode
-      ? "Napište aspoň 3 znaky nebo zkuste jinou adresu."
-      : "Nic nenalezeno.";
-    container.innerHTML = `
-      <div class="search-section-title">Výsledky</div>
-      <div class="search-empty">${emptyText}</div>
-    `;
-    container.classList.remove("is-hidden");
-    return;
-  }
-
-  const metadataSection = metadataResults.length
-    ? `
-      <div class="search-section-title">Fotografie</div>
-      ${metadataResults
-        .map((group) => {
-          const feature = group?.primary;
-          const xid = String(feature?.properties?.id || "");
-          return `
-            <div class="search-item search-item-kind-meta" data-type="metadata" data-group-id="${escapeHtml(group.id)}" data-xid="${escapeHtml(xid)}">
-              <p class="search-item-title">${escapeHtml(getGroupTitle(group))}</p>
-              <p class="search-item-meta">${escapeHtml(getGroupSubtitle(group) || group.id)}</p>
-            </div>
-          `;
-        })
-        .join("")}
-    `
-    : "";
-
-  const addressSection = addressResults.length
-    ? `
-      <div class="search-section-title">Adresy</div>
-      ${addressResults
-        .map(
-          (result) => `
-            <div class="search-item search-item-kind-address" data-type="address" data-lat="${escapeHtml(result.lat)}" data-lon="${escapeHtml(result.lon)}">
-              <p class="search-item-title">${escapeHtml(
-                String(result.display_name || "")
-                  .split(",")
-                  .slice(0, 3)
-                  .join(","),
-              )}</p>
-              <p class="search-item-meta">Adresní výsledek</p>
-            </div>
-          `,
-        )
-        .join("")}
-    `
-    : "";
-
-  container.innerHTML = `${metadataSection}${addressSection}`;
-  container.classList.remove("is-hidden");
-
-  container.querySelectorAll(".search-item").forEach((item) => {
-    item.addEventListener("click", () => {
-      const type = String(item.dataset.type || "");
-      if (type === "metadata") {
-        const groupId = String(item.dataset.groupId || "").trim();
-        const xid = String(item.dataset.xid || "").trim();
-        if (!groupId || !state.groupById.has(groupId)) return;
-        const group = state.groupById.get(groupId);
-        selectGroup(group, {
-          openModal: true,
-          updateHistory: true,
-          panTo: true,
-          selectedXid: xid || undefined,
-        });
-        searchInput.value = getGroupTitle(group);
-        if (setSearchFilter(searchInput.value, { enabled: true })) {
-          applyYearFilter({ fitBounds: false });
-        }
+  const input = document.getElementById('map-search');
+  state.searchUI = window.OldPragueSearchUI.mount({
+    input, popup: document.getElementById('search-results'),
+    chip: document.getElementById('search-filter'), status: document.getElementById('search-status'),
+    getResults: localSearchResults,
+    suggest: (query, signal) => window.OldPragueSearchUI.suggest(query, MAPY_CZ_API_KEY, signal),
+    onText: (label) => commitSearchFilter({ type: 'text', label }),
+    onClear: () => commitSearchFilter(null),
+    onSelect: (item) => {
+      if (item.kind === 'address') {
+        state.map.setView([item.lat, item.lon], 16, { animate: true });
+      } else if (item.kind === 'description') {
+        const group = state.groupByXid.get(item.xid);
+        if (group) selectGroup(group, { openModal: true, updateHistory: true, panTo: true, selectedXid: item.xid });
       } else {
-        const lat = parseFloat(item.dataset.lat);
-        const lon = parseFloat(item.dataset.lon);
-        if (Number.isFinite(lat) && Number.isFinite(lon) && state.map) {
-          state.map.setView([lat, lon], 16, { animate: true });
-        }
-        const titleEl = item.querySelector(".search-item-title");
-        searchInput.value = titleEl?.textContent?.trim() || item.textContent.trim();
-        if (setSearchFilter(searchInput.value, { enabled: false })) {
-          applyYearFilter({ fitBounds: false });
-        }
+        commitSearchFilter({ type: item.kind, id: item.id, label: item.label }, { fitBounds: item.kind === 'place' });
       }
-      container.classList.add("is-hidden");
-    });
+    },
   });
+  restoreSearchFilter();
 }
 
 feedbackForm.addEventListener("submit", async (event) => {
@@ -3078,6 +2936,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("popstate", () => {
+  if (state.searchUI) { state.searchUI.close(); restoreSearchFilter(); }
   const xid = new URLSearchParams(window.location.search).get("xid");
   if (xid && state.featuresById.has(xid)) {
     const group = state.groupByXid.get(xid);

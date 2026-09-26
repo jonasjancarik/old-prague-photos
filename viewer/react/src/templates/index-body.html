@@ -16,16 +16,14 @@
       <div class="map-toolbar">
         <div class="search-container">
           <div class="search-input-row">
-            <input type="text" id="map-search" placeholder="Hledat v popisech, autorech…" aria-label="Hledat" />
-            <label class="search-mode-toggle" for="search-address-toggle">
-              <span class="toggle-switch">
-                <input type="checkbox" id="search-address-toggle" />
-                <span class="toggle-slider"></span>
-              </span>
-              <span>Hledat adresu</span>
-            </label>
+            <input type="text" id="map-search" placeholder="Hledat místo, fotografii nebo autora…"
+              aria-label="Hledat místo, fotografii nebo autora" role="combobox" aria-autocomplete="list"
+              aria-expanded="false" aria-controls="search-results" autocomplete="off" />
           </div>
-          <div id="search-results" class="search-results is-hidden"></div>
+          <div id="search-filter" class="search-filter" hidden></div>
+          <div id="search-results" class="search-results is-hidden" aria-label="Návrhy hledání"></div>
+          <p id="search-link-status" class="search-link-status" role="status"></p>
+          <div id="search-status" class="sr-only" role="status" aria-live="polite"></div>
         </div>
         <button class="filters-toggle" type="button" id="filters-toggle" aria-expanded="false"
           aria-controls="map-controls">
