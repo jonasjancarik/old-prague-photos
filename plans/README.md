@@ -14,7 +14,7 @@ Uživatel musí mít možnost poslat připomínku bez změny polohy. Po opravě 
 | [002](002-correction-completion-and-map.md) | Jasné dokončení opravy, vlastní návrh, oba body na mapě | P1 | M | lze samostatně; po 001 kvůli společnému UI | Hotovo ve worktree; lokální ověření |
 | [003](003-place-and-author-data.md) | Normalizovaná místa a autoři s původem údajů | P2 | L | žádná; před 004 | TODO — pozdější etapa |
 | [004](004-grouped-search-omnibox.md) | Jedno hledání se skupinami výsledků a viditelnými filtry | P2 | L | 003 | TODO — pozdější etapa |
-| [005](005-curator-metadata-corrections.md) | Ověřené doplnění popisu a opravy přiřazení správcem | P3 | L | 001, 003, 004 | TODO — pozdější etapa |
+| [005](005-curator-metadata-corrections.md) | Ověřené doplnění popisu a opravy přiřazení správcem | P3 | L | 001, 003, 004 | SQL/API/admin připraveny; čeká integrace 003/004 a kombinované ověření |
 
 M = několik souvisejících změn včetně testů; L = práce přes více vrstev. Nejde o časový příslib. Do prvního nového úkolu patří pouze 001 a 002. Implementátor nesmí automaticky pokračovat částmi 003–005 ani nasazovat.
 

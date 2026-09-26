@@ -73,7 +73,12 @@ async function loadFeedback({ append = false } = {}) {
           action.disabled = false;
         }
       });
-      card.append(action);
+      const annotationButton = document.createElement("button");
+      annotationButton.type = "button";
+      annotationButton.className = "secondary";
+      annotationButton.textContent = "Připravit ověřené upřesnění";
+      annotationButton.addEventListener("click", () => window.OldPragueAnnotationAdmin.open(item.xid));
+      card.append(action, annotationButton);
       feedbackListEl.append(card);
     }
     feedbackBeforeId = data.next_before_id == null ? null : String(data.next_before_id);

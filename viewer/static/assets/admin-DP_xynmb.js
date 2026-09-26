@@ -1,4 +1,4 @@
-import{m as n}from"./loadLegacyScripts-QtUAv0ZZ.js";const s=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-QtUAv0ZZ.js";const a=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Admin</p>
@@ -40,6 +40,26 @@ import{m as n}from"./loadLegacyScripts-QtUAv0ZZ.js";const s=`  <div class="page"
           </label>
           <button class="secondary" type="button" id="save-admin-token">Použít token</button>
           <button class="secondary" type="button" id="logout-admin">Odhlásit</button>
+        </div>
+      </section>
+
+      <section class="card" id="annotation-editor">
+        <div class="card-header"><h2>Upřesnění správce</h2>
+          <p class="card-subtitle">Ověřené vysvětlení se zveřejňuje samostatně. Původní popis z archivu zůstane zachovaný.</p></div>
+        <div class="form-actions"><label class="field"><span>ID fotografie</span><input id="annotation-xid" type="text" maxlength="128" /></label>
+          <button type="button" class="secondary" id="annotation-load">Načíst fotografii</button></div>
+        <p id="annotation-status" role="status"></p>
+        <div id="annotation-content" hidden>
+          <h3>Popis z archivu</h3><p id="annotation-archive"></p>
+          <label class="field"><span>Veřejné upřesnění</span><textarea id="annotation-text" maxlength="2000" rows="5"></textarea></label>
+          <label class="field"><span>Doklad ověření (jen pro správce)</span><textarea id="annotation-evidence" maxlength="2000" rows="3"></textarea></label>
+          <label class="field"><span>Přiřazení míst</span><select id="annotation-mode"><option value="keep">Ponechat dosavadní místa</option><option value="replace">Nahradit ověřeným seznamem</option><option value="unknown">Místo není určeno</option></select></label>
+          <label class="field"><span>ID ověřených míst, oddělená čárkou</span><input id="annotation-places" type="text" /></label>
+          <label class="field"><span>ID zpochybněných původních míst, oddělená čárkou</span><input id="annotation-disputed" type="text" /></label>
+          <h3>Náhled veřejného upřesnění</h3><p id="annotation-preview"></p>
+          <p class="helper">Doklad ověření, připomínky ani e-mail se nezveřejní. Uložení rozpracované verze nezmění dosavadní zveřejněné upřesnění.</p>
+          <div class="form-actions"><button type="button" class="secondary" id="annotation-draft">Uložit rozpracované</button><button type="button" class="primary" id="annotation-publish">Zveřejnit upřesnění</button><button type="button" class="secondary" id="annotation-withdraw">Stáhnout zveřejněné upřesnění</button></div>
+          <h3>Historie změn</h3><div id="annotation-history"></div>
         </div>
       </section>
 
@@ -133,4 +153,4 @@ import{m as n}from"./loadLegacyScripts-QtUAv0ZZ.js";const s=`  <div class="page"
       </section>
     </main>
   </div>
-`;n(s,["./admin.js"]).catch(console.error);
+`;n(a,["./annotation-admin.js","./admin.js"]).catch(console.error);
