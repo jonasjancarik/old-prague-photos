@@ -499,3 +499,7 @@ SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
 - `npm run test:d1` applies every migration to a fresh real local D1 database
   and asserts the projection triggers.
 - `npm test` runs Python, API, and real-D1 coverage.
+
+## Archive search metadata
+
+Published place terms, normalized places and authors use the [archive search data contract](archive-search-data.md). The CSV, GeoJSON and D1 source payload preserve the same arrays; archive places are separate from geocoder estimates. The search helper indexes unique published XIDs and updates current group membership without rebuilding metadata.

@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.pipeline.atomic_io import atomic_write_text
+from src.pipeline.place_normalization import normalize_archive_metadata
 
 
 DEFAULT_GEOLOCATION_OK_DIR = Path("output/geolocation/ok")
@@ -40,6 +41,9 @@ MINIMAL_COLUMNS = [
     "geolocation_type",
     "geolocation_endpoint",
     "autor",
+    "archive_place_terms",
+    "places",
+    "authors",
     "poznámka",
     "scan_count",
     "scan_previews",
@@ -212,11 +216,13 @@ def load_geolocated_records(
     frames = []
     for path in sorted(directory.glob("*.json")):
         geolocated = _load_json_object(path, label="geolocation record")
-        payload = geolocated
+        payload = dict(geolocated)
+        archive_source = geolocated if raw_records_dir is None else None
         if raw_records_dir is not None:
             raw_path = raw_records_dir / path.name
             if raw_path.exists():
                 raw_record = _load_json_object(raw_path, label="raw record")
+                archive_source = raw_record
                 if "geolocation" not in geolocated:
                     raise ValueError(f"Missing geolocation result in {path}")
                 payload = {
@@ -224,6 +230,7 @@ def load_geolocated_records(
                     **raw_record,
                     "geolocation": geolocated["geolocation"],
                 }
+        payload.update(normalize_archive_metadata(archive_source))
         date = parse_date(payload.get("datace"))
         payload["start_date"] = date["start_date"]
         payload["end_date"] = date["end_date"]
@@ -241,6 +248,9 @@ def prepare_export_frame(combined_data: pd.DataFrame, minimal: bool) -> pd.DataF
     for column, default in {
         "scan_count": 0,
         "scan_previews": None,
+        "archive_place_terms": None,
+        "places": None,
+        "authors": None,
         "scan_zoomify_paths": None,
     }.items():
         if column not in combined_data.columns:
@@ -252,6 +262,9 @@ def prepare_export_frame(combined_data: pd.DataFrame, minimal: bool) -> pd.DataF
     combined_data["scan_zoomify_paths"] = combined_data["scan_zoomify_paths"].apply(
         normalize_json_array
     )
+
+    for column in ("archive_place_terms", "places", "authors"):
+        combined_data[column] = combined_data[column].apply(normalize_json_array)
 
     if "typ záznamu" in combined_data.columns:
         type_counts = (
