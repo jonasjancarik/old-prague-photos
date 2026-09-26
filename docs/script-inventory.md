@@ -35,6 +35,9 @@ Status meanings:
 | `e2e/global-teardown.mjs` | maintenance | testing | Removes the temporary D1 test state after Playwright completes. |
 | `e2e/community-flows.spec.mjs` | maintenance | testing | Exercises public contribution, curator, failure-recovery, stale-cursor, and keyboard workflows in a browser. |
 | `e2e/photo-feedback.spec.mjs` | maintenance | testing | Verifies private note submission, admin resolution, failure recovery, and safe rendering in a browser. |
+| `e2e/archive-search-data.spec.mjs` | maintenance | testing | Verifies published archive metadata, index counts and current membership against the real catalogue. |
+| `e2e/search-omnibox.spec.mjs` | maintenance | testing | Verifies grouped search, committed filters, URL history, keyboard navigation and provider failures. |
+| `scripts/enrich_archive_metadata.py` | maintenance | metadata | Enriches only published photo metadata from raw archive records and verifies stable XIDs, groups and geometry. |
 | `e2e/correction-ux.spec.mjs` | maintenance | testing | Verifies correction receipts, own and newer proposals, map layout, and failed refresh behavior. |
 | `scripts/test-d1.sh` | maintenance | testing | Applies all migrations to a fresh local D1 instance and runs projection trigger assertions. |
 | `scripts/update-community-data-version.mjs` | maintenance | build/deployment | Hashes every static community-queue input into the deployment-bound projection/cache version manifest. |
@@ -47,6 +50,9 @@ Status meanings:
 | `ops.sh` | maintenance | development/deployment | Legacy local ops wrapper; its production deploy command delegates to the guarded backup/migration/smoke release script. |
 | `research/ahmp_limit/probe_filters.py` | research | archive-limit | AHMP result-limit research probe; not part of reproducible pipeline runs. |
 | `research/ahmp_limit/nav_partition.py` | research | archive-limit | Early nav-partition experiment; supported implementation is `src/scraper/nav_partition.py`. |
+| `viewer/annotations.py` | maintenance | web-runtime | Local curator metadata routes and revisioned SQLite history. |
+| `e2e/curator-annotations.spec.mjs` | maintenance | testing | Curator draft, publication, withdrawal and consistent detail/search checks. |
+
 New loose scripts must be added to this table with an explicit status. Prefer
 adding importable code under `src/` and exposing it through `cli.py` or
 `src/pipeline/cli_run.py` instead of creating a new root-level script.

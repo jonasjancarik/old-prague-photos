@@ -10,7 +10,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 
-def install_annotation_routes(app, data_dir, assert_admin, assert_origin, photo_lookup):
+def install_annotation_routes(app, data_dir, assert_admin, assert_origin, photo_lookup, place_lookup):
     @contextmanager
     def connect():
         root = data_dir()
@@ -18,8 +18,18 @@ def install_annotation_routes(app, data_dir, assert_admin, assert_origin, photo_
         db = sqlite3.connect(root / 'photo_annotations.sqlite')
         db.row_factory = sqlite3.Row
         if not db.execute("SELECT 1 FROM sqlite_master WHERE name='photo_annotations'").fetchone():
-            migration = next((Path(__file__).resolve().parent.parent / 'migrations').glob('*_photo_annotations.sql'))
-            db.executescript(migration.read_text(encoding='utf-8'))
+            # Serialize first-use schema creation across threads/processes.
+            db.execute('BEGIN IMMEDIATE')
+            if not db.execute("SELECT 1 FROM sqlite_master WHERE name='photo_annotations'").fetchone():
+                migration = next((Path(__file__).resolve().parent.parent / 'migrations').glob('*_photo_annotations.sql'))
+                source = "CREATE TABLE IF NOT EXISTS catalog_photos(xid TEXT PRIMARY KEY, feature_json TEXT);\n" + migration.read_text(encoding='utf-8')
+                statement = ''
+                for line in source.splitlines(keepends=True):
+                    statement += line
+                    if sqlite3.complete_statement(statement):
+                        db.execute(statement)
+                        statement = ''
+            db.commit()
         try:
             with db:
                 yield db
@@ -38,9 +48,11 @@ def install_annotation_routes(app, data_dir, assert_admin, assert_origin, photo_
                 'updated_at': row['updated_at'], 'actor': row['actor']}
 
     @app.get('/api/photo-annotations')
-    def public_annotations():
+    def public_annotations(revision: int | None = None):
         with connect() as db:
-            row = db.execute("SELECT metadata_revision, (SELECT json_group_array(json(published_json)) FROM photo_annotations WHERE published_json IS NOT NULL) AS items_json FROM photo_annotation_metadata WHERE singleton=1").fetchone()
+            row = db.execute("SELECT metadata_revision, CASE WHEN metadata_revision=? THEN NULL ELSE (SELECT json_group_array(json(published_json)) FROM photo_annotations WHERE published_json IS NOT NULL) END AS items_json FROM photo_annotation_metadata WHERE singleton=1", (revision,)).fetchone()
+        if revision is not None and row['metadata_revision'] == revision:
+            return reply({'metadata_revision': revision, 'unchanged': True})
         return reply({'metadata_revision': row['metadata_revision'], 'items': json.loads(row['items_json'])})
 
     @app.get('/api/admin/photo-annotations')
@@ -86,8 +98,15 @@ def install_annotation_routes(app, data_dir, assert_admin, assert_origin, photo_
             raise HTTPException(400, 'Neplatné upřesnění') from None
         if photo_lookup(xid) is None:
             raise HTTPException(400, 'Neznámé xid')
-        if action != 'withdraw' and (approved or disputed):
-            raise HTTPException(503, 'Přiřazení míst zatím není dostupné')
+        if action != 'withdraw':
+            entities = []
+            for place_id in approved + disputed:
+                entity = place_lookup(place_id)
+                if entity is None:
+                    raise HTTPException(400, 'Neznámé místo')
+                if place_id in approved:
+                    entities.append({**entity, 'source': 'curator'})
+            overlay['places'] = entities
         with connect() as db:
             db.execute('BEGIN IMMEDIATE')
             previous = db.execute('SELECT * FROM photo_annotations WHERE xid=?', (xid,)).fetchone()

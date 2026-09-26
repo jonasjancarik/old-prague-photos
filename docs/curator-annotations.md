@@ -12,15 +12,17 @@ Správce načte fotografii přes její ID nebo z fronty připomínek, napíše v
 
 `POST /api/admin/photo-annotations` přijímá `xid`, `expected_revision` (0 pro vytvoření) a `action` (`draft`, `publish`, `withdraw`). Draft/publish dále přijímá `public_text` (1–2000 znaků), soukromý `evidence_note` (nejvýše 2000), `place_mode`, `place_ids` a `disputed_place_ids`. Stažení nepotřebuje textová pole. Revize editoru roste při každé změně a stale změna vrátí 409; správce musí načíst aktuální verzi. SQL compare-and-swap a historie v triggeru tvoří jednu atomickou změnu.
 
-`GET /api/photo-annotations` vrací `{metadata_revision, items}`. Každý item obsahuje pouze `xid`, publikační `revision`, `public_text`, `place_mode`, `place_ids`, `disputed_place_ids`, `published_at`. Stav draft, soukromé doklady, identita správce a připomínky nejsou veřejné. Globální metadata revision a veřejné položky se čtou jedním SQL statementem a odpověď je `no-store`; při nedostupnosti se vrací 503, ne falešně prázdný snapshot.
+`GET /api/photo-annotations` vrací `{metadata_revision, items}`. Každý item obsahuje pouze `xid`, publikační `revision`, `public_text`, `place_mode`, `place_ids`, `disputed_place_ids`, `places`, `published_at`. Stav draft, soukromé doklady, identita správce a připomínky nejsou veřejné. Volitelný `?revision=n` při shodě vrátí jen `{metadata_revision, unchanged: true}` bez agregace položek. Globální metadata revision a veřejné položky se čtou jedním SQL statementem a odpověď je `no-store`; při nedostupnosti se vrací 503, ne falešně prázdný snapshot.
 
 `keep` ponechává vztahy kromě explicitně zpochybněných ID; `replace` vyžaduje neprázdný ověřený seznam a nahrazuje aktivní vztahy; `unknown` nemá aktivní místa. Prázdné `place_ids` nesmí vyjadřovat implicitní náhradu. Archivní termíny se nepřepisují. Publikace/stažení mění pouze metadata revision, nikoli community revision. Nový draft nemění publikovaná data ani jejich revizi.
 
-## Stav implementace a další integrace
+## Katalog, detail a vyhledávání
 
-Samostatná SQL/API/FastAPI/admin část je připravena před integrací 003/004. Neprázdná place IDs prozatím selžou s 503, dokud nebude připojen ověřený katalogový lookup. Veřejný detail a vyhledávací index zatím overlay nepoužívají. Tato část tedy ještě není hotová pro vydání.
+Migrace 0017 vytváří `catalog_place_members` s klíčem `(place_id, xid)`. Jednorázově jej naplní z publikovaného katalogu a triggery jej aktualizují při importu změněného `feature_json`. Zápis správce provede indexovaný lookup pouze vybraných ID; neznámé místo vrátí 400. FastAPI používá mapu míst uloženou v paměti podle verze lokálního GeoJSON. Výběr správce ukazuje názvy, čtvrti a typy míst. Veřejné `places` obsahují ověřené entity se `source: curator` a původními archivními source terms; tyto údaje nejsou odvozené ze souřadnic.
 
-Po sloučení 003/004 doplnit katalogový lookup míst bez procházení celého katalogu v každém požadavku; aplikovat jeden snapshot podle XID současně na detail a search index/počty; při chybě zobrazit nedostupnost aktuálních upřesnění a nepovažovat staré vztahy za ověřené. Zachovat původní text v textovém hledání. Admin výběr míst doplnit o čitelné názvy a typy z katalogu. Dokončit kombinované e2e a mobilní/desktop kontrolu veřejného UI.
+Při načtení stránky se získá jeden veřejný snapshot ještě před sestavením indexu. Změna aplikuje vztahy do `properties.places` a přegeneruje index, počty, filtr i detail v jednom synchronním kroku. Původní popis a archivní hesla zůstávají zachovaná a textové hledání zahrnuje také veřejné upřesnění. Detail odlišuje „Popis z archivu“ a „Upřesnění správce“. Změna skupiny nepřenáší anotaci na jiný XID.
+
+Otevřená stránka obnovuje snapshot při návratu do okna, zprávě z admin formuláře přes BroadcastChannel a každých 30 sekund, pokud je viditelná. Jde o maximálně 30sekundové zpoždění pro změnu z jiného prohlížeče; v jedné vykreslené revizi však detail, vztahy i index vždy používají stejný snapshot. Při selhání se aktivní místa vyřadí a detail sdělí nedostupnost aktuálních upřesnění. Původní text zůstává dostupný. Obnova API obnoví správné vztahy.
 
 ## Lokální ověření
 

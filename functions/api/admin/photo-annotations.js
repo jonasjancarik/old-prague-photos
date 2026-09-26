@@ -29,8 +29,15 @@ export async function onRequest({request, env}) {
   } catch(error) { return reply({detail:error.message},400); }
   try {
     if (!(await findCatalogPhoto(env,input.xid))) return reply({detail:'Neznámé xid'},400);
-    // Place-ID validation is added after the 003 catalog contract is integrated.
-    if (input.overlay && (input.overlay.place_ids.length || input.overlay.disputed_place_ids.length)) return reply({detail:'Přiřazení míst zatím není dostupné'},503);
+    if (input.overlay) {
+      const approved = [];
+      for (const id of [...input.overlay.place_ids, ...input.overlay.disputed_place_ids]) {
+        const row = await db.prepare('SELECT entity_json FROM catalog_place_members WHERE place_id = ? LIMIT 1').bind(id).first();
+        if (!row) return reply({detail:'Neznámé místo'},400);
+        if (input.overlay.place_ids.includes(id)) approved.push({...JSON.parse(row.entity_json), source:'curator'});
+      }
+      input.overlay.places = approved;
+    }
     const previous=await db.prepare('SELECT * FROM photo_annotations WHERE xid = ?').bind(input.xid).first();
     if(Number(previous?.revision || 0)!==input.expected_revision) return reply({detail:'Jiný správce mezitím změnil upřesnění. Načtěte aktuální verzi.'},409);
     if(input.action==='withdraw' && !previous?.published_json) return reply({detail:'Fotografie nemá zveřejněné upřesnění'},400);

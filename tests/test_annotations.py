@@ -10,19 +10,21 @@ def test_annotations_private_revision_history_and_unchanged_community():
     with TemporaryDirectory() as directory, patch.dict('os.environ', {'TURNSTILE_BYPASS': '1'}):
         root = Path(directory)
         photos = root / 'photos.geojson'
-        photos.write_text(json.dumps({'features': [{'properties': {'id': 'X1', 'group_id': 'G1', 'description': 'Originál'}, 'geometry': {'type': 'Point', 'coordinates': [14.4, 50.1]}}]}))
+        photos.write_text(json.dumps({'features': [{'properties': {'id': 'X1', 'group_id': 'G1', 'description': 'Originál', 'places': [{'id': 'street:one', 'label': 'Testovací ulice', 'kind': 'street', 'source': 'archive'}]}, 'geometry': {'type': 'Point', 'coordinates': [14.4, 50.1]}}]}))
         with patch.multiple(viewer_app, DATA_DIR=root, PHOTOS_PATH=photos):
             viewer_app._photos_cache = None
             viewer_app._xid_group_cache = None
             client = TestClient(viewer_app.app)
-            body = {'xid': 'X1', 'expected_revision': 0, 'action': 'draft', 'public_text': '<script>ověření</script>', 'evidence_note': 'private@example.com', 'place_mode': 'keep', 'place_ids': [], 'disputed_place_ids': []}
+            body = {'xid': 'X1', 'expected_revision': 0, 'action': 'draft', 'public_text': '<script>ověření</script>', 'evidence_note': 'private@example.com', 'place_mode': 'replace', 'place_ids': ['street:one'], 'disputed_place_ids': []}
             before = client.get('/api/review-state').json()
             assert client.post('/api/admin/photo-annotations', json=body).status_code == 200
             assert client.get('/api/photo-annotations').json() == {'metadata_revision': 0, 'items': []}
             assert client.post('/api/admin/photo-annotations', json={**body, 'expected_revision': 1, 'action': 'publish'}).status_code == 200
             public = client.get('/api/photo-annotations').json()
             assert public['metadata_revision'] == 1
+            assert client.get('/api/photo-annotations?revision=1').json() == {'metadata_revision': 1, 'unchanged': True}
             assert public['items'][0]['public_text'] == body['public_text']
+            assert public['items'][0]['places'][0]['source'] == 'curator'
             assert 'private@example.com' not in json.dumps(public)
             assert client.post('/api/admin/photo-annotations', json={**body, 'expected_revision': 2, 'public_text': 'Další draft'}).status_code == 200
             assert client.get('/api/photo-annotations').json() == public

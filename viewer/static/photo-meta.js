@@ -64,6 +64,7 @@
     }
 
     const props = feature.properties || {};
+    container.dataset.metadataRevision = props.metadata_revision == null ? "unavailable" : String(props.metadata_revision);
     const xid = props.id;
     const groupItems = Array.isArray(options.groupItems) ? options.groupItems : [];
     const selectedId = String(options.selectedId || "");
@@ -82,7 +83,11 @@
     const communityGeolocation = getCommunityGeolocationLabel(correctionStatus);
 
     const items = [
-      ["Popis", options.omitDescription ? "" : props.description],
+      ["Popis z archivu", options.omitDescription ? "" : props.description],
+      ["Upřesnění správce", props.annotation_unavailable ? "Aktuální upřesnění nejsou dostupná. Přiřazení míst nyní nelze ověřit." : props.annotation?.public_text],
+      [props.annotation?.place_mode === 'replace' ? "Místa ověřená správcem" : "Místa z archivu",
+        props.annotation?.place_mode === 'unknown' ? "Správce místo zatím neurčil." :
+        (props.places || []).map(place => `${place.label}${place.district ? ` (${place.district})` : ''}`).join(', ')],
       ["Datace", props.date_label],
       ["Autor", props.author],
       ["Signatura", props.signature],

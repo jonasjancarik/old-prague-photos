@@ -1,0 +1,27 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {applyAnnotationSnapshot} from '../../../viewer/static/annotation-overlay.js';
+import {buildSearchIndex,updateSearchMembership,searchIndex} from '../../../viewer/static/search-index.js';
+test('one snapshot changes active places and fulltext together, withdrawal restores originals',()=>{
+  const originals=new Map();
+  const features=[{geometry:{coordinates:[14,50]},properties:{id:'X1',group_id:'G1',description:'Original street',places:[{id:'old',label:'Original street'}]}}];
+  const geometry=features[0].geometry;
+  const item={xid:'X1',public_text:'Verified explanation',place_mode:'replace',place_ids:['new'],disputed_place_ids:['old'],places:[{id:'new',label:'Verified street',source:'curator'}]};
+  applyAnnotationSnapshot(features,{metadata_revision:1,items:[item]},originals);
+  const index=updateSearchMembership(buildSearchIndex(features));
+  assert.equal(searchIndex(index,'Original street').places.length,0);
+  assert.equal(searchIndex(index,'Original street').photos.length,1);
+  assert.equal(searchIndex(index,'Verified').places[0].photoCount,1);
+  assert.equal(searchIndex(index,'explanation').photos.length,1);
+  assert.equal(features[0].properties.metadata_revision,1);
+  assert.equal(features[0].geometry,geometry);
+  applyAnnotationSnapshot(features,null,originals);
+  assert.deepEqual(features[0].properties.places,[]);
+  assert.equal(features[0].properties.annotation_unavailable,true);
+  applyAnnotationSnapshot(features,{metadata_revision:2,items:[]},originals);
+  assert.equal(features[0].properties.places[0].id,'old');
+  applyAnnotationSnapshot(features,{metadata_revision:3,items:[{...item,place_mode:'keep'}]},originals);
+  assert.deepEqual(features[0].properties.places,[]);
+  applyAnnotationSnapshot(features,{metadata_revision:4,items:[{...item,place_mode:'unknown'}]},originals);
+  assert.deepEqual(features[0].properties.places,[]);
+});

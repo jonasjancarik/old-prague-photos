@@ -27,11 +27,12 @@ export function validateAnnotation(body) {
 }
 
 // One SQL statement reads the revision and its matching public snapshot.
-export async function loadAnnotations(db) {
+export async function loadAnnotations(db, knownRevision = null) {
   const row = await db.prepare(`SELECT metadata_revision,
-    (SELECT json_group_array(json(published_json)) FROM photo_annotations WHERE published_json IS NOT NULL) AS items_json
-    FROM photo_annotation_metadata WHERE singleton = 1`).first();
+    CASE WHEN metadata_revision = ? THEN NULL ELSE (SELECT json_group_array(json(published_json)) FROM photo_annotations WHERE published_json IS NOT NULL) END AS items_json
+    FROM photo_annotation_metadata WHERE singleton = 1`).bind(knownRevision).first();
   if (!row) throw new Error('Annotation migration is missing');
+  if (knownRevision !== null && Number(row.metadata_revision) === knownRevision) return {metadata_revision: knownRevision, unchanged:true};
   return { metadata_revision: Number(row.metadata_revision), items: JSON.parse(row.items_json || '[]') };
 }
 

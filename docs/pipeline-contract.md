@@ -214,3 +214,7 @@ uv run cli run pipeline "$RUN_DIR" --skip-collect --skip-mapy --no-derive
 test -f "$RUN_DIR/manifest.json"
 test -f "$RUN_DIR/stage_log.jsonl"
 ```
+
+## Archive search metadata
+
+Published place terms, normalized places and authors use the [archive search data contract](archive-search-data.md). The CSV, GeoJSON and D1 source payload preserve the same arrays; archive places are separate from geocoder estimates. The search helper indexes unique published XIDs and updates current group membership without rebuilding metadata.

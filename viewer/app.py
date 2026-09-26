@@ -2862,7 +2862,21 @@ def _annotation_photo(xid):
                  if feature.get("properties", {}).get("id") == xid), None)
 
 
-install_annotation_routes(app, lambda: DATA_DIR, _assert_admin, _assert_same_origin, _annotation_photo)
+_annotation_places_cache = (None, {})
+
+
+def _annotation_place(place_id):
+    global _annotation_places_cache
+    version = (str(PHOTOS_PATH), PHOTOS_PATH.stat().st_mtime_ns)
+    if _annotation_places_cache[0] != version:
+        entities = {place['id']: place for feature in load_photos().get('features', [])
+                    for place in feature.get('properties', {}).get('places', [])}
+        _annotation_places_cache = (version, entities)
+    return _annotation_places_cache[1].get(place_id)
+
+
+install_annotation_routes(app, lambda: DATA_DIR, _assert_admin, _assert_same_origin,
+                          _annotation_photo, _annotation_place)
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

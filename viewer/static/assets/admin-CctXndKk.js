@@ -1,4 +1,4 @@
-import{m as n}from"./loadLegacyScripts-QtUAv0ZZ.js";const a=`  <div class="page">
+import{m as n}from"./loadLegacyScripts-CTEPpsh0.js";const a=`  <div class="page">
     <header class="topbar">
       <div>
         <p class="eyebrow">Admin</p>
@@ -54,8 +54,8 @@ import{m as n}from"./loadLegacyScripts-QtUAv0ZZ.js";const a=`  <div class="page"
           <label class="field"><span>Veřejné upřesnění</span><textarea id="annotation-text" maxlength="2000" rows="5"></textarea></label>
           <label class="field"><span>Doklad ověření (jen pro správce)</span><textarea id="annotation-evidence" maxlength="2000" rows="3"></textarea></label>
           <label class="field"><span>Přiřazení míst</span><select id="annotation-mode"><option value="keep">Ponechat dosavadní místa</option><option value="replace">Nahradit ověřeným seznamem</option><option value="unknown">Místo není určeno</option></select></label>
-          <label class="field"><span>ID ověřených míst, oddělená čárkou</span><input id="annotation-places" type="text" /></label>
-          <label class="field"><span>ID zpochybněných původních míst, oddělená čárkou</span><input id="annotation-disputed" type="text" /></label>
+          <label class="field"><span>Ověřená místa (lze vybrat více)</span><select id="annotation-places" multiple size="6"></select></label>
+          <label class="field"><span>Zpochybněná místa z původního přiřazení</span><select id="annotation-disputed" multiple size="4"></select></label>
           <h3>Náhled veřejného upřesnění</h3><p id="annotation-preview"></p>
           <p class="helper">Doklad ověření, připomínky ani e-mail se nezveřejní. Uložení rozpracované verze nezmění dosavadní zveřejněné upřesnění.</p>
           <div class="form-actions"><button type="button" class="secondary" id="annotation-draft">Uložit rozpracované</button><button type="button" class="primary" id="annotation-publish">Zveřejnit upřesnění</button><button type="button" class="secondary" id="annotation-withdraw">Stáhnout zveřejněné upřesnění</button></div>

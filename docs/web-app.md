@@ -499,3 +499,23 @@ SRC_DIR=downloads/archive/previews R2_PREFIX=previews scripts/r2_sync.sh
 - `npm run test:d1` applies every migration to a fresh real local D1 database
   and asserts the projection triggers.
 - `npm test` runs Python, API, and real-D1 coverage.
+
+## Sjednocené hledání
+
+Read when: changing map search, URL navigation, archive metadata indexing or the address provider.
+
+Pole nabízí v pořadí Místa, Zmínky v popisu, Autoři a Adresy na mapě. Místa a autoři pocházejí z archivního indexu popsaného v `archive-search-data.md`; počty rozlišují unikátní XID a současné skupiny po časových a dalších filtrech. Zmínky hledají pouze v původním popisu a otevírají odpovídající XID, i pokud není hlavním snímkem skupiny. Enter bez vybrané položky potvrzuje dosavadní textové hledání ve všech podporovaných metadatech. Psání a Escape nemění potvrzený filtr. Výběr místa nebo autora jej nahradí, křížek jej odstraní. Adresa pouze přesouvá mapu.
+
+URL používá `search=place|author` s `search_id`, nebo `search=text` s `search_text`. Navigace zachovává ostatní parametry včetně `xid`; Back/Forward obnovuje potvrzený filtr. Neznámé ID se nepoužije a stránka vysvětlí proč. Index vzniká jednou po načtení publikovaných fotografií; aktuální členství a viditelné XID se odvozují při hledání z nynějších skupin a ostatních filtrů. Případné kurátorské změny se aplikují před sestavením indexu, aby se nemíchaly různé verze dat.
+
+Adresy používají [Mapy.com Suggest](https://developer.mapy.com/rest-api-mapy-cz/tutorials/suggest/), endpoint `https://api.mapy.com/v1/suggest` a stávající browser konfiguraci `mapyCzApiKey` z `MAPY_CZ_API_KEY`. [OpenAPI](https://api.mapy.com/v1/docs/geocode/) ověřeno 26. 9. 2026: `query` nejvýše 150 znaků, `lang=cs`, `limit=5`, `type=regional.address&type=regional.street` (pole query parametrů podle OpenAPI), `locality=BOX(14.22,49.94,14.71,50.18)`. CSP povoluje konkrétní `api.mapy.com` v `connect-src`. Dotazy začínají od tří znaků po 400 ms, mají AbortController, pětisekundový timeout a kontrolu generace i po zkrácení nebo smazání dotazu. Výsledky se dlouhodobě neukládají ani neposílají přes novou proxy. Veřejný Nominatim není autocomplete ani záložní provider. Selhání, 429, chybějící klíč a timeout ponechají místní hledání dostupné a zobrazí zprávu u adres. Výsledky obsahují atribuci Mapy.com.
+
+Úspěch mapových dlaždic nepotvrzuje oprávnění Suggest ani zbývající denní kvótu. Live hostname omezení a kvóta účtu pro Suggest zatím nejsou ověřené; testovací klíč v izolované D1 preview není produkční klíč. Před nasazením ověřit povolené hostname v existujícím účtu a odpověď Suggest z cílového hostname, bez zapnutí placené spotřeby. UI zůstává použitelné i bez provideru.
+
+Cílené ověření: `node --test functions/api/__tests__/search-ui.test.mjs` a `e2e/search-omnibox.spec.mjs`. Test skutečných míst a autorů vyžaduje export 003 a nesmí být nahrazen fixture výsledky. Pro souběžné worktrees lze dočasným Playwright configem změnit `webServer.cwd`, URL a `PLAYWRIGHT_PORT`; server vždy používá vlastní `PLAYWRIGHT_D1_STATE_DIR` a bind `0.0.0.0`.
+
+## Archive search metadata
+
+Published place terms, normalized places and authors use the [archive search data contract](archive-search-data.md). The CSV, GeoJSON and D1 source payload preserve the same arrays; archive places are separate from geocoder estimates. The search helper indexes unique published XIDs and updates current group membership without rebuilding metadata.
+
+Měření kandidáta 004 po integraci 003 (26. 9. 2026, lokální Node, celý publikovaný katalog): 12 534 XID, 1 227 míst a 213 autorů; index 175 ms, členství 2 ms, kombinace entity/description dotazu „Letenská“ medián 4,4 ms a p95 6,1 ms z 25 opakování. Jde o lokální měření, ne garanci na mobilu. Nová UI vrstva má 9 762 B (2 987 B gzip), nepřidává závislosti ani druhý datový asset; katalog po 003 má 17 113 061 B a 004 jej dále nezvětšuje. Dlouhé názvy a obě místní sekce byly zkontrolovány v integrovaném prohlížeči na mobilu, tabletu a desktopu; e2e navíc kontroluje horizontální scroll pro 390×844, 820×1060 a 1440×900.

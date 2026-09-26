@@ -1,4 +1,4 @@
-import{m as a}from"./loadLegacyScripts-QtUAv0ZZ.js";import{i as n,a as e}from"./leaflet-Dp5Exmga.js";import{i as o}from"./openseadragon-CWtobWd5.js";const i=`  <div class="page page-map">
+import{m as a}from"./loadLegacyScripts-CTEPpsh0.js";import{i as n,a as e}from"./leaflet-Dp5Exmga.js";import{i as o}from"./openseadragon-CWtobWd5.js";const i=`  <div class="page page-map">
     <header class="topbar">
       <div class="topbar-title">
         <h1>Staré fotografie Prahy</h1>
@@ -16,16 +16,14 @@ import{m as a}from"./loadLegacyScripts-QtUAv0ZZ.js";import{i as n,a as e}from"./
       <div class="map-toolbar">
         <div class="search-container">
           <div class="search-input-row">
-            <input type="text" id="map-search" placeholder="Hledat v popisech, autorech…" aria-label="Hledat" />
-            <label class="search-mode-toggle" for="search-address-toggle">
-              <span class="toggle-switch">
-                <input type="checkbox" id="search-address-toggle" />
-                <span class="toggle-slider"></span>
-              </span>
-              <span>Hledat adresu</span>
-            </label>
+            <input type="text" id="map-search" placeholder="Hledat místo, fotografii nebo autora…"
+              aria-label="Hledat místo, fotografii nebo autora" role="combobox" aria-autocomplete="list"
+              aria-expanded="false" aria-controls="search-results" autocomplete="off" disabled />
           </div>
-          <div id="search-results" class="search-results is-hidden"></div>
+          <div id="search-filter" class="search-filter" hidden></div>
+          <div id="search-results" class="search-results is-hidden" aria-label="Návrhy hledání"></div>
+          <p id="search-link-status" class="search-link-status" role="status"></p>
+          <div id="search-status" class="sr-only" role="status" aria-live="polite"></div>
         </div>
         <button class="filters-toggle" type="button" id="filters-toggle" aria-expanded="false"
           aria-controls="map-controls">
@@ -331,4 +329,4 @@ import{m as a}from"./loadLegacyScripts-QtUAv0ZZ.js";import{i as n,a as e}from"./
       </div>
     </div>
   </div>
-`;async function s(){n(),o(),await e(),await a(i,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./own-proposals.js","./correction-ui.js","./feedback-ui.js","./app.js"])}s().catch(console.error);
+`;async function t(){n(),o(),await e(),await a(i,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./own-proposals.js","./correction-ui.js","./feedback-ui.js","./search-ui.js","./app.js"])}t().catch(console.error);

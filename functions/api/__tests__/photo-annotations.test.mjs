@@ -28,6 +28,8 @@ test('draft, publication, new draft and withdrawal are private, revisioned and a
   assert.equal((await admin({request:request({...base,action:'publish',expected_revision:1}),env})).status,200);
   let snapshot=await read(env);
   assert.equal(snapshot.metadata_revision,1);
+  const unchanged = await publicRead({request:new Request('https://example.com/api/photo-annotations?revision=1'),env});
+  assert.deepEqual(await unchanged.json(),{metadata_revision:1,unchanged:true});
   assert.equal(snapshot.items[0].public_text,base.public_text);
   assert.equal(JSON.stringify(snapshot).includes('reader@example.com'),false);
   assert.equal(JSON.stringify(snapshot).includes('actor'),false);
@@ -61,5 +63,35 @@ test('validation rejects unsafe or ambiguous writes and stale create races',asyn
   const statement=sqlite.prepare("UPDATE photo_annotations SET revision=2,updated_at='later' WHERE xid='X1' AND revision=1");
   assert.equal(statement.run().changes,1);
   assert.equal(statement.run().changes,0);
+  sqlite.close();
+});
+
+test('indexed catalog place validation and replacement carry public provenance',async()=>{
+  const {env,sqlite}=setup();
+  sqlite.prepare('UPDATE catalog_photos SET feature_json=? WHERE xid=?').run(JSON.stringify({id:'X1',places:[{id:'street:one',label:'Testovací ulice',kind:'street',source:'archive',aliases:[],source_terms:['Testovací ulice']}]}),'X1');
+  assert.equal((await admin({request:request({...base,action:'publish',place_mode:'replace',place_ids:['missing']}),env})).status,400);
+  assert.equal((await admin({request:request({...base,action:'publish',place_mode:'replace',place_ids:['street:one']}),env})).status,200);
+  const snapshot=await read(env);
+  assert.equal(snapshot.items[0].places[0].label,'Testovací ulice');
+  assert.equal(snapshot.items[0].places[0].source,'curator');
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM catalog_place_members WHERE place_id=?').get('street:one').count,1);
+  sqlite.close();
+});
+
+test('a writer between read and SQL CAS cannot overwrite the newer revision',async()=>{
+  const {env,sqlite}=setup();
+  await admin({request:request(base),env});
+  const prepare=env.CORRECTIONS_DB.prepare.bind(env.CORRECTIONS_DB);
+  env.CORRECTIONS_DB.prepare=sql=>{
+    const statement=prepare(sql);
+    if(sql.startsWith('INSERT INTO photo_annotations')) {
+      const run=statement.run.bind(statement);
+      statement.run=()=>{sqlite.exec("UPDATE photo_annotations SET revision=2,updated_at='concurrent' WHERE xid='X1'");return run();};
+    }
+    return statement;
+  };
+  assert.equal((await admin({request:request({...base,expected_revision:1,action:'publish'}),env})).status,409);
+  assert.deepEqual(await read(env),{metadata_revision:0,items:[]});
+  assert.equal(sqlite.prepare('SELECT revision FROM photo_annotations').get().revision,2);
   sqlite.close();
 });

@@ -24,6 +24,9 @@ FEATURE_FIELDS = (
     "start_date",
     "end_date",
     "author",
+    "archive_place_terms",
+    "places",
+    "authors",
     "signature",
     "note",
     "views",
@@ -35,7 +38,7 @@ FEATURE_FIELDS = (
     "scan_zoomify_paths",
 )
 SEARCH_FIELDS = ("id", "description", "author", "date_label", "signature", "note", "kind")
-DEFAULT_CHUNK_SIZE = 64
+DEFAULT_CHUNK_SIZE = 32
 MAX_CHUNK_SIZE = 250
 # D1 rejects a SQL statement longer than 100,000 bytes. Keep room for future
 # photo metadata growth and fail locally before attempting a remote import.
@@ -108,7 +111,7 @@ def compact_feature(properties: dict[str, Any]) -> dict[str, Any]:
     compact: dict[str, Any] = {}
     for field in FEATURE_FIELDS:
         value = properties.get(field)
-        if field in {"scan_previews", "scan_zoomify_paths"}:
+        if field in {"scan_previews", "scan_zoomify_paths", "archive_place_terms", "places", "authors"}:
             compact[field] = value if isinstance(value, list) else []
         elif field == "scan_count":
             try:
@@ -124,6 +127,11 @@ def compact_feature(properties: dict[str, Any]) -> dict[str, Any]:
 
 def normalize_search_text(properties: dict[str, Any]) -> str:
     values = [str(properties.get(field) or "") for field in SEARCH_FIELDS]
+    values.extend(properties.get("archive_place_terms") or [])
+    for field in ("places", "authors"):
+        for entity in properties.get(field) or []:
+            values.append(entity.get("label", ""))
+            values.extend(entity.get("aliases") or [])
     return " ".join(" ".join(values).split()).casefold()
 
 

@@ -4,7 +4,7 @@ Read when: replacing the metadata/address toggle with grouped search.
 
 ## Kontext
 
-Priority P2; effort L; risk MED; závisí na 003 a nyní není zadáno k implementaci. Plánováno na `dbf028ae68d37c63bc48482a36f50eacc86c1e14`, 24. 9. 2026. Po 003 porovnat odpovídající datový kontrakt a drift v `viewer/static/app.js`, index šabloně, styles, config, CSP a testech.
+Priority P2; effort L; risk MED; závisí na 003; implementace výslovně zadána 26. 9. 2026. Plánováno na `dbf028ae68d37c63bc48482a36f50eacc86c1e14`, 24. 9. 2026. Po 003 porovnat odpovídající datový kontrakt a drift v `viewer/static/app.js`, index šabloně, styles, config, CSP a testech.
 
 Současný `initSearch` přepíná metadata/adresu a při psaní přímo filtruje mapu. `findMetadataMatches` používá `document.includes(token)`; `fetchGeocode` volá veřejný Nominatim; výběr adresy pouze `state.map.setView([lat, lon], 16)` a vypne textový filtr. Uživatel si plete fotografii přiřazenou k místu s pouhou zmínkou v textu.
 
@@ -56,3 +56,13 @@ In scope: `viewer/static/app.js`, nový malý `search-index.js`/`search-ui.js` p
 Pro `Letenská` nabídnout kanonické místo z archivních hesel; jeho výběr najde i fotografie s popisem obsahujícím skloňované tvary, protože filtruje místní heslo. Fotka sokolského sletu s věží může být pod „Zmínky v popisu“, ale nebude v místním filtru pouze kvůli textové zmínce. Neexistující autor nesmí vzniknout z hesla Osoba. Výběr dnešní adresy jasně posune mapu, nemění význam archivních údajů. Uživatel vždy pozná aktivní filtr.
 
 Pokud chybí 003, nerozšiřovat textový substring do tvrzení o místě. Pokud provider vyžaduje změnu účtu či placený závazek, dokončit lokální sekce a nahlásit závislost. Aktualizovat stav 004; nevydávat neotestované provider chování za funkční.
+
+## Ověření kandidáta 26. 9. 2026
+
+Kandidát obsahuje 003 z lokálního main (`873a8d58`) a má nový omnibox se samostatným návrhem dotazu a potvrzeným filtrem. `search=place|author` s `search_id`, nebo `search=text` s `search_text`, zachovává `xid` i ostatní URL parametry. Používá jediný index 003 a jeho `searchDescriptions`; žádný konkurenční datový model ani nová D1 tabulka nevznikla.
+
+`npm run release:verify` prošel: 205 Python testů (a 8 subtestů), 116 Node/API testů, migrace a projekční smoke test skutečné izolované lokální D1, Vite build. Cílené e2e zahrnuje katalog 003, reálná místa a autory, URL/deep link/history, časový průnik a nulové shody, 429/500/missing-key/timeout, zneplatnění opožděné odpovědi, IME/klávesnici a stránkování. Sekundární XID s odlišným popisem je výslovná fixture nad reálnými entity records, protože publikovaní členové skupin aktuálně sdílejí popis; nenahrazuje test reálného katalogu.
+
+Responzivní rozložení s dlouhými skutečnými výsledky ověřeno v integrovaném prohlížeči i e2e (390×844, 820×1060, 1440×900), bez horizontálního scrollu. Čísla indexu a velikosti jsou v `docs/web-app.md`. OpenAPI Mapy Suggest ověřeno včetně query array `type` a `locality=BOX(...)`; CSP obsahuje konkrétní host. Live hostname/key oprávnění a zbývající kvóta zatím nejsou ověřené, placený tarif nebyl aktivován. Místní hledání při nedostupných adresách dál funguje. Main, push ani nasazení tento kandidát nemění; čeká na merge slot koordinátora.
+
+Následná klávesnicová regrese byla reprodukována pro prázdný i jednoznakový dotaz: šipka a Enter vybíraly skryté staré místo. Zavření nyní vyprázdní výsledky a šipky/Enter pracují jen s otevřenou aktuální nabídkou. Regresní e2e zachovávají již potvrzený filtr, URL i počet a neotevírají fotografii. Po této malé opravě byly zopakovány cílené UI unit/e2e, build a diff check; celý předchozí zelený release gate se neopakoval.
