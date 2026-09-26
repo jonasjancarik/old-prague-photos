@@ -248,3 +248,27 @@ test('real long results fit mobile, tablet and desktop without horizontal scroll
     await page.screenshot({ path: `.local/omnibox-${width}.png` });
   }
 });
+
+for (const [label, shortQuery] of [['empty', ''], ['one character', 'a']]) {
+  test(`a short (${label}) query cannot select stale suggestions with ArrowDown and Enter`, async ({ page }) => {
+    await open(page);
+    const input = page.locator('#map-search');
+    await input.fill('Eckert');
+    await input.press('Enter');
+    await expect(page.locator('#search-filter')).toContainText('Text: Eckert');
+    const confirmedUrl = page.url();
+    const confirmedCount = await page.locator('#photo-count').textContent();
+    await input.fill('Letenská');
+    await expect(page.locator('[data-kind=place]').filter({ hasText: 'Malá Strana' }).first()).toBeVisible();
+    await input.fill(shortQuery);
+    await expect(page.locator('#search-results')).toBeHidden();
+    await expect(input).toHaveAttribute('aria-controls', 'search-results');
+    await input.press('ArrowDown');
+    await expect(input).not.toHaveAttribute('aria-activedescendant', /.+/);
+    await input.press('Enter');
+    await expect(page.locator('#search-filter')).toContainText('Text: Eckert');
+    expect(page.url()).toBe(confirmedUrl);
+    await expect(page.locator('#photo-count')).toHaveText(confirmedCount);
+    await expect(page.locator('#archive-modal')).not.toHaveClass(/is-open/);
+  });
+}

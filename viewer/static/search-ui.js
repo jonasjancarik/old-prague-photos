@@ -25,12 +25,19 @@
       controller?.abort();
       popup.classList.add('is-hidden');
       input.setAttribute('aria-expanded', 'false');
+      input.setAttribute('aria-controls', popup.id);
       input.removeAttribute('aria-activedescendant');
       active = -1;
+      choices = [];
+      results = {};
+      limits = {};
+      addressMessage = '';
     };
     const activate = (index) => {
-      active = index;
-      popup.querySelectorAll('[role=option]').forEach((el, i) => {
+      const options = popup.querySelectorAll('[role=option]');
+      active = index >= 0 && !popup.classList.contains('is-hidden') && choices[index] && options[index]
+        ? index : -1;
+      options.forEach((el, i) => {
         el.setAttribute('aria-selected', String(i === active));
         if (i === active) {
           input.setAttribute('aria-activedescendant', el.id);
@@ -160,13 +167,14 @@
       if (event.key === 'Escape') { event.preventDefault(); close(); }
       else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         if (popup.classList.contains('is-hidden')) update();
-        if (!choices.length) return;
+        if (popup.classList.contains('is-hidden') || !choices.length) return;
         event.preventDefault();
         activate(active < 0 ? (event.key === 'ArrowDown' ? 0 : choices.length - 1)
           : (active + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length);
       } else if (event.key === 'Enter') {
         event.preventDefault();
-        const item = active >= 0 ? choices[active] : null;
+        const item = !popup.classList.contains('is-hidden') && active >= 0
+          ? choices[active] : null;
         const query = input.value.trim();
         close();
         if (item) onSelect(item);
