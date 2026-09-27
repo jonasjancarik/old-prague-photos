@@ -1,4 +1,4 @@
-import{m as a}from"./loadLegacyScripts-CTEPpsh0.js";import{i as n,a as e}from"./leaflet-Dp5Exmga.js";import{i as o}from"./openseadragon-CWtobWd5.js";const i=`  <div class="page page-map">
+import{m as a}from"./loadLegacyScripts-BRrKUVeL.js";import{i as n,a as e}from"./leaflet-Dp5Exmga.js";import{i as o}from"./openseadragon-CWtobWd5.js";const t=`  <div class="page page-map">
     <header class="topbar">
       <div class="topbar-title">
         <h1>Staré fotografie Prahy</h1>
@@ -107,6 +107,18 @@ import{m as a}from"./loadLegacyScripts-CTEPpsh0.js";import{i as n,a as e}from"./
       <div class="map-layout">
         <section class="map-panel">
           <div id="map" aria-label="Mapa s polohami fotografií"></div>
+          <div class="map-load-error" id="map-load-error" role="alert" hidden>
+            <div class="map-load-error-content">
+              <svg class="map-load-error-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="7" y="9" width="34" height="30" rx="4" />
+                <circle cx="17" cy="19" r="3" />
+                <path d="m8 33 10-9 8 7 6-5 9 8" />
+              </svg>
+              <h2>Fotografie se teď nedaří načíst</h2>
+              <p>Mapa fotografií je dočasně nedostupná. Zkuste stránku načíst znovu, nebo se vraťte za chvíli.</p>
+              <button class="primary" type="button" id="map-load-retry">Zkusit znovu</button>
+            </div>
+          </div>
           <div class="map-overlay">
             <div class="chip">Kliknutím otevřete fotografii</div>
           </div>
@@ -329,4 +341,4 @@ import{m as a}from"./loadLegacyScripts-CTEPpsh0.js";import{i as n,a as e}from"./
       </div>
     </div>
   </div>
-`;async function t(){n(),o(),await e(),await a(i,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./own-proposals.js","./correction-ui.js","./feedback-ui.js","./search-ui.js","./app.js"])}t().catch(console.error);
+`;async function i(){n(),o(),await e(),await a(t,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./own-proposals.js","./correction-ui.js","./feedback-ui.js","./search-ui.js","./app.js"])}i().catch(console.error);

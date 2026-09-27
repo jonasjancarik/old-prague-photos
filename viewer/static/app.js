@@ -2998,9 +2998,15 @@ window.addEventListener("popstate", () => {
   }
 });
 
+document.getElementById("map-load-retry")?.addEventListener("click", () => {
+  window.location.reload();
+});
+
 bootstrap().catch((err) => {
   state.reviewStateReady = false;
   updateContributionAvailability();
-  setStatus("Nepodařilo se načíst data.", "error");
+  document.querySelector(".page-map")?.classList.add("has-load-error");
+  const loadError = document.getElementById("map-load-error");
+  if (loadError) loadError.hidden = false;
   console.error(err);
 });

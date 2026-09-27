@@ -1,4 +1,4 @@
-import{m as n}from"./loadLegacyScripts-CTEPpsh0.js";import{i as e}from"./leaflet-Dp5Exmga.js";import{i as a}from"./openseadragon-CWtobWd5.js";const o=`  <div class="page page-help">
+import{m as n}from"./loadLegacyScripts-BRrKUVeL.js";import{i as e}from"./leaflet-Dp5Exmga.js";import{i as a}from"./openseadragon-CWtobWd5.js";const o=`  <div class="page page-help">
     <header class="topbar">
       <div>
         <p class="eyebrow">Komunitní kontrola</p>

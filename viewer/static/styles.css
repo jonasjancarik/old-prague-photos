@@ -2709,6 +2709,53 @@ textarea {
   min-height: 0;
 }
 
+.map-load-error:not([hidden]) {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--paper);
+  text-align: center;
+  overflow-y: auto;
+}
+
+.map-load-error-content {
+  max-width: 440px;
+}
+
+.map-load-error-icon {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 16px;
+  color: var(--accent-2);
+}
+
+.map-load-error h2 {
+  margin: 0 0 12px;
+  font-family: "Fraunces", serif;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  line-height: 1.2;
+}
+
+.map-load-error p {
+  margin: 0 0 24px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.page-map.has-load-error .map-toolbar,
+.page-map.has-load-error .map-overlay,
+.page-map.has-load-error .photo-grid-section,
+.page-map.has-load-error #map {
+  display: none;
+}
+
+.page-map.has-load-error .map-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 @media (min-width: 1180px) {
   /* Map and photo list share the viewport; only the list scrolls. */
   .page-map {

@@ -1,6 +1,6 @@
 # Web App (Viewer)
 
-Read when: changing the photo detail, private feedback, correction receipts, or the admin inbox.
+Read when: changing map loading, the photo detail, private feedback, correction receipts, or the admin inbox.
 
 The production architecture is a static Vite frontend on Cloudflare Pages with
 Pages Functions and D1 for community state. FastAPI remains a compatibility
@@ -10,6 +10,14 @@ preview loop; Pages + D1 is the canonical contribution runtime.
 Community help docs:
 - maintainer reference: [Community Help Workflows](./community-voting.md)
 - Czech user-facing guide: [Komunitní pomoc](./komunitni-pomoc.md)
+
+## Map loading failures
+
+If the photo catalog or initial community state cannot load, the map shows
+“Fotografie se teď nedaří načíst” with a “Zkusit znovu” button that reloads
+the page. The empty gallery, unavailable filters and map hint are hidden.
+The message applies to API and network failures without exposing internal
+errors or promising a recovery time. A successful reload restores the normal map.
 
 ## Private photo feedback
 
