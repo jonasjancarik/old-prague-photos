@@ -52,6 +52,7 @@ Status meanings:
 | `research/ahmp_limit/nav_partition.py` | research | archive-limit | Early nav-partition experiment; supported implementation is `src/scraper/nav_partition.py`. |
 | `viewer/annotations.py` | maintenance | web-runtime | Local curator metadata routes and revisioned SQLite history. |
 | `e2e/curator-annotations.spec.mjs` | maintenance | testing | Curator draft, publication, withdrawal and consistent detail/search checks. |
+| `e2e/map-loading-error.spec.mjs` | maintenance | testing | Desktop and mobile map loading failures, catalog network errors, and keyboard retry recovery. |
 
 New loose scripts must be added to this table with an explicit status. Prefer
 adding importable code under `src/` and exposing it through `cli.py` or
