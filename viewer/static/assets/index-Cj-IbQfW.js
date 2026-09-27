@@ -341,4 +341,4 @@ import{m as a}from"./loadLegacyScripts-BRrKUVeL.js";import{i as n,a as e}from"./
       </div>
     </div>
   </div>
-`;async function i(){n(),o(),await e(),await a(t,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./own-proposals.js","./correction-ui.js","./feedback-ui.js","./search-ui.js","./app.js"])}i().catch(console.error);
+`;async function i(){n(),o(),await e(),await a(t,["./zoomify.js","./photo-meta.js","./grouping.js","./media-filter.js","./session-verify.js","./own-proposals.js","./correction-ui.js","./feedback-ui.js","./search-ui.js","./app.js?v=1afd77520f14"])}i().catch(console.error);

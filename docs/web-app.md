@@ -18,6 +18,8 @@ If the photo catalog or initial community state cannot load, the map shows
 the page. The empty gallery, unavailable filters and map hint are hidden.
 The message applies to API and network failures without exposing internal
 errors or promising a recovery time. A successful reload restores the normal map.
+The map entry loads `app.js` with a content hash in its query string so browser
+caches cannot combine a new page template with an older map script.
 
 ## Private photo feedback
 

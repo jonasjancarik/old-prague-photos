@@ -20,7 +20,7 @@ async function bootstrap() {
     './correction-ui.js',
     './feedback-ui.js',
     './search-ui.js',
-    './app.js',
+    `./app.js?v=${__MAP_APP_SCRIPT_VERSION__}`,
   ]);
 }
 

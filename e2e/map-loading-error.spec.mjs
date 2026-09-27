@@ -1,4 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+
+const mapScriptVersion = createHash("sha256")
+  .update(readFileSync(new URL("../viewer/static/app.js", import.meta.url)))
+  .digest("hex").slice(0, 12);
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
   test(`community API failure shows a useful error and retry recovers at ${viewport.width}px`, async ({ page }) => {
@@ -11,6 +17,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     const error = page.locator("#map-load-error");
     await expect(error).toBeVisible();
     await expect(error).toHaveAttribute("role", "alert");
+    await expect(page.locator(`script[src="./app.js?v=${mapScriptVersion}"]`)).toHaveCount(1);
     await expect(error).toContainText("Fotografie se teď nedaří načíst");
     await expect(error).not.toContainText("503");
     await expect(page.locator(".map-toolbar")).toBeHidden();
