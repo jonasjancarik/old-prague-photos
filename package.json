@@ -22,6 +22,9 @@
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
-    "wrangler": "^4.110.0"
+    "wrangler": "^4.143.0"
+  },
+  "overrides": {
+    "undici": "7.29.1"
   }
 }
