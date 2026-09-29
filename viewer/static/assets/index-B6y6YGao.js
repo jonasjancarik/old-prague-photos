@@ -1,4 +1,4 @@
-import{m as a}from"./loadLegacyScripts-BRrKUVeL.js";import{i as n,a as e}from"./leaflet-Dp5Exmga.js";import{i as o}from"./openseadragon-CWtobWd5.js";const t=`  <div class="page page-map">
+import{m as a}from"./loadLegacyScripts-BR7TvZWU.js";import{i as n,a as e}from"./leaflet-CXZcGoEm.js";import{i as o}from"./openseadragon-SksYCL1e.js";const t=`  <div class="page page-map">
     <header class="topbar">
       <div class="topbar-title">
         <h1>Staré fotografie Prahy</h1>
