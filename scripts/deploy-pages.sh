@@ -49,7 +49,7 @@ else
     echo "Install the Cloudflare cf CLI or set CLOUDFLARE_API_TOKEN to verify the Pages production branch." >&2
     exit 2
   fi
-  PROJECT_CONFIG="$(cf pages projects get "$PROJECT_NAME")"
+  PROJECT_CONFIG="$(cf pages get "$PROJECT_NAME")"
   REMOTE_PRODUCTION_BRANCH="$(printf '%s' "$PROJECT_CONFIG" | jq -r '.production_branch // empty')"
 fi
 if [ -z "$REMOTE_PRODUCTION_BRANCH" ]; then

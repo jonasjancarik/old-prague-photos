@@ -155,6 +155,44 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("Pages production branch is 'different-production'", result.stderr)
 
+    def test_production_deploy_checks_branch_with_current_cf_command(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            git = Path(tmpdir) / "git"
+            git.write_text(
+                "#!/bin/sh\n"
+                "if [ \"$1\" = symbolic-ref ]; then printf '%s\\n' 'main'; fi\n",
+                encoding="utf-8",
+            )
+            git.chmod(0o755)
+            invocation = Path(tmpdir) / "cf-args.txt"
+            cf = Path(tmpdir) / "cf"
+            cf.write_text(
+                "#!/bin/sh\n"
+                f"printf '%s\\n' \"$@\" > '{invocation}'\n"
+                "printf '%s\\n' '{\"production_branch\":\"different-production\"}'\n",
+                encoding="utf-8",
+            )
+            cf.chmod(0o755)
+            env = os.environ.copy()
+            env.pop("CLOUDFLARE_API_TOKEN", None)
+            env.update({
+                "PATH": f"{tmpdir}:{env['PATH']}",
+                "CONFIRM_PRODUCTION_DEPLOY": "old-prague-photos",
+                "D1_BACKUP_DIR": "/tmp/not-used",
+                "PAGES_PRODUCTION_URL": "https://example.test",
+                "CLOUDFLARE_ACCOUNT_ID": "test-account",
+            })
+            result = subprocess.run(
+                ["sh", "scripts/deploy-pages.sh"],
+                check=False, capture_output=True, text=True, env=env,
+            )
+            self.assertEqual(
+                invocation.read_text().splitlines(),
+                ["pages", "get", "old-prague-photos-viewer"],
+            )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Pages production branch is 'different-production'", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
