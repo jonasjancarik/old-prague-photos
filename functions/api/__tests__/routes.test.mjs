@@ -2388,7 +2388,7 @@ test("GET /api/zoomify archive fallback resolves scan from permalink page", asyn
     },
   });
 
-  addCatalogPhoto(env, { id: "ZB", scan_zoomify_paths: [] });
+  addCatalogPhoto(env, { id: "ZB", scan_count: 2, scan_zoomify_paths: [] });
   const request = makeRequest("/api/zoomify?xid=ZB&scanIndex=1", { method: "GET" });
   const originalFetch = globalThis.fetch;
   let zoomifyActionTouched = false;

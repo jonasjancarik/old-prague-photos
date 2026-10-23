@@ -180,6 +180,154 @@ test("zoomify reads catalog metadata before preserving the feature fallback", as
   }
 });
 
+test("image endpoints reject malformed inputs, unknown photos and unavailable scans before fetch", async () => {
+  const { env } = environment([catalogRow("P1", "series-1", { scan_count: 2 })]);
+  env.R2_TILES_BASE = "https://invalid-inputs.example/tiles";
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    throw new Error("No upstream request should be made");
+  };
+  try {
+    for (const route of [previewUrlOnRequest, zoomifyOnRequest]) {
+      for (const [query, status] of [
+        ["xid=missing", 404],
+        ["xid=P1&scanIndex=2", 404],
+        ["xid=P1&scanIndex=999999999", 404],
+        ["xid=../bad", 400],
+        [`xid=${"x".repeat(129)}`, 400],
+        ...["-1", "1.5", "1junk", "", "NaN", "9007199254740992"].map(
+          (value) => [`xid=P1&scanIndex=${value}`, 400],
+        ),
+      ]) {
+        const response = await route({ request: request(`/api/image?${query}`), env });
+        assert.equal(response.status, status, query);
+      }
+      const response = await route({
+        request: request("/api/image?xid=P1", { method: "POST" }), env,
+      });
+      assert.equal(response.status, 405);
+    }
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("image endpoints preserve multi-scan and legacy catalog records", async () => {
+  const { env } = environment([
+    catalogRow("COUNT", "s", { scan_count: 2 }),
+    catalogRow("ARRAY", "s", { scan_count: 0, scan_previews: ["", ""] }),
+    catalogRow("PATHS", "s", { scan_zoomify_paths: ["", ""] }),
+    catalogRow("LEGACY", "s", {}),
+  ]);
+  env.R2_TILES_BASE = "https://valid-scans.example/tiles";
+  const originalFetch = globalThis.fetch;
+  const urls = [];
+  globalThis.fetch = async (input) => {
+    urls.push(String(input));
+    return new Response('<IMAGE_PROPERTIES WIDTH="100" HEIGHT="80" TILESIZE="256" />');
+  };
+  try {
+    for (const route of [previewUrlOnRequest, zoomifyOnRequest]) {
+      for (const xid of ["COUNT", "ARRAY", "PATHS", "LEGACY"]) {
+        const index = xid === "LEGACY" ? 0 : 1;
+        const response = await route({
+          request: request(`/api/image?xid=${xid}&scanIndex=${index}`), env,
+        });
+        assert.equal(response.status, 200, `${xid}:${index}`);
+        assert.match(urls.at(-1), new RegExp(`/${xid}/scan_${index}/`));
+      }
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("preview probes reuse negative results and retry after expiry", async () => {
+  const { env } = environment([catalogRow("EXPIRY", "s", {})]);
+  env.R2_TILES_BASE = "https://expiry.example/tiles";
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  let now = originalNow();
+  let calls = 0;
+  globalThis.fetch = async () => { calls += 1; return new Response(null, { status: 404 }); };
+  Date.now = () => now;
+  const invoke = () => previewUrlOnRequest({ request: request("/api/preview-url?xid=EXPIRY"), env });
+  try {
+    assert.equal((await invoke()).status, 200);
+    assert.equal((await invoke()).status, 200);
+    assert.equal(calls, 1);
+    now += 5 * 60 * 1000;
+    assert.equal((await invoke()).status, 200);
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+    Date.now = originalNow;
+  }
+});
+
+test("preview probe cache evicts old entries instead of growing with catalog traffic", async () => {
+  const rows = Array.from({ length: 257 }, (_, index) => catalogRow(`CACHE${index}`, "s", {}));
+  const { env } = environment(rows);
+  env.R2_TILES_BASE = "https://capacity.example/tiles";
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls += 1; return new Response(null, { status: 200 }); };
+  const invoke = (xid) => previewUrlOnRequest({ request: request(`/api/preview-url?xid=${xid}`), env });
+  try {
+    for (const row of rows) assert.equal((await invoke(row.xid)).status, 200);
+    assert.equal(calls, 257);
+    await invoke("CACHE256");
+    assert.equal(calls, 257, "recent entries remain cached");
+    await invoke("CACHE0");
+    assert.equal(calls, 258, "oldest entry was evicted");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("preview HEAD fallback discards the GET body", async () => {
+  const { env } = environment([catalogRow("BODY", "s", {})]);
+  env.R2_TILES_BASE = "https://body.example/tiles";
+  const originalFetch = globalThis.fetch;
+  let cancelled = false;
+  const methods = [];
+  globalThis.fetch = async (_, options) => {
+    methods.push(options.method);
+    if (options.method === "HEAD") return new Response(null, { status: 405 });
+    return new Response(new ReadableStream({ cancel() { cancelled = true; } }));
+  };
+  try {
+    const response = await previewUrlOnRequest({ request: request("/api/preview-url?xid=BODY"), env });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).source, "r2_tile");
+    assert.deepEqual(methods, ["HEAD", "GET"]);
+    assert.equal(cancelled, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("zoomify rejects oversized upstream metadata", async () => {
+  const { env } = environment([catalogRow("LARGE", "s", {})]);
+  env.R2_TILES_BASE = "https://large.example/tiles";
+  const originalFetch = globalThis.fetch;
+  let cancelled = false;
+  globalThis.fetch = async () => new Response(new ReadableStream({
+    start(controller) { controller.enqueue(new Uint8Array(128 * 1024 + 1)); },
+    cancel() { cancelled = true; },
+  }));
+  try {
+    const response = await zoomifyOnRequest({ request: request("/api/zoomify?xid=LARGE"), env });
+    assert.equal(response.status, 502);
+    assert.equal(cancelled, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("admin group search returns catalog-backed group summaries without asset reads", async () => {
   const { env, requestedAssetPaths } = environment([
     catalogRow("A1", "series-a", { description: "Old Town square" }),

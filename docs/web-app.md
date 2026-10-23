@@ -262,6 +262,17 @@ All endpoints live under `/api/*` (see `functions/api/*.js`).
   - Uses one indexed D1 photo lookup and prefers R2 when the scan exists there.
 - `GET /api/dezoomify?xid=...&scanIndex=0` - FastAPI-only full-resolution JPEG download (tile stitch on server)
 
+On Pages, preview and Zoomify accept GET requests only. Both reject malformed
+photo IDs and scan indices with `400`, and unknown photos or scans outside the
+catalog's range with `404`, before making upstream requests. The range uses the
+largest of `scan_count`, `scan_previews.length`, and `scan_zoomify_paths.length`;
+records without scan metadata still allow scan zero. Each upstream request has
+a five-second deadline including body consumption. XML responses are limited
+to 128 KiB and archive HTML to 1 MiB; preview probes discard response bodies.
+The preview probe cache retains positive and negative results for five minutes,
+removes expired entries on access, and holds at most 256 entries per isolate.
+These limits do not replace edge rate limiting for sustained traffic.
+
 Write API hardening:
 - `viewer/static/_headers` applies a deny-by-default CSP plus frame, MIME,
   referrer, camera, microphone, and browser-geolocation restrictions to Pages

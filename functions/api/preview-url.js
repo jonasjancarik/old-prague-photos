@@ -3,10 +3,17 @@ import {
   findCatalogPhoto,
   requireCatalog,
 } from "./_catalog.js";
+import {
+  catalogScanCount,
+  fetchImageResource,
+  isValidImageId,
+  parseScanIndex,
+} from "./_image_requests.js";
 
 const R2_PROBE_CACHE_TTL_MS = 5 * 60 * 1000;
+const R2_PROBE_CACHE_MAX_ENTRIES = 256;
 
-let r2ProbeCache = new Map();
+const r2ProbeCache = new Map();
 
 function normalizeId(value) {
   return String(value || "").trim();
@@ -24,11 +31,6 @@ function jsonResponse(payload, status = 200) {
       "Cache-Control": "no-store",
     },
   });
-}
-
-function normalizeScanIndex(value) {
-  const parsed = Number.parseInt(String(value ?? "0"), 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
 function parseBool(value, fallback = false) {
@@ -64,7 +66,7 @@ function pickCandidate(candidates, options = {}) {
 
 function previewFromFeatureProps(props, scanIndex = 0, options = {}) {
   const { allowArchiveFallback = true } = options;
-  const normalizedScanIndex = normalizeScanIndex(scanIndex);
+  const normalizedScanIndex = scanIndex;
   const previews = Array.isArray(props?.scan_previews) ? props.scan_previews : [];
   const previewUrl = pickCandidate(
     [previews[normalizedScanIndex], previews[0]],
@@ -99,29 +101,35 @@ function r2PreviewUrl(r2Base, xid, scanIndex = 0) {
 
 async function probeUrlExists(url) {
   if (!url) return false;
-  const cached = r2ProbeCache.get(url);
   const now = Date.now();
-  if (cached && now < cached.expiresAt) {
+  for (const [key, entry] of r2ProbeCache) {
+    if (now >= entry.expiresAt) r2ProbeCache.delete(key);
+  }
+  const cached = r2ProbeCache.get(url);
+  if (cached) {
     return cached.ok;
   }
 
-  const headers = { "User-Agent": "old-prague-photos/preview-probe" };
+  const userAgent = "old-prague-photos/preview-probe";
   let ok = false;
   try {
-    const head = await fetch(url, { method: "HEAD", headers });
+    const head = await fetchImageResource(url, { method: "HEAD", userAgent });
     if (head.ok) {
       ok = true;
     } else if (head.status === 405 || head.status === 501) {
-      const get = await fetch(url, { method: "GET", headers });
+      const get = await fetchImageResource(url, { userAgent });
       ok = get.ok;
     }
   } catch (error) {
     ok = false;
   }
 
+  if (r2ProbeCache.size >= R2_PROBE_CACHE_MAX_ENTRIES) {
+    r2ProbeCache.delete(r2ProbeCache.keys().next().value);
+  }
   r2ProbeCache.set(url, {
     ok,
-    expiresAt: now + R2_PROBE_CACHE_TTL_MS,
+    expiresAt: Date.now() + R2_PROBE_CACHE_TTL_MS,
   });
   return ok;
 }
@@ -133,10 +141,13 @@ export async function onRequest({ request, env }) {
 
   const url = new URL(request.url);
   const xid = normalizeId(url.searchParams.get("xid"));
-  const scanIndex = normalizeScanIndex(url.searchParams.get("scanIndex"));
+  const scanIndex = parseScanIndex(url.searchParams.get("scanIndex"));
   const allowArchiveFallback = parseBool(env.ALLOW_ARCHIVE_FALLBACK, false);
   if (!xid) {
     return jsonResponse({ detail: "Chybí xid" }, 400);
+  }
+  if (!isValidImageId(xid) || scanIndex === null) {
+    return jsonResponse({ detail: "Neplatné ID fotografie nebo číslo snímku" }, 400);
   }
 
   let catalogRow;
@@ -145,6 +156,11 @@ export async function onRequest({ request, env }) {
     catalogRow = await findCatalogPhoto(env, xid);
   } catch (error) {
     return jsonResponse({ detail: "Katalog fotografií není dočasně dostupný" }, 503);
+  }
+  if (!catalogRow) return jsonResponse({ detail: "Fotografie nebyla nalezena" }, 404);
+  const props = catalogFeature(catalogRow)?.properties || {};
+  if (scanIndex >= catalogScanCount(props)) {
+    return jsonResponse({ detail: "Snímek nebyl nalezen" }, 404);
   }
 
   const r2Candidate = r2PreviewUrl(env.R2_TILES_BASE || "", xid, scanIndex);
@@ -158,7 +174,7 @@ export async function onRequest({ request, env }) {
   }
 
   const preview = previewFromFeatureProps(
-    catalogFeature(catalogRow)?.properties || {},
+    props,
     scanIndex,
     {
       allowArchiveFallback,

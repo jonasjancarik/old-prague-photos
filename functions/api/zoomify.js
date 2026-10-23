@@ -3,6 +3,12 @@ import {
   findCatalogPhoto,
   requireCatalog,
 } from "./_catalog.js";
+import {
+  catalogScanCount,
+  fetchImageResource,
+  isValidImageId,
+  parseScanIndex,
+} from "./_image_requests.js";
 
 const ARCHIVE_DEFAULT = "https://katalog.ahmp.cz/pragapublica";
 
@@ -12,11 +18,6 @@ function normalizeId(value) {
 
 function normalizeBaseUrl(value) {
   return String(value || "").trim().replace(/\/$/, "");
-}
-
-function normalizeScanIndex(value) {
-  const parsed = Number.parseInt(String(value ?? "0"), 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
 function parseBool(value, fallback = false) {
@@ -74,28 +75,27 @@ function extract(pattern, text) {
   return match?.[1] || null;
 }
 
-async function fetchText(url) {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "old-prague-photos/zoomify",
-    },
+async function fetchText(url, maxBytes = 1024 * 1024) {
+  const response = await fetchImageResource(url, {
+    userAgent: "old-prague-photos/zoomify",
+    readText: true,
+    maxBytes,
   });
   if (!response.ok) {
     throw new Error(`Fetch failed: ${response.status}`);
   }
-  return response.text();
+  return response.text;
 }
 
 async function fetchTextIfExists(url) {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "old-prague-photos/zoomify",
-    },
+  const response = await fetchImageResource(url, {
+    userAgent: "old-prague-photos/zoomify",
+    readText: true,
   });
   if (!response.ok) {
     return null;
   }
-  return response.text();
+  return response.text;
 }
 
 function parseImageProperties(propsXml) {
@@ -212,7 +212,7 @@ async function resolveZoomify({
   const normalizedZoomifyImgPath = zoomifyImgPath.replace(/\/$/, "");
 
   const imagePropsUrl = `${normalizedZoomifyImgPath}/ImageProperties.xml`;
-  const propsXml = await fetchText(imagePropsUrl);
+  const propsXml = await fetchText(imagePropsUrl, 128 * 1024);
   const props = parseImageProperties(propsXml);
 
   return {
@@ -226,11 +226,17 @@ async function resolveZoomify({
 }
 
 export async function onRequest({ request, env }) {
+  if (request.method !== "GET") {
+    return jsonResponse({ detail: "Method Not Allowed" }, 405);
+  }
   const url = new URL(request.url);
   const xid = normalizeId(url.searchParams.get("xid"));
-  const scanIndex = normalizeScanIndex(url.searchParams.get("scanIndex"));
+  const scanIndex = parseScanIndex(url.searchParams.get("scanIndex"));
   if (!xid) {
     return jsonResponse({ detail: "Chybí xid" }, 400);
+  }
+  if (!isValidImageId(xid) || scanIndex === null) {
+    return jsonResponse({ detail: "Neplatné ID fotografie nebo číslo snímku" }, 400);
   }
 
   let catalogRow;
@@ -240,6 +246,11 @@ export async function onRequest({ request, env }) {
   } catch (error) {
     return jsonResponse({ detail: "Katalog fotografií není dočasně dostupný" }, 503);
   }
+  if (!catalogRow) return jsonResponse({ detail: "Fotografie nebyla nalezena" }, 404);
+  const featureProps = catalogFeature(catalogRow)?.properties || {};
+  if (scanIndex >= catalogScanCount(featureProps)) {
+    return jsonResponse({ detail: "Snímek nebyl nalezen" }, 404);
+  }
 
   const archiveBaseUrl = normalizeBaseUrl(env.ARCHIVE_BASE_URL || ARCHIVE_DEFAULT);
   const r2BaseUrl = normalizeBaseUrl(env.R2_TILES_BASE || "");
@@ -247,7 +258,7 @@ export async function onRequest({ request, env }) {
 
   try {
     const payload = await resolveZoomify({
-      featureProps: catalogFeature(catalogRow)?.properties || {},
+      featureProps,
       archiveBaseUrl,
       xid,
       scanIndex,
